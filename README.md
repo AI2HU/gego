@@ -22,7 +22,6 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 - **SEO/Marketing Research**: Track how brands and keywords are mentioned by AI assistants
 - **Competitive Analysis**: Compare keyword visibility across different LLMs
 - **Prompt Engineering**: Identify which prompts generate the most keyword mentions
-- **LLM Benchmarking**: Compare response patterns across different models
 - **Trend Analysis**: Monitor changes in keyword mentions over time
 
 ## Installation
