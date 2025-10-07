@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -12,7 +11,14 @@ import (
 
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/llm"
+	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
+)
+
+// Retry configuration constants
+const (
+	DefaultMaxRetries = 3
+	DefaultRetryDelay = 30 * time.Second
 )
 
 // Scheduler manages scheduled prompt executions
@@ -51,14 +57,14 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	// Register each schedule with cron
 	for _, schedule := range schedules {
 		if err := s.registerSchedule(ctx, schedule); err != nil {
-			log.Printf("Failed to register schedule %s: %v", schedule.ID, err)
+			logger.Error("Failed to register schedule %s: %v", schedule.ID, err)
 		}
 	}
 
 	s.cron.Start()
 	s.running = true
 
-	log.Println("Scheduler started")
+	logger.Info("Scheduler started")
 	return nil
 }
 
@@ -74,14 +80,14 @@ func (s *Scheduler) Stop() {
 	s.cron.Stop()
 	s.running = false
 
-	log.Println("Scheduler stopped")
+	logger.Info("Scheduler stopped")
 }
 
 // registerSchedule registers a schedule with cron
 func (s *Scheduler) registerSchedule(ctx context.Context, schedule *models.Schedule) error {
 	_, err := s.cron.AddFunc(schedule.CronExpr, func() {
 		if err := s.executeSchedule(context.Background(), schedule); err != nil {
-			log.Printf("Failed to execute schedule %s: %v", schedule.ID, err)
+			logger.Error("Failed to execute schedule %s: %v", schedule.ID, err)
 		}
 	})
 
@@ -89,46 +95,46 @@ func (s *Scheduler) registerSchedule(ctx context.Context, schedule *models.Sched
 		return fmt.Errorf("failed to add cron job: %w", err)
 	}
 
-	log.Printf("Registered schedule %s with cron expression: %s", schedule.ID, schedule.CronExpr)
+	logger.Info("Registered schedule %s with cron expression: %s", schedule.ID, schedule.CronExpr)
 	return nil
 }
 
 // executeSchedule executes a schedule
 func (s *Scheduler) executeSchedule(ctx context.Context, schedule *models.Schedule) error {
-	log.Printf("Executing schedule: %s", schedule.ID)
-	log.Printf("Schedule has %d prompts and %d LLMs", len(schedule.PromptIDs), len(schedule.LLMIDs))
+	logger.Info("Executing schedule: %s", schedule.ID)
+	logger.Info("Schedule has %d prompts and %d LLMs", len(schedule.PromptIDs), len(schedule.LLMIDs))
 
 	// Get prompts
 	prompts := make([]*models.Prompt, 0, len(schedule.PromptIDs))
 	for _, promptID := range schedule.PromptIDs {
-		log.Printf("Getting prompt: %s", promptID)
+		logger.Debug("Getting prompt: %s", promptID)
 		prompt, err := s.db.GetPrompt(ctx, promptID)
 		if err != nil {
-			log.Printf("Failed to get prompt %s: %v", promptID, err)
+			logger.Error("Failed to get prompt %s: %v", promptID, err)
 			continue
 		}
-		log.Printf("Retrieved prompt: %s (%s)", prompt.Template, prompt.ID)
+		logger.Debug("Retrieved prompt: %s (%s)", prompt.Template, prompt.ID)
 		prompts = append(prompts, prompt)
 	}
 
 	// Get LLMs
 	llms := make([]*models.LLMConfig, 0, len(schedule.LLMIDs))
 	for _, llmID := range schedule.LLMIDs {
-		log.Printf("Getting LLM: %s", llmID)
+		logger.Debug("Getting LLM: %s", llmID)
 		llmConfig, err := s.db.GetLLM(ctx, llmID)
 		if err != nil {
-			log.Printf("Failed to get LLM %s: %v", llmID, err)
+			logger.Error("Failed to get LLM %s: %v", llmID, err)
 			continue
 		}
 		if !llmConfig.Enabled {
-			log.Printf("LLM %s is disabled, skipping", llmConfig.Name)
+			logger.Warning("LLM %s is disabled, skipping", llmConfig.Name)
 			continue
 		}
-		log.Printf("Retrieved LLM: %s (%s) - API Key: %s", llmConfig.Name, llmConfig.ID, maskAPIKey(llmConfig.APIKey))
+		logger.Debug("Retrieved LLM: %s (%s) - API Key: %s", llmConfig.Name, llmConfig.ID, maskAPIKey(llmConfig.APIKey))
 		llms = append(llms, llmConfig)
 	}
 
-	log.Printf("Found %d prompts and %d enabled LLMs", len(prompts), len(llms))
+	logger.Info("Found %d prompts and %d enabled LLMs", len(prompts), len(llms))
 
 	// Execute each prompt against each LLM
 	var wg sync.WaitGroup
@@ -139,28 +145,30 @@ func (s *Scheduler) executeSchedule(ctx context.Context, schedule *models.Schedu
 			executionCount++
 			go func(p *models.Prompt, l *models.LLMConfig) {
 				defer wg.Done()
-				log.Printf("Executing prompt '%s' with LLM '%s'", p.Template, l.Name)
-				if err := s.executePromptWithLLM(ctx, schedule.ID, p, l); err != nil {
-					log.Printf("Failed to execute prompt %s with LLM %s: %v", p.ID, l.ID, err)
+				logger.Debug("Executing prompt '%s' with LLM '%s'", p.Template, l.Name)
+
+				// Use retry mechanism: 3 attempts with 30-second delays
+				if err := s.executePromptWithRetry(ctx, schedule.ID, p, l, DefaultMaxRetries, DefaultRetryDelay); err != nil {
+					logger.Error("Failed to execute prompt %s with LLM %s after all retries: %v", p.ID, l.ID, err)
 				} else {
-					log.Printf("Successfully executed prompt %s with LLM %s", p.ID, l.ID)
+					logger.Debug("Successfully executed prompt %s with LLM %s", p.ID, l.ID)
 				}
 			}(prompt, llmConfig)
 		}
 	}
 
-	log.Printf("Starting %d concurrent executions", executionCount)
+	logger.Info("Starting %d concurrent executions", executionCount)
 	wg.Wait()
-	log.Printf("Completed %d executions", executionCount)
+	logger.Info("Completed %d executions", executionCount)
 
 	// Update schedule last run time
 	now := time.Now()
 	schedule.LastRun = &now
 	if err := s.db.UpdateSchedule(ctx, schedule); err != nil {
-		log.Printf("Failed to update schedule last run: %v", err)
+		logger.Error("Failed to update schedule last run: %v", err)
 	}
 
-	log.Printf("Completed schedule: %s", schedule.ID)
+	logger.Info("Completed schedule: %s", schedule.ID)
 	return nil
 }
 
@@ -183,17 +191,46 @@ func min(a, b int) int {
 	return b
 }
 
+// executePromptWithRetry executes a prompt with retry mechanism
+func (s *Scheduler) executePromptWithRetry(ctx context.Context, scheduleID string, prompt *models.Prompt, llmConfig *models.LLMConfig, maxRetries int, retryDelay time.Duration) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		logger.Debug("Attempt %d/%d for prompt '%s' with LLM '%s'", attempt, maxRetries, prompt.Template[:min(50, len(prompt.Template))]+"...", llmConfig.Name)
+
+		err := s.executePromptWithLLM(ctx, scheduleID, prompt, llmConfig)
+		if err == nil {
+			if attempt > 1 {
+				logger.Info("✅ Prompt execution succeeded on attempt %d after %d previous failures", attempt, attempt-1)
+			}
+			return nil
+		}
+
+		lastErr = err
+		logger.Warning("❌ Attempt %d/%d failed for prompt '%s' with LLM '%s': %v", attempt, maxRetries, prompt.Template[:min(50, len(prompt.Template))]+"...", llmConfig.Name, err)
+
+		// Don't wait after the last attempt
+		if attempt < maxRetries {
+			logger.Info("⏳ Waiting %v before retry attempt %d...", retryDelay, attempt+1)
+			time.Sleep(retryDelay)
+		}
+	}
+
+	logger.Error("💥 All %d attempts failed for prompt '%s' with LLM '%s'. Last error: %v", maxRetries, prompt.Template[:min(50, len(prompt.Template))]+"...", llmConfig.Name, lastErr)
+	return fmt.Errorf("failed after %d attempts, last error: %w", maxRetries, lastErr)
+}
+
 // executePromptWithLLM executes a single prompt with a single LLM
 func (s *Scheduler) executePromptWithLLM(ctx context.Context, scheduleID string, prompt *models.Prompt, llmConfig *models.LLMConfig) error {
-	log.Printf("Starting execution: prompt='%s' LLM='%s' provider='%s'", prompt.Template, llmConfig.Name, llmConfig.Provider)
+	logger.Info("Starting execution: prompt='%s' LLM='%s' provider='%s'", prompt.Template, llmConfig.Name, llmConfig.Provider)
 
 	// Get LLM provider
 	provider, ok := s.llmRegistry.Get(llmConfig.Provider)
 	if !ok {
-		log.Printf("Provider not found: %s", llmConfig.Provider)
+		logger.Error("Provider not found: %s", llmConfig.Provider)
 		return fmt.Errorf("provider not found: %s", llmConfig.Provider)
 	}
-	log.Printf("Found provider for: %s", llmConfig.Provider)
+	logger.Debug("Found provider for: %s", llmConfig.Provider)
 
 	// Prepare config
 	config := make(map[string]interface{})
@@ -205,16 +242,16 @@ func (s *Scheduler) executePromptWithLLM(ctx context.Context, scheduleID string,
 	for k, v := range llmConfig.Config {
 		config[k] = v
 	}
-	log.Printf("Prepared config for LLM: model=%s api_key=%s base_url=%s", llmConfig.Model, maskAPIKey(llmConfig.APIKey), llmConfig.BaseURL)
+	logger.Debug("Prepared config for LLM: model=%s api_key=%s base_url=%s", llmConfig.Model, maskAPIKey(llmConfig.APIKey), llmConfig.BaseURL)
 
 	// Generate response
-	log.Printf("Calling LLM provider with prompt: %s", prompt.Template[:min(50, len(prompt.Template))]+"...")
+	logger.Debug("Calling LLM provider with prompt: %s", prompt.Template[:min(50, len(prompt.Template))]+"...")
 	startTime := time.Now()
 	resp, err := provider.Generate(ctx, prompt.Template, config)
 	duration := time.Since(startTime)
 
 	if err != nil {
-		log.Printf("LLM call failed after %v: %v", duration, err)
+		logger.Error("LLM call failed after %v: %v", duration, err)
 		// Store error response
 		response := &models.Response{
 			ID:          uuid.New().String(),
@@ -232,7 +269,7 @@ func (s *Scheduler) executePromptWithLLM(ctx context.Context, scheduleID string,
 		return s.db.CreateResponse(ctx, response)
 	}
 
-	log.Printf("LLM call succeeded after %v, response length: %d", duration, len(resp.Text))
+	logger.Info("LLM call succeeded after %v, response length: %d", duration, len(resp.Text))
 
 	// Create response record
 	response := &models.Response{
@@ -275,7 +312,7 @@ func (s *Scheduler) ExecutePrompt(ctx context.Context, promptID string, llmIDs [
 	for _, llmID := range llmIDs {
 		llmConfig, err := s.db.GetLLM(ctx, llmID)
 		if err != nil {
-			log.Printf("Failed to get LLM %s: %v", llmID, err)
+			logger.Error("Failed to get LLM %s: %v", llmID, err)
 			continue
 		}
 		llms = append(llms, llmConfig)
@@ -286,8 +323,9 @@ func (s *Scheduler) ExecutePrompt(ctx context.Context, promptID string, llmIDs [
 		wg.Add(1)
 		go func(l *models.LLMConfig) {
 			defer wg.Done()
-			if err := s.executePromptWithLLM(ctx, "", prompt, l); err != nil {
-				log.Printf("Failed to execute prompt %s with LLM %s: %v", prompt.ID, l.ID, err)
+			// Use retry mechanism: 3 attempts with 30-second delays
+			if err := s.executePromptWithRetry(ctx, "", prompt, l, DefaultMaxRetries, DefaultRetryDelay); err != nil {
+				logger.Error("Failed to execute prompt %s with LLM %s after all retries: %v", prompt.ID, l.ID, err)
 			}
 		}(llmConfig)
 	}

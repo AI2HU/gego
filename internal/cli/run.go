@@ -8,6 +8,8 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+
+	"github.com/AI2HU/gego/internal/logger"
 )
 
 var runCmd = &cobra.Command{
@@ -25,17 +27,15 @@ func runScheduler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize LLM providers: %w", err)
 	}
 
-	fmt.Printf("%s🚀 Starting Gego Scheduler%s\n", FormatHeader(""), Reset)
-	fmt.Printf("%s=========================%s\n", DimStyle, Reset)
-	fmt.Println()
+	logger.Info("🚀 Starting Gego Scheduler")
+	logger.Info("=========================")
 
 	// Start scheduler
 	if err := sched.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
 
-	fmt.Printf("%s✅ Scheduler is running. Press Ctrl+C to stop.%s\n", SuccessStyle, Reset)
-	fmt.Println()
+	logger.Info("✅ Scheduler is running. Press Ctrl+C to stop.")
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
@@ -43,9 +43,9 @@ func runScheduler(cmd *cobra.Command, args []string) error {
 
 	<-sigChan
 
-	fmt.Printf("\n%s⏸️  Stopping scheduler...%s\n", WarningStyle, Reset)
+	logger.Info("⏸️  Stopping scheduler...")
 	sched.Stop()
 
-	fmt.Printf("%s✅ Scheduler stopped. Goodbye!%s\n", SuccessStyle, Reset)
+	logger.Info("✅ Scheduler stopped. Goodbye!")
 	return nil
 }

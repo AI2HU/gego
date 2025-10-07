@@ -15,6 +15,8 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 - 🔌 **Pluggable Architecture**: Easy to add new LLM providers and database backends
 - 🎯 **Automatic Keyword Extraction**: Intelligently extracts keywords from responses (no predefined list needed)
 - 📉 **Performance Metrics**: Monitor latency, token usage, and error rates
+- 🔄 **Retry Mechanism**: Automatic retry with 30-second delays for failed requests
+- 📝 **Configurable Logging**: DEBUG, INFO, WARNING, ERROR levels with file output support
 - **Personnas**: create your own personnas for more accurate metrics
 
 ## Use Cases
@@ -177,6 +179,122 @@ database:
 
 Note: Keywords are automatically extracted from LLM responses. No predefined list needed!
 
+## Logging
+
+Gego includes a comprehensive logging system that allows you to control log levels and output destinations for better monitoring and debugging.
+
+### Log Levels
+
+- **DEBUG**: Detailed information for debugging (most verbose)
+- **INFO**: General information about application flow (default)
+- **WARNING**: Warning messages for potential issues
+- **ERROR**: Error messages for failures (least verbose)
+
+### Command Line Options
+
+#### `--log-level`
+Set the minimum log level to display:
+
+```bash
+# Show only errors
+gego run --log-level ERROR
+
+# Show warnings and errors
+gego run --log-level WARNING
+
+# Show info, warnings, and errors (default)
+gego run --log-level INFO
+
+# Show all messages including debug
+gego run --log-level DEBUG
+```
+
+#### `--log-file`
+Specify a file to write logs to instead of stdout:
+
+```bash
+# Log to a file
+gego run --log-file /var/log/gego.log
+
+# Log to file with debug level
+gego run --log-level DEBUG --log-file /var/log/gego-debug.log
+```
+
+### Usage Examples
+
+#### Production Deployment
+```bash
+# Log only errors to a file for production
+gego run --log-level ERROR --log-file /var/log/gego/error.log
+```
+
+#### Development/Debugging
+```bash
+# Show all debug information on stdout
+gego run --log-level DEBUG
+```
+
+#### Monitoring
+```bash
+# Log info and above to a file for monitoring
+gego run --log-level INFO --log-file /var/log/gego/app.log
+```
+
+### Log Format
+
+Logs are formatted with timestamps and level prefixes:
+
+```
+[INFO] 2024-01-15 10:30:45 Logging initialized - Level: INFO
+[INFO] 2024-01-15 10:30:45 🚀 Starting Gego Scheduler
+[DEBUG] 2024-01-15 10:30:45 Getting prompt: prompt-123
+[INFO] 2024-01-15 10:30:45 Found 3 prompts and 2 enabled LLMs
+[WARNING] 2024-01-15 10:30:46 ❌ Attempt 1/3 failed: connection timeout
+[INFO] 2024-01-15 10:30:46 ⏳ Waiting 30s before retry attempt 2...
+[ERROR] 2024-01-15 10:30:47 💥 All 3 attempts failed. Last error: service unavailable
+```
+
+### Retry Mechanism
+
+Gego automatically retries failed prompt requests with the following behavior:
+
+- **Maximum Retries**: 3 attempts total
+- **Retry Delay**: 30 seconds between each attempt
+- **Automatic Recovery**: Handles temporary network issues and API rate limits
+- **Detailed Logging**: Comprehensive retry attempt tracking
+
+Example retry log:
+```
+[WARNING] ❌ Attempt 1/3 failed for prompt 'What are the best streaming services...' with LLM 'GPT-4': connection timeout
+[INFO] ⏳ Waiting 30s before retry attempt 2...
+[INFO] ✅ Prompt execution succeeded on attempt 2 after 1 previous failures
+```
+
+### Integration with System Logging
+
+For production deployments, you can integrate with system logging:
+
+```bash
+# Use systemd journal
+gego run --log-level INFO | systemd-cat -t gego
+
+# Use syslog
+gego run --log-level WARNING --log-file /dev/log
+```
+
+### Monitoring Commands
+
+```bash
+# Monitor retry attempts
+gego run --log-level DEBUG | grep "Attempt"
+
+# Monitor retry failures
+gego run --log-level WARNING | grep "❌"
+
+# Monitor successful retries
+gego run --log-level INFO | grep "✅"
+```
+
 ## Architecture
 
 ### Database Schema (MongoDB)
@@ -267,6 +385,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 - [ ] Persona embedding to simulate Chat version of models
 - [ ] System prompt to simulate Chat version of models
+- [ ] Schedules cost forecast
 - [ ] Cassandra database support
 - [ ] Web dashboard for visualizations
 - [ ] Export statistics to CSV/JSON
