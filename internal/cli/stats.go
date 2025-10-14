@@ -66,7 +66,6 @@ func runStatsKeywords(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%sNo keyword statistics available yet. Run some schedules first!%s\n", WarningStyle, Reset)
 		return nil
 	}
-
 	fmt.Printf("%s📊 Top Keywords by Mentions%s\n", HeaderStyle, Reset)
 	fmt.Printf("%s===========================%s\n", DimStyle, Reset)
 	fmt.Println()
