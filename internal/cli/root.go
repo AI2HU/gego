@@ -15,6 +15,7 @@ import (
 	"github.com/AI2HU/gego/internal/llm/google"
 	"github.com/AI2HU/gego/internal/llm/ollama"
 	"github.com/AI2HU/gego/internal/llm/openai"
+	"github.com/AI2HU/gego/internal/llm/perplexity"
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/scheduler"
@@ -105,6 +106,7 @@ and compare performance across different LLM providers.`,
 		llmRegistry.Register(anthropic.New("", ""))
 		llmRegistry.Register(ollama.New(""))
 		llmRegistry.Register(google.New("", ""))
+		llmRegistry.Register(perplexity.New("", ""))
 
 		// Initialize scheduler
 		sched = scheduler.New(database, llmRegistry)
@@ -161,6 +163,8 @@ func initializeLLMProviders(ctx context.Context) error {
 			provider = ollama.New(llmConfig.BaseURL)
 		case "google":
 			provider = google.New(llmConfig.APIKey, llmConfig.BaseURL)
+		case "perplexity":
+			provider = perplexity.New(llmConfig.APIKey, llmConfig.BaseURL)
 		default:
 			continue
 		}

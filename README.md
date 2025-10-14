@@ -7,7 +7,7 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 
 ## Features
 
-- 🤖 **Multi-LLM Support**: Works with OpenAI, Anthropic, Ollama, and custom LLM providers
+- 🤖 **Multi-LLM Support**: Works with OpenAI, Anthropic, Ollama, Google, Perplexity, and custom LLM providers
 - 📊 **NoSQL Database**: Agnostic design supporting MongoDB and Cassandra with optimized analytics
 - ⏰ **Flexible Scheduling**: Cron-based scheduler for automated prompt execution
 - 📈 **Comprehensive Analytics**: Track keyword mentions, compare prompts and LLMs, view trends
@@ -72,6 +72,8 @@ Example providers:
 - OpenAI (GPT-4, GPT-3.5)
 - Anthropic (Claude)
 - Ollama (Local models)
+- Google (Gemini)
+- Perplexity (Sonar)
 
 ### 3. Create Prompts
 

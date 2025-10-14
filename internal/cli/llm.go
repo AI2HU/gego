@@ -23,6 +23,7 @@ const (
 	Anthropic
 	Ollama
 	Google
+	Perplexity
 )
 
 // String returns the string representation of the provider
@@ -36,6 +37,8 @@ func (p Provider) String() string {
 		return "ollama"
 	case Google:
 		return "google"
+	case Perplexity:
+		return "perplexity"
 	default:
 		return "unknown"
 	}
@@ -52,6 +55,8 @@ func FromString(s string) Provider {
 		return Ollama
 	case "google":
 		return Google
+	case "perplexity":
+		return Perplexity
 	default:
 		return 0 // Unknown provider
 	}
@@ -68,6 +73,8 @@ func (p Provider) DisplayName() string {
 		return "Ollama (local models)"
 	case Google:
 		return "Google (Gemini)"
+	case Perplexity:
+		return "Perplexity (Sonar)"
 	default:
 		return "Unknown"
 	}
@@ -75,7 +82,7 @@ func (p Provider) DisplayName() string {
 
 // AllProviders returns a slice of all available providers
 func AllProviders() []Provider {
-	return []Provider{OpenAI, Anthropic, Ollama, Google}
+	return []Provider{OpenAI, Anthropic, Ollama, Google, Perplexity}
 }
 
 // GetConsoleURL returns the console URL where API keys can be generated for the provider
@@ -87,6 +94,8 @@ func (p Provider) GetConsoleURL() string {
 		return "https://console.anthropic.com/"
 	case Google:
 		return "https://makersuite.google.com/app/apikey"
+	case Perplexity:
+		return "https://www.perplexity.ai/settings/api"
 	case Ollama:
 		return "https://ollama.ai/" // Ollama doesn't need API keys, but provides setup info
 	default:
@@ -173,12 +182,12 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(provider.DisplayName()))
 	}
 
-	providerChoice, err := promptWithRetry(reader, "\nSelect provider (1, 2, 3, or 4): ", func(input string) (string, error) {
+	providerChoice, err := promptWithRetry(reader, "\nSelect provider (1, 2, 3, 4, or 5): ", func(input string) (string, error) {
 		switch input {
-		case "1", "2", "3", "4":
+		case "1", "2", "3", "4", "5":
 			return input, nil
 		default:
-			return "", fmt.Errorf("invalid provider choice: %s (choose 1, 2, 3, or 4)", input)
+			return "", fmt.Errorf("invalid provider choice: %s (choose 1, 2, 3, 4, or 5)", input)
 		}
 	})
 	if err != nil {
@@ -195,6 +204,8 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 		selectedProvider = Ollama
 	case "4":
 		selectedProvider = Google
+	case "5":
+		selectedProvider = Perplexity
 	}
 
 	providerName := selectedProvider.String()
@@ -202,7 +213,7 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 	// Step 2: Get credentials
 	var apiKey, baseURL string
 
-	if selectedProvider == OpenAI || selectedProvider == Anthropic || selectedProvider == Google {
+	if selectedProvider == OpenAI || selectedProvider == Anthropic || selectedProvider == Google || selectedProvider == Perplexity {
 		fmt.Printf("\n🔑 %s API Key Required\n", selectedProvider.DisplayName())
 		fmt.Printf("Get your API key from: %s\n", selectedProvider.GetConsoleURL())
 
