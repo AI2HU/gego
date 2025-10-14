@@ -5,6 +5,7 @@
 *.so
 *.dylib
 gego
+*.db
 
 # Test binary, built with `go test -c`
 *.test
