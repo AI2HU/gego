@@ -10,13 +10,13 @@ import (
 
 	"github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
-	"github.com/AI2HU/gego/internal/db/mongodb"
 	"github.com/AI2HU/gego/internal/llm"
 	"github.com/AI2HU/gego/internal/llm/anthropic"
 	"github.com/AI2HU/gego/internal/llm/google"
 	"github.com/AI2HU/gego/internal/llm/ollama"
 	"github.com/AI2HU/gego/internal/llm/openai"
 	"github.com/AI2HU/gego/internal/logger"
+	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/scheduler"
 	"github.com/AI2HU/gego/internal/stats"
 )
@@ -67,31 +67,35 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Initialize database
-		dbConfig := &db.Config{
-			Provider: cfg.Database.Provider,
-			URI:      cfg.Database.URI,
-			Database: cfg.Database.Database,
-			Options:  cfg.Database.Options,
+		// Initialize hybrid database (SQLite + NoSQL)
+		sqlConfig := &models.Config{
+			Provider: cfg.SQLDatabase.Provider,
+			URI:      cfg.SQLDatabase.URI,
+			Database: cfg.SQLDatabase.Database,
+			Options:  cfg.SQLDatabase.Options,
 		}
 
-		switch dbConfig.Provider {
-		case "mongodb":
-			database, err = mongodb.New(dbConfig)
-			if err != nil {
-				return fmt.Errorf("failed to create database: %w", err)
-			}
-		default:
-			return fmt.Errorf("unsupported database provider: %s", dbConfig.Provider)
+		nosqlConfig := &models.Config{
+			Provider: cfg.NoSQLDatabase.Provider,
+			URI:      cfg.NoSQLDatabase.URI,
+			Database: cfg.NoSQLDatabase.Database,
+			Options:  cfg.NoSQLDatabase.Options,
+		}
+
+		database, err = db.New(sqlConfig, nosqlConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create hybrid database: %w", err)
 		}
 
 		if err := database.Connect(context.Background()); err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 
-		// Initialize stats service
-		if mongoDB, ok := database.(*mongodb.MongoDB); ok {
-			statsService = stats.New(mongoDB.GetDatabase())
+		// Initialize stats service using NoSQL database
+		if hybridDB, ok := database.(*db.HybridDB); ok {
+			if mongoDB := hybridDB.GetNoSQLDatabase(); mongoDB != nil {
+				statsService = stats.New(mongoDB.GetDatabase())
+			}
 		}
 
 		// Initialize LLM registry

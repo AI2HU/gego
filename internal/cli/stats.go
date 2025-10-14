@@ -1,14 +1,16 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
-	"github.com/AI2HU/gego/internal/db"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 var (
@@ -35,9 +37,18 @@ var statsKeywordCmd = &cobra.Command{
 	RunE:  runStatsKeyword,
 }
 
+var statsResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Reset all statistics by clearing all responses",
+	Long:  `Reset all statistics by deleting all responses from the database. This will clear all keyword statistics, prompt statistics, and LLM statistics. Prompts and LLMs will remain intact.`,
+	Args:  cobra.NoArgs,
+	RunE:  runStatsReset,
+}
+
 func init() {
 	statsCmd.AddCommand(statsKeywordsCmd)
 	statsCmd.AddCommand(statsKeywordCmd)
+	statsCmd.AddCommand(statsResetCmd)
 
 	statsCmd.PersistentFlags().IntVarP(&statsLimit, "limit", "l", 10, "Limit number of results")
 	statsKeywordCmd.Flags().StringVarP(&statsKeyword, "keyword", "k", "", "Keyword name")
@@ -118,16 +129,20 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 		prompt, err := database.GetPrompt(ctx, item.Key)
 		displayText := item.Key
 		if err == nil {
-			// Show the actual prompt content instead of the name
+			// Show the actual prompt content instead of the ID
 			displayText = prompt.Template
-			// Truncate in the middle if too long (show start and end)
-			if len(displayText) > 60 {
-				start := displayText[:25]
-				end := displayText[len(displayText)-25:]
+			// Truncate if too long (show start and end)
+			if len(displayText) > 80 {
+				start := displayText[:35]
+				end := displayText[len(displayText)-35:]
 				displayText = start + "..." + end
 			}
+		} else {
+			// Show that this is historical data
+			displayText = fmt.Sprintf("[Deleted Prompt: %s]", item.Key[:8])
 		}
-		fmt.Printf("  %s%d. %s: %s mentions%s\n", CountStyle, i+1, Reset, FormatValue(displayText), CountStyle+fmt.Sprintf(" %d", item.Value)+Reset)
+		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(displayText))
+		fmt.Printf("     %s%d mentions%s\n", DimStyle, item.Value, Reset)
 	}
 
 	fmt.Println()
@@ -148,11 +163,16 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 			break
 		}
 		llm, err := database.GetLLM(ctx, item.Key)
-		name := item.Key
+		displayText := item.Key
 		if err == nil {
-			name = fmt.Sprintf("%s (%s)", llm.Name, llm.Provider)
+			// Show model name and provider instead of ID
+			displayText = fmt.Sprintf("%s (%s)", llm.Model, llm.Provider)
+		} else {
+			// Show that this is historical data
+			displayText = fmt.Sprintf("[Deleted LLM: %s]", item.Key[:8])
 		}
-		fmt.Printf("  %s%d. %s: %s mentions%s\n", CountStyle, i+1, Reset, FormatValue(name), CountStyle+fmt.Sprintf(" %d", item.Value)+Reset)
+		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(displayText))
+		fmt.Printf("     %s%d mentions%s\n", DimStyle, item.Value, Reset)
 	}
 
 	fmt.Println()
@@ -178,21 +198,58 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Helper to filter responses
-func filterResponses(ctx context.Context, filter db.ResponseFilter) error {
-	responses, err := database.ListResponses(ctx, filter)
+func runStatsReset(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf("%s🔄 Reset All Statistics%s\n", FormatHeader(""), Reset)
+	fmt.Printf("%s========================%s\n", DimStyle, Reset)
+	fmt.Println()
+
+	fmt.Printf("%s⚠️  Warning: This will permanently delete ALL responses from the database.%s\n", WarningStyle, Reset)
+	fmt.Printf("%sThis action will:%s\n", LabelStyle, Reset)
+	fmt.Printf("  %s• Clear all keyword statistics%s\n", DimStyle, Reset)
+	fmt.Printf("  %s• Clear all prompt statistics%s\n", DimStyle, Reset)
+	fmt.Printf("  %s• Clear all LLM statistics%s\n", DimStyle, Reset)
+	fmt.Printf("  %s• Delete all response data%s\n", DimStyle, Reset)
+	fmt.Printf("  %s• Keep prompts and LLMs intact%s\n", DimStyle, Reset)
+	fmt.Println()
+
+	fmt.Printf("%sThis action cannot be undone!%s\n", ErrorStyle, Reset)
+	fmt.Println()
+
+	confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure you want to reset all statistics? (y/N): %s", ErrorStyle, Reset))
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Found %d responses\n", len(responses))
-	for _, resp := range responses {
-		promptPreview := resp.PromptText
-		if len(promptPreview) > 50 {
-			promptPreview = promptPreview[:50] + "..."
-		}
-		fmt.Printf("- %s: %s\n", resp.LLMName, promptPreview)
+	if !confirmed {
+		fmt.Printf("%sCancelled.%s\n", WarningStyle, Reset)
+		return nil
 	}
+
+	fmt.Printf("\n%s🗑️  Clearing all responses...%s\n", InfoStyle, Reset)
+
+	// Get count of responses before deletion
+	responses, err := database.ListResponses(ctx, shared.ResponseFilter{Limit: 1})
+	if err != nil {
+		return fmt.Errorf("failed to check responses: %w", err)
+	}
+
+	if len(responses) == 0 {
+		fmt.Printf("%sNo responses found to delete.%s\n", WarningStyle, Reset)
+		return nil
+	}
+
+	// Delete all responses
+	deletedCount, err := database.DeleteAllResponses(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete responses: %w", err)
+	}
+
+	fmt.Printf("%s✅ Successfully deleted %s responses!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
+	fmt.Printf("%s🎉 All statistics have been reset.%s\n", SuccessStyle, Reset)
+	fmt.Printf("%sYou can now run new prompts to generate fresh statistics.%s\n", InfoStyle, Reset)
 
 	return nil
 }

@@ -10,12 +10,13 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Database DatabaseConfig `yaml:"database"`
+	SQLDatabase   DatabaseConfig `yaml:"sql_database"`   // SQLite for LLMs and Schedules
+	NoSQLDatabase DatabaseConfig `yaml:"nosql_database"` // MongoDB for Prompts and Responses
 }
 
 // DatabaseConfig represents database configuration
 type DatabaseConfig struct {
-	Provider string            `yaml:"provider"` // mongodb, cassandra
+	Provider string            `yaml:"provider"` // sqlite, mongodb, cassandra
 	URI      string            `yaml:"uri"`
 	Database string            `yaml:"database"`
 	Options  map[string]string `yaml:"options,omitempty"`
@@ -24,7 +25,12 @@ type DatabaseConfig struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Database: DatabaseConfig{
+		SQLDatabase: DatabaseConfig{
+			Provider: "sqlite",
+			URI:      "gego.db",
+			Database: "gego",
+		},
+		NoSQLDatabase: DatabaseConfig{
 			Provider: "mongodb",
 			URI:      "mongodb://localhost:27017",
 			Database: "gego",

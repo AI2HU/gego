@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"go.mongodb.org/mongo-driver/bson"
 
-	"github.com/AI2HU/gego/internal/db/mongodb"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 var (
@@ -40,41 +39,15 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s🔍 Searching for keyword: \"%s\"%s\n", HeaderStyle, CountStyle+keyword+Reset, Reset)
 	fmt.Println()
 
-	// Use the same search approach as stats - direct database search
-	var regex *regexp.Regexp
-	if searchCaseSensitive {
-		regex = regexp.MustCompile(regexp.QuoteMeta(keyword))
-	} else {
-		regex = regexp.MustCompile("(?i)" + regexp.QuoteMeta(keyword))
+	// Use the database interface to search for responses containing the keyword
+	filter := shared.ResponseFilter{
+		Keyword: keyword,
+		Limit:   searchLimit * 10, // Get more responses to find matches
 	}
 
-	// Get MongoDB instance for direct database search
-	mongoDB, ok := database.(*mongodb.MongoDB)
-	if !ok {
-		return fmt.Errorf("database is not MongoDB instance")
-	}
-
-	// Build query similar to stats
-	pattern := regexp.QuoteMeta(keyword)
-	options := "i"
-	if searchCaseSensitive {
-		options = ""
-	}
-
-	query := bson.M{
-		"response_text": bson.M{"$regex": pattern, "$options": options},
-	}
-
-	// Find matching responses
-	cursor, err := mongoDB.GetDatabase().Collection("responses").Find(ctx, query)
+	responses, err := database.ListResponses(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to search responses: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var responses []*models.Response
-	if err := cursor.All(ctx, &responses); err != nil {
-		return fmt.Errorf("failed to decode responses: %w", err)
 	}
 
 	fmt.Printf("%s📊 Found %s responses containing \"%s\"%s\n", InfoStyle, CountStyle+fmt.Sprintf("%d", len(responses))+Reset, CountStyle+keyword+Reset, Reset)
@@ -83,6 +56,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	if len(responses) == 0 {
 		fmt.Printf("%s❌ No matches found for keyword \"%s\"%s\n", ErrorStyle, CountStyle+keyword+Reset, Reset)
 		return nil
+	}
+
+	// Create regex for case-sensitive/insensitive matching
+	var regex *regexp.Regexp
+	if searchCaseSensitive {
+		regex = regexp.MustCompile(regexp.QuoteMeta(keyword))
+	} else {
+		regex = regexp.MustCompile("(?i)" + regexp.QuoteMeta(keyword))
 	}
 
 	// Process matches
@@ -110,6 +91,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%s📄 Match %s:%s\n", TitleStyle, CountStyle+fmt.Sprintf("%d", i+1)+Reset, Reset)
 		fmt.Printf("   %s🏷️  Prompt:%s %s\n", LabelStyle, Reset, FormatValue(match.PromptName))
 		fmt.Printf("   %s🤖 LLM:%s %s (%s%s%s)\n", LabelStyle, Reset, FormatValue(match.LLMName), SecondaryStyle, match.LLMProvider, Reset)
+
+		// Display temperature with special handling for old responses
+		tempDisplay := fmt.Sprintf("%.1f", match.Temperature)
+		if match.Temperature == 0.0 {
+			tempDisplay = "N/A (legacy)"
+		}
+		fmt.Printf("   %s🌡️  Temperature:%s %s\n", LabelStyle, Reset, FormatValue(tempDisplay))
+
 		fmt.Printf("   %s📅 Date:%s %s\n", LabelStyle, Reset, FormatMeta(match.CreatedAt.Format("2006-01-02 15:04:05")))
 		fmt.Println()
 
@@ -136,6 +125,7 @@ type SearchMatch struct {
 	FullPrompt  string
 	LLMName     string
 	LLMProvider string
+	Temperature float64
 	Context     string
 	CreatedAt   time.Time
 }
@@ -178,6 +168,7 @@ func findMatches(response *models.Response, regex *regexp.Regexp, keyword string
 			FullPrompt:  response.PromptText,
 			LLMName:     response.LLMName,
 			LLMProvider: response.LLMProvider,
+			Temperature: response.Temperature,
 			Context:     highlightedContext,
 			CreatedAt:   response.CreatedAt,
 		})

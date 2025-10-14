@@ -77,7 +77,7 @@ type GenerateRequest struct {
 }
 
 // GenerateGEOPromptTemplate creates a pre-prompt for generating GEO statistics prompts
-func GenerateGEOPromptTemplate(userInput string, existingPrompts []string, language string) string {
+func GenerateGEOPromptTemplate(userInput string, existingPrompts []string, language string, count int) string {
 	existingPromptsText := ""
 	if len(existingPrompts) > 0 {
 		existingPromptsText = fmt.Sprintf(`
@@ -99,7 +99,7 @@ IMPORTANT: All prompts must be written in %s language. Do not use English unless
 
 User's request: %s%s%s
 
-Please generate exactly 20 different prompts that users would typically ask when searching for information. Each prompt should:
+Please generate exactly %d different prompts that users would typically ask when searching for information. Each prompt should:
 1. Be a natural, conversational question or request that people would ask an AI assistant
 2. Be likely to generate responses that mention specific brands, products, services, or companies
 3. Be varied in style and approach (questions, requests, scenarios, comparisons, recommendations)
@@ -107,5 +107,5 @@ Please generate exactly 20 different prompts that users would typically ask when
 5. Sound like something a real person would ask when looking for information
 6. Cover different aspects and angles of the topic%s
 
-Format your response as a simple list with each prompt on a new line. Do not include numbers, bullet points, dashes (-), or any additional text or explanations.`, userInput, existingPromptsText, languageInstruction, languageInstruction)
+Format your response as a simple list with each prompt on a new line. Do not include numbers, bullet points, dashes (-), or any additional text or explanations.`, userInput, existingPromptsText, languageInstruction, count, languageInstruction)
 }

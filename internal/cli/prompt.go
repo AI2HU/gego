@@ -49,10 +49,10 @@ var promptGetCmd = &cobra.Command{
 }
 
 var promptDeleteCmd = &cobra.Command{
-	Use:   "delete [id]",
-	Short: "Delete a prompt template or all prompts",
-	Long:  `Remove a prompt template from the keyword tracking system. If no ID is provided, delete all prompts.`,
-	Args:  cobra.MaximumNArgs(1),
+	Use:   "delete",
+	Short: "Delete prompt templates",
+	Long:  `Remove prompt templates from the keyword tracking system. Lists all prompts and allows selection by number.`,
+	Args:  cobra.NoArgs,
 	RunE:  runPromptDelete,
 }
 
@@ -190,57 +190,96 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	reader := bufio.NewReader(os.Stdin)
 
-	// If no ID provided, delete all prompts
-	if len(args) == 0 {
-		// First, get all prompts to show count
-		prompts, err := database.ListPrompts(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to list prompts: %w", err)
-		}
+	fmt.Printf("%s🗑️  Delete Prompts%s\n", FormatHeader(""), Reset)
+	fmt.Printf("%s==================%s\n", DimStyle, Reset)
 
-		if len(prompts) == 0 {
-			fmt.Printf("%sNo prompts to delete.%s\n", WarningStyle, Reset)
-			return nil
-		}
+	// Get all prompts
+	prompts, err := database.ListPrompts(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list prompts: %w", err)
+	}
 
-		// Confirm deletion of all prompts
-		confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure you want to delete ALL %s prompts? This action cannot be undone! (y/N): %s", ErrorStyle, FormatCount(len(prompts)), Reset))
-		if err != nil {
-			return err
-		}
-
-		if !confirmed {
-			fmt.Printf("%sCancelled.%s\n", WarningStyle, Reset)
-			return nil
-		}
-
-		// Use database delete all method
-		deletedCount, err := database.DeleteAllPrompts(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to delete all prompts: %w", err)
-		}
-
-		fmt.Printf("%s✅ Successfully deleted %s prompts!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
+	if len(prompts) == 0 {
+		fmt.Printf("%sNo prompts to delete.%s\n", WarningStyle, Reset)
 		return nil
 	}
 
-	// Delete specific prompt (original behavior)
-	id := args[0]
-	confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure you want to delete prompt %s? (y/N): %s", ErrorStyle, FormatValue(id), Reset))
+	// Display all prompts with numbers
+	fmt.Printf("\n%sAvailable prompts:%s\n", LabelStyle, Reset)
+	fmt.Printf("%s==================%s\n", DimStyle, Reset)
+	for i, prompt := range prompts {
+		fmt.Printf("%s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(prompt.Template))
+		if len(prompt.Tags) > 0 {
+			fmt.Printf("   %sTags: %s%s\n", DimStyle, strings.Join(prompt.Tags, ", "), Reset)
+		}
+		fmt.Printf("   %sID: %s%s\n", DimStyle, FormatSecondary(prompt.ID), Reset)
+		fmt.Println()
+	}
+
+	// Ask user to select prompts to delete
+	fmt.Printf("%sEnter the numbers of prompts you want to delete (comma-separated, e.g., 1,3,5) or 'all' to delete all: %s", LabelStyle, Reset)
+	selection, _ := reader.ReadString('\n')
+	selection = strings.TrimSpace(selection)
+
+	if selection == "" {
+		fmt.Printf("%sNo prompts selected.%s\n", WarningStyle, Reset)
+		return nil
+	}
+
+	// Parse selection
+	var selectedIndices []int
+
+	if strings.ToLower(selection) == "all" {
+		// Select all prompts
+		for i := range prompts {
+			selectedIndices = append(selectedIndices, i)
+		}
+		fmt.Printf("%sSelected all %s prompts.%s\n", SuccessStyle, FormatCount(len(prompts)), Reset)
+	} else {
+		// Parse individual selections
+		selections := strings.Split(selection, ",")
+		for _, sel := range selections {
+			sel = strings.TrimSpace(sel)
+			var idx int
+			_, err := fmt.Sscanf(sel, "%d", &idx)
+			if err != nil || idx < 1 || idx > len(prompts) {
+				fmt.Printf("%s⚠️  Invalid selection: %s (skipping)%s\n", WarningStyle, FormatValue(sel), Reset)
+				continue
+			}
+			selectedIndices = append(selectedIndices, idx-1)
+		}
+	}
+
+	if len(selectedIndices) == 0 {
+		fmt.Printf("%sNo valid prompts selected.%s\n", WarningStyle, Reset)
+		return nil
+	}
+
+	// Confirm deletion
+	fmt.Printf("\n%s⚠️  You are about to delete %s prompt(s). This action cannot be undone!%s\n", ErrorStyle, FormatCount(len(selectedIndices)), Reset)
+	confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure? (y/N): %s", ErrorStyle, Reset))
 	if err != nil {
 		return err
 	}
 
 	if !confirmed {
-		fmt.Printf("%sCancelled.%s\n", WarningStyle, Reset)
+		fmt.Printf("%sOperation cancelled.%s\n", WarningStyle, Reset)
 		return nil
 	}
 
-	if err := database.DeletePrompt(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete prompt: %w", err)
+	// Delete selected prompts
+	fmt.Printf("\n%s🗑️  Deleting selected prompts...%s\n", InfoStyle, Reset)
+	deletedCount := 0
+	for _, idx := range selectedIndices {
+		prompt := prompts[idx]
+		if err := database.DeletePrompt(ctx, prompt.ID); err != nil {
+			fmt.Printf("%s⚠️  Failed to delete prompt %s: %s%s\n", ErrorStyle, FormatCount(idx+1), FormatValue(err.Error()), Reset)
+			continue
+		}
+		deletedCount++
 	}
 
-	fmt.Printf("%s✅ Prompt deleted successfully!%s\n", SuccessStyle, Reset)
+	fmt.Printf("\n%s🎉 Successfully deleted %s prompt(s)!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
 	return nil
 }
 
@@ -363,6 +402,29 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return err
 	}
 
+	// Get number of prompts to generate
+	promptCountStr, err := promptWithRetry(reader, fmt.Sprintf("\n%sHow many prompts would you like to generate? [20]: %s", LabelStyle, Reset), func(input string) (string, error) {
+		input = strings.TrimSpace(input)
+		if input == "" {
+			return "20", nil // Default to 20
+		}
+		var count int
+		_, err := fmt.Sscanf(input, "%d", &count)
+		if err != nil {
+			return "", fmt.Errorf("invalid number: %s (enter a positive integer)", input)
+		}
+		if count < 1 {
+			return "", fmt.Errorf("count must be at least 1")
+		}
+		return input, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	var promptCount int
+	fmt.Sscanf(promptCountStr, "%d", &promptCount)
+
 	// Fetch existing prompts to avoid repetition
 	fmt.Printf("\n%s📋 Fetching existing prompts...%s\n", InfoStyle, Reset)
 	existingPrompts, err := database.ListPrompts(ctx, nil)
@@ -382,7 +444,7 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 	fmt.Printf("\n%s🔍 Generating prompts...%s\n", InfoStyle, Reset)
 
 	// Create the pre-prompt using the GEO template with existing prompts
-	prePrompt := llm.GenerateGEOPromptTemplate(userInput, existingPromptTemplates, languageCode)
+	prePrompt := llm.GenerateGEOPromptTemplate(userInput, existingPromptTemplates, languageCode, promptCount)
 
 	// Create a new provider instance with the actual API key from the database
 	var provider llm.Provider
@@ -442,58 +504,31 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		fmt.Printf("%s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(prompt))
 	}
 
-	// Let user select which prompts to save
-	fmt.Printf("\n%sEnter the numbers of prompts you want to save (comma-separated, e.g., 1,3,5) or 'all' to save all: %s", LabelStyle, Reset)
-	selection, _ := reader.ReadString('\n')
-	selection = strings.TrimSpace(selection)
+	// Let user choose to save all prompts or cancel
+	fmt.Printf("\n%sWould you like to save all %s generated prompts? (y/n): %s", LabelStyle, FormatCount(len(generatedPrompts)), Reset)
+	choice, _ := reader.ReadString('\n')
+	choice = strings.TrimSpace(strings.ToLower(choice))
 
-	if selection == "" {
-		fmt.Printf("%sNo prompts selected.%s\n", WarningStyle, Reset)
+	if choice != "y" && choice != "yes" {
+		fmt.Printf("%sOperation cancelled.%s\n", WarningStyle, Reset)
 		return nil
 	}
 
-	// Parse selection
-	var selectedIndices []int
+	fmt.Printf("%sSelected all %s prompts.%s\n", SuccessStyle, FormatCount(len(generatedPrompts)), Reset)
 
-	if strings.ToLower(selection) == "all" {
-		// Select all prompts
-		for i := range generatedPrompts {
-			selectedIndices = append(selectedIndices, i)
-		}
-		fmt.Printf("%sSelected all %s prompts.%s\n", SuccessStyle, FormatCount(len(generatedPrompts)), Reset)
-	} else {
-		// Parse individual selections
-		selections := strings.Split(selection, ",")
-		for _, sel := range selections {
-			sel = strings.TrimSpace(sel)
-			var idx int
-			_, err := fmt.Sscanf(sel, "%d", &idx)
-			if err != nil || idx < 1 || idx > len(generatedPrompts) {
-				fmt.Printf("%s⚠️  Invalid selection: %s (skipping)%s\n", WarningStyle, FormatValue(sel), Reset)
-				continue
-			}
-			selectedIndices = append(selectedIndices, idx-1)
-		}
-	}
-
-	if len(selectedIndices) == 0 {
-		fmt.Printf("%sNo valid prompts selected.%s\n", WarningStyle, Reset)
-		return nil
-	}
-
-	// Save selected prompts
-	fmt.Printf("\n%s💾 Saving selected prompts...%s\n", InfoStyle, Reset)
+	// Save all prompts
+	fmt.Printf("\n%s💾 Saving all prompts...%s\n", InfoStyle, Reset)
 	savedCount := 0
-	for _, idx := range selectedIndices {
+	for _, promptText := range generatedPrompts {
 		prompt := &models.Prompt{
 			ID:       uuid.New().String(),
-			Template: generatedPrompts[idx],
+			Template: promptText,
 			Tags:     []string{"generated", "llm-created", fmt.Sprintf("lang-%s", languageCode)},
 			Enabled:  true,
 		}
 
 		if err := database.CreatePrompt(ctx, prompt); err != nil {
-			fmt.Printf("%s⚠️  Failed to save prompt %s: %s%s\n", ErrorStyle, FormatCount(idx+1), FormatValue(err.Error()), Reset)
+			fmt.Printf("%s⚠️  Failed to save prompt: %s%s\n", ErrorStyle, FormatValue(err.Error()), Reset)
 			continue
 		}
 

@@ -8,7 +8,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
-	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
 )
 
@@ -96,7 +95,7 @@ func (m *MongoDB) SearchKeyword(ctx context.Context, keyword string, startTime, 
 }
 
 // GetTopKeywords returns the most common keywords across all responses
-func (m *MongoDB) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]db.KeywordCount, error) {
+func (m *MongoDB) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error) {
 	// Build query
 	query := bson.M{}
 	if startTime != nil || endTime != nil {
@@ -153,9 +152,9 @@ func (m *MongoDB) GetTopKeywords(ctx context.Context, limit int, startTime, endT
 	}
 
 	// Build result
-	var results []db.KeywordCount
+	var results []models.KeywordCount
 	for i := 0; i < len(sorted) && i < limit; i++ {
-		results = append(results, db.KeywordCount{
+		results = append(results, models.KeywordCount{
 			Keyword: sorted[i].keyword,
 			Count:   sorted[i].count,
 		})

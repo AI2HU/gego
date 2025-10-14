@@ -10,7 +10,7 @@ import (
 
 	"github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
-	"github.com/AI2HU/gego/internal/db/mongodb"
+	"github.com/AI2HU/gego/internal/models"
 )
 
 var initCmd = &cobra.Command{
@@ -46,45 +46,48 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Database configuration
 	fmt.Println("\n📊 Database Configuration")
 	fmt.Println("--------------------------")
+	fmt.Println("Gego uses a hybrid approach:")
+	fmt.Println("  • SQLite for LLMs and Schedules (structured data)")
+	fmt.Println("  • MongoDB for Prompts and Responses (unstructured data)")
+	fmt.Println()
 
-	provider, err := promptOptional(reader, "Database provider (mongodb/cassandra) [mongodb]: ", "mongodb")
+	// SQLite configuration
+	fmt.Println("🗄️  SQLite Configuration (for LLMs and Schedules)")
+	sqlitePath, err := promptOptional(reader, "SQLite database path [gego.db]: ", "gego.db")
 	if err != nil {
 		return err
 	}
-	cfg.Database.Provider = provider
+	cfg.SQLDatabase.Provider = "sqlite"
+	cfg.SQLDatabase.URI = sqlitePath
+	cfg.SQLDatabase.Database = "gego"
 
-	uri, err2 := promptOptional(reader, "Database URI [mongodb://localhost:27017]: ", "mongodb://localhost:27017")
+	// MongoDB configuration
+	fmt.Println("\n🍃 MongoDB Configuration (for Prompts and Responses)")
+	mongoURI, err2 := promptOptional(reader, "MongoDB URI [mongodb://localhost:27017]: ", "mongodb://localhost:27017")
 	if err2 != nil {
 		return err2
 	}
-	cfg.Database.URI = uri
+	cfg.NoSQLDatabase.Provider = "mongodb"
+	cfg.NoSQLDatabase.URI = mongoURI
+	cfg.NoSQLDatabase.Database = "gego"
 
-	dbName, err3 := promptOptional(reader, "Database name [gego]: ", "gego")
-	if err3 != nil {
-		return err3
-	}
-	cfg.Database.Database = dbName
-
-	// Test database connection
-	fmt.Println("\n🔌 Testing database connection...")
-	dbConfig := &db.Config{
-		Provider: cfg.Database.Provider,
-		URI:      cfg.Database.URI,
-		Database: cfg.Database.Database,
+	// Test database connections
+	fmt.Println("\n🔌 Testing database connections...")
+	sqlConfig := &models.Config{
+		Provider: cfg.SQLDatabase.Provider,
+		URI:      cfg.SQLDatabase.URI,
+		Database: cfg.SQLDatabase.Database,
 	}
 
-	var testDB db.Database
-	var dbErr error
-
-	switch cfg.Database.Provider {
-	case "mongodb":
-		testDB, dbErr = mongodb.New(dbConfig)
-	default:
-		return fmt.Errorf("unsupported database provider: %s", cfg.Database.Provider)
+	nosqlConfig := &models.Config{
+		Provider: cfg.NoSQLDatabase.Provider,
+		URI:      cfg.NoSQLDatabase.URI,
+		Database: cfg.NoSQLDatabase.Database,
 	}
 
+	testDB, dbErr := db.New(sqlConfig, nosqlConfig)
 	if dbErr != nil {
-		return fmt.Errorf("failed to create database: %w", dbErr)
+		return fmt.Errorf("failed to create hybrid database: %w", dbErr)
 	}
 
 	ctx := context.Background()
@@ -113,14 +116,15 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Summary
 	fmt.Println("\n📋 Configuration Summary")
 	fmt.Println("========================")
-	fmt.Printf("Database: %s\n", cfg.Database.Provider)
-	fmt.Printf("URI: %s\n", cfg.Database.URI)
-	fmt.Printf("Database Name: %s\n", cfg.Database.Database)
+	fmt.Printf("SQLite Database: %s (%s)\n", cfg.SQLDatabase.Provider, cfg.SQLDatabase.URI)
+	fmt.Printf("NoSQL Database: %s (%s)\n", cfg.NoSQLDatabase.Provider, cfg.NoSQLDatabase.URI)
+	fmt.Printf("Database Name: %s\n", cfg.NoSQLDatabase.Database)
 	fmt.Println()
 	fmt.Println("🎉 Setup complete! You can now use gego.")
 	fmt.Println()
-	fmt.Println("ℹ️  Gego automatically extracts keywords from LLM responses.")
-	fmt.Println("   No predefined keyword list needed!")
+	fmt.Println("ℹ️  Gego uses a hybrid database approach:")
+	fmt.Println("   • SQLite stores LLM configurations and schedules")
+	fmt.Println("   • MongoDB stores prompts and responses for keyword analysis")
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  1. Add LLM providers: gego llm add")

@@ -175,18 +175,17 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 
 	// Get cron expression
 	fmt.Printf("\n%sSchedule Frequency:%s\n", LabelStyle, Reset)
-	fmt.Printf("  %s1. Every minute%s\n", CountStyle, Reset)
-	fmt.Printf("  %s2. Every 5 minutes%s\n", CountStyle, Reset)
-	fmt.Printf("  %s3. Every 30 minutes%s\n", CountStyle, Reset)
-	fmt.Printf("  %s4. Every hour%s\n", CountStyle, Reset)
-	fmt.Printf("  %s5. Custom cron expression%s\n", CountStyle, Reset)
+	fmt.Printf("  %s1. Every day%s\n", CountStyle, Reset)
+	fmt.Printf("  %s2. Every week%s\n", CountStyle, Reset)
+	fmt.Printf("  %s3. Every month%s\n", CountStyle, Reset)
+	fmt.Printf("  %s4. Custom%s\n", CountStyle, Reset)
 
-	cronChoice, err := promptWithRetry(reader, fmt.Sprintf("\n%sSelect frequency (1-5): %s", LabelStyle, Reset), func(input string) (string, error) {
+	cronChoice, err := promptWithRetry(reader, fmt.Sprintf("\n%sSelect frequency (1-4): %s", LabelStyle, Reset), func(input string) (string, error) {
 		switch input {
-		case "1", "2", "3", "4", "5":
+		case "1", "2", "3", "4":
 			return input, nil
 		default:
-			return "", fmt.Errorf("invalid choice: %s (choose 1-5)", input)
+			return "", fmt.Errorf("invalid choice: %s (choose 1-4)", input)
 		}
 	})
 	if err != nil {
@@ -196,18 +195,15 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 	var cronExpr string
 	switch cronChoice {
 	case "1":
-		cronExpr = "* * * * *"
-		fmt.Printf("%sSelected: Every minute%s\n", SuccessStyle, Reset)
+		cronExpr = "0 9 * * *"
+		fmt.Printf("%sSelected: Every day%s\n", SuccessStyle, Reset)
 	case "2":
-		cronExpr = "*/5 * * * *"
-		fmt.Printf("%sSelected: Every 5 minutes%s\n", SuccessStyle, Reset)
+		cronExpr = "0 9 * * MON"
+		fmt.Printf("%sSelected: Every week%s\n", SuccessStyle, Reset)
 	case "3":
-		cronExpr = "*/30 * * * *"
-		fmt.Printf("%sSelected: Every 30 minutes%s\n", SuccessStyle, Reset)
+		cronExpr = "0 9 1 * *"
+		fmt.Printf("%sSelected: Every month%s\n", SuccessStyle, Reset)
 	case "4":
-		cronExpr = "0 * * * *"
-		fmt.Printf("%sSelected: Every hour%s\n", SuccessStyle, Reset)
-	case "5":
 		fmt.Printf("\n%sCron Expression Examples:%s\n", LabelStyle, Reset)
 		fmt.Printf("  %s*/15 * * * *%s    - Every 15 minutes\n", FormatSecondary(""), Reset)
 		fmt.Printf("  %s0 9 * * *%s       - Every day at 9am\n", FormatSecondary(""), Reset)
@@ -227,6 +223,13 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 
 	schedule.CronExpr = cronExpr
 
+	// Get temperature
+	temperature, err := promptTemperature(reader)
+	if err != nil {
+		return fmt.Errorf("failed to get temperature: %w", err)
+	}
+	schedule.Temperature = temperature
+
 	if err := database.CreateSchedule(ctx, schedule); err != nil {
 		return fmt.Errorf("failed to create schedule: %w", err)
 	}
@@ -235,6 +238,7 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%sID: %s\n", LabelStyle, FormatSecondary(schedule.ID))
 	fmt.Printf("%sPrompts: %s\n", LabelStyle, FormatCount(len(schedule.PromptIDs)))
 	fmt.Printf("%sLLMs: %s\n", LabelStyle, FormatCount(len(schedule.LLMIDs)))
+	fmt.Printf("%sTemperature: %s\n", LabelStyle, FormatValue(fmt.Sprintf("%.1f", schedule.Temperature)))
 	fmt.Printf("\n%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego run"), Reset)
 
 	return nil
@@ -254,8 +258,8 @@ func runScheduleList(cmd *cobra.Command, args []string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(w, "%sID\tNAME\tCRON\tPROMPTS\tLLMs\tLAST RUN\tENABLED%s\n", LabelStyle, Reset)
-	fmt.Fprintf(w, "%s──\t────\t────\t───────\t────\t────────\t───────%s\n", DimStyle, Reset)
+	fmt.Fprintf(w, "%sID\tNAME\tCRON\tPROMPTS\tLLMs\tTEMP\tLAST RUN\tENABLED%s\n", LabelStyle, Reset)
+	fmt.Fprintf(w, "%s──\t────\t────\t───────\t────\t────\t────────\t───────%s\n", DimStyle, Reset)
 
 	for _, schedule := range schedules {
 		enabled := "Yes"
@@ -268,12 +272,13 @@ func runScheduleList(cmd *cobra.Command, args []string) error {
 			lastRun = schedule.LastRun.Format("01-02 15:04")
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			FormatSecondary(schedule.ID),
 			FormatValue(schedule.Name),
 			FormatSecondary(schedule.CronExpr),
 			FormatCount(len(schedule.PromptIDs)),
 			FormatCount(len(schedule.LLMIDs)),
+			FormatValue(fmt.Sprintf("%.1f", schedule.Temperature)),
 			FormatMeta(lastRun),
 			FormatValue(enabled),
 		)

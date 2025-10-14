@@ -4,6 +4,26 @@ import (
 	"time"
 )
 
+// Config holds database configuration
+type Config struct {
+	Provider string            // sqlite, mongodb, cassandra
+	URI      string            // Connection URI
+	Database string            // Database name
+	Options  map[string]string // Provider-specific options
+}
+
+// TimeSeriesPoint represents a point in time-series data
+type TimeSeriesPoint struct {
+	Timestamp time.Time `json:"timestamp"`
+	Count     int       `json:"count"`
+}
+
+// KeywordCount represents a keyword and its mention count
+type KeywordCount struct {
+	Keyword string `json:"keyword"`
+	Count   int    `json:"count"`
+}
+
 // LLMConfig represents an LLM provider configuration
 type LLMConfig struct {
 	ID        string            `json:"id"`
@@ -30,16 +50,17 @@ type Prompt struct {
 
 // Schedule represents a scheduler configuration
 type Schedule struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	PromptIDs []string   `json:"prompt_ids"`
-	LLMIDs    []string   `json:"llm_ids"`
-	CronExpr  string     `json:"cron_expr"` // Cron expression for scheduling
-	Enabled   bool       `json:"enabled"`
-	LastRun   *time.Time `json:"last_run,omitempty"`
-	NextRun   *time.Time `json:"next_run,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	PromptIDs   []string   `json:"prompt_ids"`
+	LLMIDs      []string   `json:"llm_ids"`
+	CronExpr    string     `json:"cron_expr"`             // Cron expression for scheduling
+	Temperature float64    `json:"temperature,omitempty"` // Temperature for LLM generation (0-1, default 0.7)
+	Enabled     bool       `json:"enabled"`
+	LastRun     *time.Time `json:"last_run,omitempty"`
+	NextRun     *time.Time `json:"next_run,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // Response represents an LLM response to a prompt
@@ -52,7 +73,8 @@ type Response struct {
 	LLMProvider  string                 `json:"llm_provider" bson:"llm_provider"`
 	LLMModel     string                 `json:"llm_model" bson:"llm_model"`
 	ResponseText string                 `json:"response_text" bson:"response_text"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty" bson:"metadata,omitempty"` // Additional metadata
+	Temperature  float64                `json:"temperature,omitempty" bson:"temperature,omitempty"` // Temperature used for generation
+	Metadata     map[string]interface{} `json:"metadata,omitempty" bson:"metadata,omitempty"`       // Additional metadata
 	ScheduleID   string                 `json:"schedule_id,omitempty" bson:"schedule_id,omitempty"`
 	TokensUsed   int                    `json:"tokens_used,omitempty" bson:"tokens_used,omitempty"`
 	LatencyMs    int64                  `json:"latency_ms,omitempty" bson:"latency_ms,omitempty"`

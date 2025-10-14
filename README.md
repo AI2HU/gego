@@ -386,6 +386,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] Persona embedding to simulate Chat version of models
 - [ ] System prompt to simulate Chat version of models
 - [ ] Schedules cost forecast
+- [ ] Prompts batches to optimize costs
 - [ ] Cassandra database support
 - [ ] Web dashboard for visualizations
 - [ ] Export statistics to CSV/JSON

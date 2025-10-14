@@ -10,26 +10,24 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 // MongoDB implements the Database interface for MongoDB
 type MongoDB struct {
 	client   *mongo.Client
 	database *mongo.Database
-	config   *db.Config
+	config   *models.Config
 }
 
 const (
-	collLLMs      = "llms"
 	collPrompts   = "prompts"
-	collSchedules = "schedules"
 	collResponses = "responses"
 )
 
 // New creates a new MongoDB database instance
-func New(config *db.Config) (*MongoDB, error) {
+func New(config *models.Config) (*MongoDB, error) {
 	return &MongoDB{
 		config: config,
 	}, nil
@@ -87,17 +85,6 @@ func (m *MongoDB) createIndexes(ctx context.Context) error {
 		},
 		{
 			Keys: bson.D{
-				{Key: "llm_id", Value: 1},
-				{Key: "created_at", Value: -1},
-			},
-		},
-		{
-			Keys: bson.D{
-				{Key: "schedule_id", Value: 1},
-			},
-		},
-		{
-			Keys: bson.D{
 				{Key: "created_at", Value: -1},
 			},
 		},
@@ -109,187 +96,6 @@ func (m *MongoDB) createIndexes(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// CreateLLM creates a new LLM configuration
-func (m *MongoDB) CreateLLM(ctx context.Context, llm *models.LLMConfig) error {
-	llm.CreatedAt = time.Now()
-	llm.UpdatedAt = time.Now()
-
-	doc := bson.M{
-		"_id":        llm.ID,
-		"name":       llm.Name,
-		"provider":   llm.Provider,
-		"model":      llm.Model,
-		"api_key":    llm.APIKey,
-		"base_url":   llm.BaseURL,
-		"enabled":    llm.Enabled,
-		"created_at": llm.CreatedAt,
-		"updated_at": llm.UpdatedAt,
-	}
-
-	if llm.Config != nil {
-		doc["config"] = llm.Config
-	}
-
-	_, err := m.database.Collection(collLLMs).InsertOne(ctx, doc)
-	return err
-}
-
-// GetLLM retrieves an LLM by ID
-func (m *MongoDB) GetLLM(ctx context.Context, id string) (*models.LLMConfig, error) {
-	var filter bson.M
-	if objectID, err := primitive.ObjectIDFromHex(id); err == nil {
-		filter = bson.M{"_id": objectID}
-	} else {
-		filter = bson.M{"_id": id}
-	}
-
-	var doc bson.M
-	err := m.database.Collection(collLLMs).FindOne(ctx, filter).Decode(&doc)
-	if err == mongo.ErrNoDocuments {
-		return nil, fmt.Errorf("LLM not found: %s", id)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var llmID string
-	if docID, ok := doc["_id"].(string); ok {
-		llmID = docID
-	} else if objectID, ok := doc["_id"].(primitive.ObjectID); ok {
-		llmID = objectID.Hex()
-	} else {
-		return nil, fmt.Errorf("invalid _id type in LLM document")
-	}
-
-	llm := &models.LLMConfig{
-		ID:        llmID,
-		Name:      getString(doc, "name"),
-		Provider:  getString(doc, "provider"),
-		Model:     getString(doc, "model"),
-		APIKey:    getStringFromEither(doc, "api_key", "APIKey"),
-		BaseURL:   getStringFromEither(doc, "base_url", "BaseURL"),
-		Enabled:   getBool(doc, "enabled"),
-		CreatedAt: getTime(doc, "created_at"),
-		UpdatedAt: getTime(doc, "updated_at"),
-	}
-
-	return llm, nil
-}
-
-// ListLLMs lists all LLMs, optionally filtered by enabled status
-func (m *MongoDB) ListLLMs(ctx context.Context, enabled *bool) ([]*models.LLMConfig, error) {
-	filter := bson.M{}
-	if enabled != nil {
-		filter["enabled"] = *enabled
-	}
-
-	cursor, err := m.database.Collection(collLLMs).Find(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var llms []*models.LLMConfig
-	for cursor.Next(ctx) {
-		var doc bson.M
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, err
-		}
-
-		var llmID string
-		if id, ok := doc["_id"].(string); ok {
-			llmID = id
-		} else if objectID, ok := doc["_id"].(primitive.ObjectID); ok {
-			llmID = objectID.Hex()
-		} else {
-			return nil, fmt.Errorf("invalid _id type in LLM document")
-		}
-
-		llm := &models.LLMConfig{
-			ID:        llmID,
-			Name:      getString(doc, "name"),
-			Provider:  getString(doc, "provider"),
-			Model:     getString(doc, "model"),
-			APIKey:    getStringFromEither(doc, "api_key", "APIKey"),
-			BaseURL:   getStringFromEither(doc, "base_url", "BaseURL"),
-			Enabled:   getBool(doc, "enabled"),
-			CreatedAt: getTime(doc, "created_at"),
-			UpdatedAt: getTime(doc, "updated_at"),
-		}
-
-		llms = append(llms, llm)
-	}
-
-	return llms, nil
-}
-
-// UpdateLLM updates an existing LLM configuration
-func (m *MongoDB) UpdateLLM(ctx context.Context, llm *models.LLMConfig) error {
-	llm.UpdatedAt = time.Now()
-
-	// Convert to BSON document with explicit _id field
-	doc := bson.M{
-		"name":       llm.Name,
-		"provider":   llm.Provider,
-		"model":      llm.Model,
-		"api_key":    llm.APIKey,
-		"base_url":   llm.BaseURL,
-		"enabled":    llm.Enabled,
-		"created_at": llm.CreatedAt,
-		"updated_at": llm.UpdatedAt,
-		// Clear old field names to prevent confusion
-		"APIKey":  "",
-		"BaseURL": "",
-	}
-
-	// Add config if it exists
-	if llm.Config != nil {
-		doc["config"] = llm.Config
-	}
-
-	// Try to parse as ObjectID first (for old documents), then as string
-	var filter bson.M
-	if objectID, err := primitive.ObjectIDFromHex(llm.ID); err == nil {
-		filter = bson.M{"_id": objectID}
-	} else {
-		filter = bson.M{"_id": llm.ID}
-	}
-
-	result, err := m.database.Collection(collLLMs).ReplaceOne(ctx, filter, doc)
-	if err != nil {
-		return err
-	}
-
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("LLM not found: %s", llm.ID)
-	}
-
-	return nil
-}
-
-// DeleteLLM deletes an LLM by ID
-func (m *MongoDB) DeleteLLM(ctx context.Context, id string) error {
-	result, err := m.database.Collection(collLLMs).DeleteOne(ctx, bson.M{"_id": id})
-	if err != nil {
-		return err
-	}
-
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("LLM not found: %s", id)
-	}
-
-	return nil
-}
-
-// DeleteAllLLMs deletes all LLMs
-func (m *MongoDB) DeleteAllLLMs(ctx context.Context) (int, error) {
-	result, err := m.database.Collection(collLLMs).DeleteMany(ctx, bson.M{})
-	if err != nil {
-		return 0, err
-	}
-	return int(result.DeletedCount), nil
 }
 
 // CreatePrompt creates a new prompt
@@ -458,273 +264,9 @@ func (m *MongoDB) DeletePrompt(ctx context.Context, id string) error {
 	return nil
 }
 
-// CreateSchedule creates a new schedule
-func (m *MongoDB) CreateSchedule(ctx context.Context, schedule *models.Schedule) error {
-	schedule.CreatedAt = time.Now()
-	schedule.UpdatedAt = time.Now()
-
-	// Convert to BSON document with explicit _id field
-	doc := bson.M{
-		"_id":        schedule.ID,
-		"name":       schedule.Name,
-		"cron_expr":  schedule.CronExpr,
-		"enabled":    schedule.Enabled,
-		"prompt_ids": schedule.PromptIDs,
-		"llm_ids":    schedule.LLMIDs,
-		"created_at": schedule.CreatedAt,
-		"updated_at": schedule.UpdatedAt,
-	}
-
-	// Add optional fields if they exist
-	if schedule.LastRun != nil {
-		doc["last_run"] = *schedule.LastRun
-	}
-	if schedule.NextRun != nil {
-		doc["next_run"] = *schedule.NextRun
-	}
-
-	_, err := m.database.Collection(collSchedules).InsertOne(ctx, doc)
-	return err
-}
-
-// GetSchedule retrieves a schedule by ID
-func (m *MongoDB) GetSchedule(ctx context.Context, id string) (*models.Schedule, error) {
-	// Try to parse as ObjectID first (for old documents), then as string
-	var filter bson.M
-	if objectID, err := primitive.ObjectIDFromHex(id); err == nil {
-		filter = bson.M{"_id": objectID}
-	} else {
-		filter = bson.M{"_id": id}
-	}
-
-	var doc bson.M
-	err := m.database.Collection(collSchedules).FindOne(ctx, filter).Decode(&doc)
-	if err == mongo.ErrNoDocuments {
-		return nil, fmt.Errorf("schedule not found: %s", id)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert BSON document to Schedule struct
-	var scheduleID string
-	if docID, ok := doc["_id"].(string); ok {
-		scheduleID = docID
-	} else if objectID, ok := doc["_id"].(primitive.ObjectID); ok {
-		scheduleID = objectID.Hex()
-	} else {
-		return nil, fmt.Errorf("invalid _id type in schedule document")
-	}
-
-	schedule := &models.Schedule{
-		ID:        scheduleID,
-		Name:      getString(doc, "name"),
-		CronExpr:  getString(doc, "cron_expr"),
-		Enabled:   getBool(doc, "enabled"),
-		CreatedAt: getTime(doc, "created_at"),
-		UpdatedAt: getTime(doc, "updated_at"),
-	}
-
-	// Handle optional fields
-	if lastRun, ok := doc["last_run"].(time.Time); ok {
-		schedule.LastRun = &lastRun
-	}
-	if nextRun, ok := doc["next_run"].(time.Time); ok {
-		schedule.NextRun = &nextRun
-	}
-
-	// Handle arrays
-	if promptIDs, ok := doc["prompt_ids"].([]interface{}); ok {
-		for _, id := range promptIDs {
-			if str, ok := id.(string); ok {
-				schedule.PromptIDs = append(schedule.PromptIDs, str)
-			}
-		}
-	} else if promptIDs, ok := doc["prompt_ids"].(primitive.A); ok {
-		for _, id := range promptIDs {
-			if str, ok := id.(string); ok {
-				schedule.PromptIDs = append(schedule.PromptIDs, str)
-			}
-		}
-	}
-
-	if llmIDs, ok := doc["llm_ids"].([]interface{}); ok {
-		for _, id := range llmIDs {
-			if str, ok := id.(string); ok {
-				schedule.LLMIDs = append(schedule.LLMIDs, str)
-			}
-		}
-	} else if llmIDs, ok := doc["llm_ids"].(primitive.A); ok {
-		for _, id := range llmIDs {
-			if str, ok := id.(string); ok {
-				schedule.LLMIDs = append(schedule.LLMIDs, str)
-			}
-		}
-	}
-
-	return schedule, nil
-}
-
-// ListSchedules lists all schedules, optionally filtered by enabled status
-func (m *MongoDB) ListSchedules(ctx context.Context, enabled *bool) ([]*models.Schedule, error) {
-	filter := bson.M{}
-	if enabled != nil {
-		filter["enabled"] = *enabled
-	}
-
-	cursor, err := m.database.Collection(collSchedules).Find(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var schedules []*models.Schedule
-	for cursor.Next(ctx) {
-		var doc bson.M
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, err
-		}
-
-		// Convert BSON document to Schedule struct
-		var scheduleID string
-		if id, ok := doc["_id"].(string); ok {
-			scheduleID = id
-		} else if objectID, ok := doc["_id"].(primitive.ObjectID); ok {
-			scheduleID = objectID.Hex()
-		} else {
-			return nil, fmt.Errorf("invalid _id type in schedule document")
-		}
-
-		schedule := &models.Schedule{
-			ID:        scheduleID,
-			Name:      getString(doc, "name"),
-			CronExpr:  getString(doc, "cron_expr"),
-			Enabled:   getBool(doc, "enabled"),
-			CreatedAt: getTime(doc, "created_at"),
-			UpdatedAt: getTime(doc, "updated_at"),
-		}
-
-		// Handle optional fields
-		if lastRun, ok := doc["last_run"].(time.Time); ok {
-			schedule.LastRun = &lastRun
-		}
-		if nextRun, ok := doc["next_run"].(time.Time); ok {
-			schedule.NextRun = &nextRun
-		}
-
-		// Handle arrays
-		if promptIDs, ok := doc["prompt_ids"].([]interface{}); ok {
-			for _, id := range promptIDs {
-				if str, ok := id.(string); ok {
-					schedule.PromptIDs = append(schedule.PromptIDs, str)
-				}
-			}
-		} else if promptIDs, ok := doc["prompt_ids"].(primitive.A); ok {
-			for _, id := range promptIDs {
-				if str, ok := id.(string); ok {
-					schedule.PromptIDs = append(schedule.PromptIDs, str)
-				}
-			}
-		}
-
-		if llmIDs, ok := doc["llm_ids"].([]interface{}); ok {
-			for _, id := range llmIDs {
-				if str, ok := id.(string); ok {
-					schedule.LLMIDs = append(schedule.LLMIDs, str)
-				}
-			}
-		} else if llmIDs, ok := doc["llm_ids"].(primitive.A); ok {
-			for _, id := range llmIDs {
-				if str, ok := id.(string); ok {
-					schedule.LLMIDs = append(schedule.LLMIDs, str)
-				}
-			}
-		}
-
-		schedules = append(schedules, schedule)
-	}
-
-	return schedules, nil
-}
-
-// UpdateSchedule updates an existing schedule
-func (m *MongoDB) UpdateSchedule(ctx context.Context, schedule *models.Schedule) error {
-	schedule.UpdatedAt = time.Now()
-
-	// Convert to BSON document with explicit _id field
-	doc := bson.M{
-		"_id":        schedule.ID,
-		"name":       schedule.Name,
-		"cron_expr":  schedule.CronExpr,
-		"enabled":    schedule.Enabled,
-		"prompt_ids": schedule.PromptIDs,
-		"llm_ids":    schedule.LLMIDs,
-		"created_at": schedule.CreatedAt,
-		"updated_at": schedule.UpdatedAt,
-	}
-
-	// Add optional fields if they exist
-	if schedule.LastRun != nil {
-		doc["last_run"] = *schedule.LastRun
-	}
-	if schedule.NextRun != nil {
-		doc["next_run"] = *schedule.NextRun
-	}
-
-	// Try to parse as ObjectID first (for old documents), then as string
-	var filter bson.M
-	if objectID, err := primitive.ObjectIDFromHex(schedule.ID); err == nil {
-		filter = bson.M{"_id": objectID}
-	} else {
-		filter = bson.M{"_id": schedule.ID}
-	}
-
-	result, err := m.database.Collection(collSchedules).ReplaceOne(ctx, filter, doc)
-	if err != nil {
-		return err
-	}
-
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("schedule not found: %s", schedule.ID)
-	}
-
-	return nil
-}
-
-// DeleteSchedule deletes a schedule by ID
-func (m *MongoDB) DeleteSchedule(ctx context.Context, id string) error {
-	// Try to parse as ObjectID first (for old documents), then as string
-	var filter bson.M
-	if objectID, err := primitive.ObjectIDFromHex(id); err == nil {
-		filter = bson.M{"_id": objectID}
-	} else {
-		filter = bson.M{"_id": id}
-	}
-
-	result, err := m.database.Collection(collSchedules).DeleteOne(ctx, filter)
-	if err != nil {
-		return err
-	}
-
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("schedule not found: %s", id)
-	}
-
-	return nil
-}
-
 // DeleteAllPrompts deletes all prompts
 func (m *MongoDB) DeleteAllPrompts(ctx context.Context) (int, error) {
 	result, err := m.database.Collection(collPrompts).DeleteMany(ctx, bson.M{})
-	if err != nil {
-		return 0, err
-	}
-	return int(result.DeletedCount), nil
-}
-
-// DeleteAllSchedules deletes all schedules
-func (m *MongoDB) DeleteAllSchedules(ctx context.Context) (int, error) {
-	result, err := m.database.Collection(collSchedules).DeleteMany(ctx, bson.M{})
 	if err != nil {
 		return 0, err
 	}
@@ -747,6 +289,7 @@ func (m *MongoDB) CreateResponse(ctx context.Context, response *models.Response)
 		"response_text": response.ResponseText,
 		"schedule_id":   response.ScheduleID,
 		"tokens_used":   response.TokensUsed,
+		"temperature":   response.Temperature,
 		"created_at":    response.CreatedAt,
 	}
 
@@ -770,7 +313,7 @@ func (m *MongoDB) GetResponse(ctx context.Context, id string) (*models.Response,
 }
 
 // ListResponses lists responses with filtering
-func (m *MongoDB) ListResponses(ctx context.Context, filter db.ResponseFilter) ([]*models.Response, error) {
+func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilter) ([]*models.Response, error) {
 	query := bson.M{}
 
 	if filter.PromptID != "" {
@@ -783,7 +326,11 @@ func (m *MongoDB) ListResponses(ctx context.Context, filter db.ResponseFilter) (
 		query["schedule_id"] = filter.ScheduleID
 	}
 	if filter.Keyword != "" {
-		query["keywords.keyword"] = filter.Keyword
+		// Search in response_text field using regex for case-insensitive search
+		query["response_text"] = bson.M{
+			"$regex":   filter.Keyword,
+			"$options": "i",
+		}
 	}
 	if filter.StartTime != nil || filter.EndTime != nil {
 		timeQuery := bson.M{}
@@ -865,19 +412,11 @@ func getTime(doc bson.M, key string) time.Time {
 	return time.Time{}
 }
 
-// getStringFromEither gets a string value from either of two possible field names
-func getStringFromEither(doc bson.M, field1, field2 string) string {
-	// Always prefer the correct field name (lowercase with underscores)
-	if val, ok := doc[field1]; ok && val != nil {
-		if str, ok := val.(string); ok && str != "" {
-			return str
-		}
+// DeleteAllResponses deletes all responses from the database
+func (m *MongoDB) DeleteAllResponses(ctx context.Context) (int, error) {
+	result, err := m.database.Collection(collResponses).DeleteMany(ctx, bson.M{})
+	if err != nil {
+		return 0, err
 	}
-	// Only try the alternative if the first field doesn't exist or is empty
-	if val, ok := doc[field2]; ok && val != nil {
-		if str, ok := val.(string); ok && str != "" {
-			return str
-		}
-	}
-	return ""
+	return int(result.DeletedCount), nil
 }

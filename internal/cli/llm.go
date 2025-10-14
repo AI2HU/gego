@@ -120,9 +120,10 @@ var llmGetCmd = &cobra.Command{
 }
 
 var llmDeleteCmd = &cobra.Command{
-	Use:   "delete [id]",
-	Short: "Delete an LLM provider or all LLMs",
-	Args:  cobra.MaximumNArgs(1),
+	Use:   "delete",
+	Short: "Delete LLM providers",
+	Long:  `Delete LLM providers. Lists all LLMs and allows you to select which ones to delete.`,
+	Args:  cobra.NoArgs,
 	RunE:  runLLMDelete,
 }
 
@@ -205,14 +206,61 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\n🔑 %s API Key Required\n", selectedProvider.DisplayName())
 		fmt.Printf("Get your API key from: %s\n", selectedProvider.GetConsoleURL())
 
-		apiKey, err = promptWithRetry(reader, "\nAPI Key: ", func(input string) (string, error) {
-			if input == "" {
-				return "", fmt.Errorf("API key is required for %s", selectedProvider.DisplayName())
-			}
-			return input, nil
-		})
+		// Check for existing API keys for this provider
+		existingKeys, err := getExistingAPIKeysForProvider(ctx, providerName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to check existing API keys: %w", err)
+		}
+
+		if len(existingKeys) > 0 {
+			fmt.Printf("\n%sFound existing API key(s) for %s:%s\n", InfoStyle, selectedProvider.DisplayName(), Reset)
+			for i, key := range existingKeys {
+				fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, maskAPIKey(key))
+			}
+			fmt.Printf("  %s%d. Add new API key%s\n", CountStyle, len(existingKeys)+1, Reset)
+
+			choice, err := promptWithRetry(reader, fmt.Sprintf("\nSelect API key (1-%d): ", len(existingKeys)+1), func(input string) (string, error) {
+				var idx int
+				_, err := fmt.Sscanf(input, "%d", &idx)
+				if err != nil || idx < 1 || idx > len(existingKeys)+1 {
+					return "", fmt.Errorf("invalid choice: %s (choose 1-%d)", input, len(existingKeys)+1)
+				}
+				return input, nil
+			})
+			if err != nil {
+				return err
+			}
+
+			var choiceIdx int
+			fmt.Sscanf(choice, "%d", &choiceIdx)
+
+			if choiceIdx <= len(existingKeys) {
+				// Use existing API key
+				apiKey = existingKeys[choiceIdx-1]
+				fmt.Printf("%s✅ Using existing API key: %s%s\n", SuccessStyle, maskAPIKey(apiKey), Reset)
+			} else {
+				// Add new API key
+				apiKey, err = promptWithRetry(reader, "\nNew API Key: ", func(input string) (string, error) {
+					if input == "" {
+						return "", fmt.Errorf("API key is required for %s", selectedProvider.DisplayName())
+					}
+					return input, nil
+				})
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			// No existing keys, prompt for new one
+			apiKey, err = promptWithRetry(reader, "\nAPI Key: ", func(input string) (string, error) {
+				if input == "" {
+					return "", fmt.Errorf("API key is required for %s", selectedProvider.DisplayName())
+				}
+				return input, nil
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -402,43 +450,84 @@ func runLLMDelete(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	reader := bufio.NewReader(os.Stdin)
 
-	// If no ID provided, delete all LLMs
-	if len(args) == 0 {
-		// First, get all LLMs to show count
-		llms, err := database.ListLLMs(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to list LLMs: %w", err)
-		}
+	fmt.Printf("%s🗑️  Delete LLM Providers%s\n", FormatHeader(""), Reset)
+	fmt.Printf("%s========================%s\n", DimStyle, Reset)
+	fmt.Println()
 
-		if len(llms) == 0 {
-			fmt.Printf("%sNo LLMs to delete.%s\n", WarningStyle, Reset)
-			return nil
-		}
+	// Get all LLMs
+	llms, err := database.ListLLMs(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list LLMs: %w", err)
+	}
 
-		// Confirm deletion of all LLMs
-		confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure you want to delete ALL %s LLMs? This action cannot be undone! (y/N): %s", ErrorStyle, FormatCount(len(llms)), Reset))
-		if err != nil {
-			return err
-		}
-
-		if !confirmed {
-			fmt.Printf("%sCancelled.%s\n", WarningStyle, Reset)
-			return nil
-		}
-
-		// Use database delete all method
-		deletedCount, err := database.DeleteAllLLMs(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to delete all LLMs: %w", err)
-		}
-
-		fmt.Printf("%s✅ Successfully deleted %s LLMs!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
+	if len(llms) == 0 {
+		fmt.Printf("%sNo LLMs to delete.%s\n", WarningStyle, Reset)
 		return nil
 	}
 
-	// Delete specific LLM (original behavior)
-	id := args[0]
-	confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure you want to delete LLM provider %s? (y/N): %s", ErrorStyle, FormatValue(id), Reset))
+	// Display all LLMs with numbered indexes
+	fmt.Printf("%sAvailable LLM providers:%s\n", LabelStyle, Reset)
+	fmt.Printf("%s==========================%s\n", DimStyle, Reset)
+	for i, llm := range llms {
+		enabled := "Yes"
+		if !llm.Enabled {
+			enabled = "No"
+		}
+		fmt.Printf("%s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(llm.Name))
+		fmt.Printf("   %sProvider: %s%s\n", DimStyle, FormatSecondary(llm.Provider), Reset)
+		fmt.Printf("   %sModel: %s%s\n", DimStyle, FormatSecondary(llm.Model), Reset)
+		fmt.Printf("   %sEnabled: %s%s\n", DimStyle, FormatValue(enabled), Reset)
+		fmt.Printf("   %sID: %s%s\n", DimStyle, FormatSecondary(llm.ID), Reset)
+		fmt.Println()
+	}
+
+	// Get user selection
+	selection, err := promptWithRetry(reader, fmt.Sprintf("%sEnter the numbers of LLMs you want to delete (comma-separated, e.g., 1,3,5) or 'all' to delete all: %s", LabelStyle, Reset), func(input string) (string, error) {
+		if strings.ToLower(input) == "all" {
+			return input, nil
+		}
+
+		// Validate comma-separated numbers
+		selections := strings.Split(input, ",")
+		for _, sel := range selections {
+			sel = strings.TrimSpace(sel)
+			var idx int
+			_, err := fmt.Sscanf(sel, "%d", &idx)
+			if err != nil || idx < 1 || idx > len(llms) {
+				return "", fmt.Errorf("invalid selection: %s (must be numbers 1-%d or 'all')", sel, len(llms))
+			}
+		}
+		return input, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	var selectedLLMs []*models.LLMConfig
+
+	if strings.ToLower(selection) == "all" {
+		selectedLLMs = llms
+	} else {
+		// Parse comma-separated numbers
+		selections := strings.Split(selection, ",")
+		for _, sel := range selections {
+			sel = strings.TrimSpace(sel)
+			var idx int
+			fmt.Sscanf(sel, "%d", &idx)
+			selectedLLMs = append(selectedLLMs, llms[idx-1])
+		}
+	}
+
+	// Show confirmation
+	fmt.Printf("\n%s⚠️  Confirmation Required%s\n", WarningStyle, Reset)
+	fmt.Printf("%s========================%s\n", DimStyle, Reset)
+	fmt.Printf("%sThe following LLM(s) will be deleted:%s\n", LabelStyle, Reset)
+	for _, llm := range selectedLLMs {
+		fmt.Printf("  %s• %s (%s - %s)%s\n", ErrorStyle, FormatValue(llm.Name), FormatSecondary(llm.Provider), FormatSecondary(llm.Model), Reset)
+	}
+	fmt.Println()
+
+	confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure you want to delete %s LLM(s)? This action cannot be undone! (y/N): %s", ErrorStyle, FormatCount(len(selectedLLMs)), Reset))
 	if err != nil {
 		return err
 	}
@@ -448,11 +537,18 @@ func runLLMDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if err := database.DeleteLLM(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete LLM: %w", err)
+	// Delete selected LLMs
+	deletedCount := 0
+	for _, llm := range selectedLLMs {
+		if err := database.DeleteLLM(ctx, llm.ID); err != nil {
+			fmt.Printf("%s❌ Failed to delete %s: %s%s\n", ErrorStyle, FormatValue(llm.Name), FormatValue(err.Error()), Reset)
+			continue
+		}
+		fmt.Printf("%s✅ Deleted: %s%s\n", SuccessStyle, FormatValue(llm.Name), Reset)
+		deletedCount++
 	}
 
-	fmt.Printf("%s✅ LLM provider deleted successfully!%s\n", SuccessStyle, Reset)
+	fmt.Printf("\n%s🎉 Successfully deleted %s/%s LLM(s)!%s\n", SuccessStyle, FormatCount(deletedCount), FormatCount(len(selectedLLMs)), Reset)
 	return nil
 }
 
@@ -544,9 +640,10 @@ func runLLMUpdate(cmd *cobra.Command, args []string) error {
 	fmt.Print("Enable this LLM? (y/N): ")
 	enabledStr, _ := reader.ReadString('\n')
 	enabledStr = strings.TrimSpace(strings.ToLower(enabledStr))
-	if enabledStr == "y" || enabledStr == "yes" {
+	switch enabledStr {
+	case "y", "yes":
 		llm.Enabled = true
-	} else if enabledStr == "n" || enabledStr == "no" {
+	case "n", "no":
 		llm.Enabled = false
 	}
 
@@ -568,4 +665,26 @@ func maskAPIKey(apiKey string) string {
 		return "***"
 	}
 	return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
+}
+
+// getExistingAPIKeysForProvider returns existing API keys for a given provider
+func getExistingAPIKeysForProvider(ctx context.Context, provider string) ([]string, error) {
+	llms, err := database.ListLLMs(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var apiKeys []string
+	seenKeys := make(map[string]bool)
+
+	for _, llm := range llms {
+		if llm.Provider == provider && llm.APIKey != "" {
+			if !seenKeys[llm.APIKey] {
+				apiKeys = append(apiKeys, llm.APIKey)
+				seenKeys[llm.APIKey] = true
+			}
+		}
+	}
+
+	return apiKeys, nil
 }
