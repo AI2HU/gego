@@ -8,7 +8,7 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 ## Features
 
 - 🤖 **Multi-LLM Support**: Works with OpenAI, Anthropic, Ollama, Google, Perplexity, and custom LLM providers
-- 📊 **NoSQL Database**: Agnostic design supporting MongoDB and Cassandra with optimized analytics
+- 📊 **Hybrid Database**: SQLite for configuration data (LLMs, Schedules) and MongoDB for analytics data (Prompts, Responses)
 - ⏰ **Flexible Scheduling**: Cron-based scheduler for automated prompt execution
 - 📈 **Comprehensive Analytics**: Track keyword mentions, compare prompts and LLMs, view trends
 - 💻 **User-Friendly CLI**: Interactive commands for all operations
@@ -31,7 +31,7 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 ### Prerequisites
 
 - Go 1.21 or higher
-- MongoDB (or Cassandra for production use)
+- MongoDB (for analytics data)
 - API keys for LLM providers (OpenAI, Anthropic, etc.)
 
 ### Build from Source
@@ -173,11 +173,19 @@ gego schedule delete <id>
 Configuration is stored in `~/.gego/config.yaml`:
 
 ```yaml
-database:
+sql:
+  provider: sqlite
+  uri: ~/.gego/gego.db
+
+nosql:
   provider: mongodb
   uri: mongodb://localhost:27017
   database: gego
 ```
+
+**Database Architecture:**
+- **SQLite**: Stores LLM configurations and schedules (lightweight, local)
+- **MongoDB**: Stores prompts and responses with analytics (scalable, indexed)
 
 Note: Keywords are automatically extracted from LLM responses. No predefined list needed!
 
@@ -299,22 +307,21 @@ gego run --log-level INFO | grep "✅"
 
 ## Architecture
 
-### Database Schema (MongoDB)
+### Hybrid Database Schema
 
-Gego uses an optimized NoSQL schema for fast analytics:
+Gego uses a hybrid database architecture optimized for different data types:
 
-**Collections:**
-- `llms`: LLM provider configurations
-- `prompts`: Prompt templates
-- `schedules`: Execution schedules
-- `responses`: LLM responses with extracted keywords
-- `keyword_stats`: Pre-aggregated keyword statistics
-- `prompt_stats`: Pre-aggregated prompt statistics
-- `llm_stats`: Pre-aggregated LLM statistics
+**SQLite (Configuration Data):**
+- `llms`: LLM provider configurations (id, name, provider, model, api_key, base_url, config, enabled, timestamps)
+- `schedules`: Execution schedules (id, name, prompt_ids, llm_ids, cron_expr, enabled, last_run, next_run, timestamps)
+
+**MongoDB (Analytics Data):**
+- `prompts`: Prompt templates (id, template, tags, enabled, timestamps)
+- `responses`: LLM responses with metadata (id, prompt_id, llm_id, response_text, tokens_used, latency_ms, timestamps)
 
 **Key Indexes:**
-- `responses`: `(keywords.keyword, created_at)`, `(prompt_id, created_at)`, `(llm_id, created_at)`
-- `keyword_stats`: `(total_mentions)`, `(last_seen)`
+- **SQLite**: `idx_llms_provider`, `idx_llms_enabled`, `idx_schedules_enabled`, `idx_schedules_next_run`
+- **MongoDB**: `(prompt_id, created_at)`, `(created_at)` for responses
 
 ### Components
 
@@ -330,13 +337,13 @@ Gego uses an optimized NoSQL schema for fast analytics:
     ┌────┴─────────────────────┐
     │                          │
 ┌───┴───┐              ┌───────┴────────┐
-│  DB   │              │   LLM Registry │
-│Interface             │                │
+│Hybrid │              │   LLM Registry │
+│  DB   │              │                │
 └───┬───┘              └───────┬────────┘
     │                          │
 ┌───┴────┐            ┌────────┴─────────┐
-│MongoDB │            │ OpenAI│Anthropic │
-│Cassandra            │ Ollama│Custom... │
+│SQLite  │            │ OpenAI│Anthropic │
+│MongoDB │            │ Ollama│Custom... │
 └────────┘            └──────────────────┘
          │                    │
          └─────┬──────────────┘
@@ -368,10 +375,11 @@ registry.Register(myProvider)
 
 Gego uses several strategies for optimal performance:
 
-1. **Pre-aggregated Statistics**: Statistics are updated asynchronously when responses are created
-2. **Indexed Queries**: All common queries are backed by MongoDB indexes
-3. **Concurrent Execution**: Prompts are executed in parallel across LLMs
-4. **Caching**: Keyword extraction patterns are compiled once and reused
+1. **Hybrid Database**: SQLite for fast configuration queries, MongoDB for scalable analytics
+2. **On-demand Statistics**: Keyword statistics are calculated dynamically from response data
+3. **Indexed Queries**: All common queries are backed by database indexes
+4. **Concurrent Execution**: Prompts are executed in parallel across LLMs
+5. **Caching**: Keyword extraction patterns are compiled once and reused
 
 ## Contributing
 
@@ -389,8 +397,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] System prompt to simulate Chat version of models
 - [ ] Schedules cost forecast
 - [ ] Prompts batches to optimize costs
-- [ ] Cassandra database support
-- [ ] Web dashboard for visualizations
+- [ ] Prompts threading per provider for speed
+- [ ] Additional NoSQL database support (Cassandra, etc.)
+- [ ] Web dashboard for visualizations (another repo)
 - [ ] Export statistics to CSV/JSON
 - [ ] Webhook notifications
 - [ ] Custom keyword extraction rules and patterns
@@ -405,7 +414,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Built with [Cobra](https://github.com/spf13/cobra) for CLI
-- [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) for database
+- [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) for analytics database
+- [SQLite3](https://github.com/mattn/go-sqlite3) for configuration database
 - [Cron](https://github.com/robfig/cron) for scheduling
 
 ## Support

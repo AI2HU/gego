@@ -1,14 +1,14 @@
 package openai
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared"
 
 	"github.com/AI2HU/gego/internal/llm"
 	"github.com/AI2HU/gego/internal/models"
@@ -18,21 +18,28 @@ import (
 type Provider struct {
 	apiKey  string
 	baseURL string
-	client  *http.Client
+	client  openai.Client
 }
 
 // New creates a new OpenAI provider
 func New(apiKey, baseURL string) *Provider {
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
+	// Create client using the official SDK
+	client := openai.NewClient(
+		option.WithAPIKey(apiKey),
+	)
+
+	// Set custom base URL if provided
+	if baseURL != "" && baseURL != "https://api.openai.com/v1" {
+		client = openai.NewClient(
+			option.WithAPIKey(apiKey),
+			option.WithBaseURL(baseURL),
+		)
 	}
 
 	return &Provider{
 		apiKey:  apiKey,
 		baseURL: baseURL,
-		client: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		client:  client,
 	}
 }
 
@@ -53,9 +60,9 @@ func (p *Provider) Validate(config map[string]string) error {
 func (p *Provider) Generate(ctx context.Context, prompt string, config map[string]interface{}) (*llm.Response, error) {
 	startTime := time.Now()
 
-	model := "gpt-3.5-turbo"
+	model := shared.ChatModelGPT3_5Turbo
 	if m, ok := config["model"].(string); ok && m != "" {
-		model = m
+		model = shared.ChatModel(m)
 	}
 
 	temperature := 0.7
@@ -68,159 +75,106 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 		maxTokens = mt
 	}
 
-	requestBody := map[string]interface{}{
-		"model": model,
-		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
+	// Create chat completion request
+	chatCompletion, err := p.client.Chat.Completions.New(
+		ctx,
+		openai.ChatCompletionNewParams{
+			Model: model,
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				{
+					OfUser: &openai.ChatCompletionUserMessageParam{
+						Content: openai.ChatCompletionUserMessageParamContentUnion{
+							OfString: openai.String(prompt),
+						},
+					},
+				},
+			},
+			Temperature: openai.Float(temperature),
+			MaxTokens:   openai.Int(int64(maxTokens)),
 		},
-		"temperature": temperature,
-		"max_tokens":  maxTokens,
-	}
-
-	jsonBody, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/chat/completions", bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	resp, err := p.client.Do(req)
+	)
 	if err != nil {
 		return &llm.Response{
-			Error:     err.Error(),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return &llm.Response{
-			Error:     fmt.Sprintf("API error: %s", string(body)),
+			Error:     fmt.Sprintf("OpenAI API error: %v", err),
 			LatencyMs: time.Since(startTime).Milliseconds(),
 		}, nil
 	}
 
-	var openAIResp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage struct {
-			TotalTokens int `json:"total_tokens"`
-		} `json:"usage"`
-		Model string `json:"model"`
+	// Extract the generated text
+	var generatedText string
+	if len(chatCompletion.Choices) > 0 && chatCompletion.Choices[0].Message.Content != "" {
+		generatedText = chatCompletion.Choices[0].Message.Content
 	}
 
-	if err := json.Unmarshal(body, &openAIResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	if len(openAIResp.Choices) == 0 {
-		return &llm.Response{
-			Error:     "no choices returned from API",
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+	// Get token usage
+	tokensUsed := 0
+	if chatCompletion.Usage.TotalTokens != 0 {
+		tokensUsed = int(chatCompletion.Usage.TotalTokens)
 	}
 
 	return &llm.Response{
-		Text:       openAIResp.Choices[0].Message.Content,
-		TokensUsed: openAIResp.Usage.TotalTokens,
+		Text:       generatedText,
+		TokensUsed: tokensUsed,
 		LatencyMs:  time.Since(startTime).Milliseconds(),
-		Model:      openAIResp.Model,
+		Model:      string(model),
 		Provider:   "openai",
 	}, nil
 }
 
 // ListModels lists available text-to-text models from OpenAI
 func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]models.ModelInfo, error) {
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
+	// Create client for this request
+	client := p.client
+	if apiKey != "" && apiKey != p.apiKey {
+		client = openai.NewClient(
+			option.WithAPIKey(apiKey),
+		)
+		if baseURL != "" && baseURL != "https://api.openai.com/v1" {
+			client = openai.NewClient(
+				option.WithAPIKey(apiKey),
+				option.WithBaseURL(baseURL),
+			)
+		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/models", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	// List models using the SDK
+	modelList, err := client.Models.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list models: %w", err)
 	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error: %s", string(body))
-	}
-
-	var listResp struct {
-		Data []struct {
-			ID         string `json:"id"`
-			OwnedBy    string `json:"owned_by"`
-			Permission []struct {
-				AllowCreateEngine bool `json:"allow_create_engine"`
-			} `json:"permission"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(body, &listResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	// Filter for text-to-text models only (GPT chat models)
 	var textModels []models.ModelInfo
-	seen := make(map[string]bool)
-
-	for _, model := range listResp.Data {
-		modelID := strings.ToLower(model.ID)
+	for _, model := range modelList.Data {
+		// Filter for text-to-text models only (GPT chat models)
+		modelID := string(model.ID)
 
 		// Only include GPT models that support chat completions
-		if strings.HasPrefix(modelID, "gpt-") && !seen[model.ID] {
+		if strings.HasPrefix(strings.ToLower(modelID), "gpt") {
 			// Skip fine-tuned models (contains colons)
-			if strings.Contains(model.ID, ":") {
+			if strings.Contains(modelID, ":") {
 				continue
 			}
 
 			// Skip embedding models
-			if strings.Contains(modelID, "embed") || strings.Contains(modelID, "embedding") {
+			if strings.Contains(strings.ToLower(modelID), "embed") || strings.Contains(strings.ToLower(modelID), "embedding") {
 				continue
 			}
 
 			// Skip image models
-			if strings.Contains(modelID, "vision") || strings.Contains(modelID, "image") {
+			if strings.Contains(strings.ToLower(modelID), "vision") || strings.Contains(strings.ToLower(modelID), "image") {
 				continue
 			}
 
 			// Skip audio models
-			if strings.Contains(modelID, "whisper") || strings.Contains(modelID, "audio") {
+			if strings.Contains(strings.ToLower(modelID), "whisper") || strings.Contains(strings.ToLower(modelID), "audio") {
 				continue
 			}
 
 			textModels = append(textModels, models.ModelInfo{
-				ID:          model.ID,
-				Name:        model.ID,
-				Description: fmt.Sprintf("OpenAI %s", model.ID),
+				ID:          modelID,
+				Name:        modelID,
+				Description: fmt.Sprintf("OpenAI %s", modelID),
 			})
-			seen[model.ID] = true
 		}
 	}
 

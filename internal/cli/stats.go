@@ -66,6 +66,13 @@ func runStatsKeywords(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%sNo keyword statistics available yet. Run some schedules first!%s\n", WarningStyle, Reset)
 		return nil
 	}
+
+	// Calculate total mentions for percentage calculation
+	totalMentions := 0
+	for _, keyword := range keywords {
+		totalMentions += keyword.Count
+	}
+
 	fmt.Printf("%s📊 Top Keywords by Mentions%s\n", HeaderStyle, Reset)
 	fmt.Printf("%s===========================%s\n", DimStyle, Reset)
 	fmt.Println()
@@ -75,10 +82,11 @@ func runStatsKeywords(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(w, "%s────\t───────\t────────%s\n", DimStyle, Reset)
 
 	for i, keyword := range keywords {
+		percentage := float64(keyword.Count) / float64(totalMentions) * 100
 		fmt.Fprintf(w, "%s\t%s\t%s\n",
 			FormatCount(i+1),
 			FormatValue(keyword.Keyword),
-			FormatCount(keyword.Count),
+			fmt.Sprintf("%s%d (%.1f%%)%s", CountStyle, keyword.Count, percentage, Reset),
 		)
 	}
 
@@ -140,8 +148,9 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 			// Show that this is historical data
 			displayText = fmt.Sprintf("[Deleted Prompt: %s]", item.Key[:8])
 		}
+		percentage := float64(item.Value) / float64(stats.TotalMentions) * 100
 		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(displayText))
-		fmt.Printf("     %s%d mentions%s\n", DimStyle, item.Value, Reset)
+		fmt.Printf("     %s%d mentions (%.1f%%)%s\n", DimStyle, item.Value, percentage, Reset)
 	}
 
 	fmt.Println()
@@ -170,8 +179,9 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 			// Show that this is historical data
 			displayText = fmt.Sprintf("[Deleted LLM: %s]", item.Key[:8])
 		}
+		percentage := float64(item.Value) / float64(stats.TotalMentions) * 100
 		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(displayText))
-		fmt.Printf("     %s%d mentions%s\n", DimStyle, item.Value, Reset)
+		fmt.Printf("     %s%d mentions (%.1f%%)%s\n", DimStyle, item.Value, percentage, Reset)
 	}
 
 	fmt.Println()
@@ -188,7 +198,8 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 	})
 
 	for i, item := range providerList {
-		fmt.Printf("  %s: %s mentions%s\n", FormatValue(item.Key), CountStyle+fmt.Sprintf(" %d", item.Value)+Reset, Reset)
+		percentage := float64(item.Value) / float64(stats.TotalMentions) * 100
+		fmt.Printf("  %s: %s mentions (%.1f%%)%s\n", FormatValue(item.Key), CountStyle+fmt.Sprintf(" %d", item.Value)+Reset, percentage, Reset)
 		if i >= 10 {
 			break
 		}

@@ -145,34 +145,78 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 }
 
 // ListModels lists available text-to-text models from Anthropic
-// Since Anthropic doesn't have a public models API, we return a curated list
 func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]models.ModelInfo, error) {
-	// Return current Claude models for text generation
-	return []models.ModelInfo{
-		{
-			ID:          "claude-3-5-sonnet-20241022",
-			Name:        "Claude 3.5 Sonnet",
-			Description: "Most intelligent model, best for complex tasks",
-		},
-		{
-			ID:          "claude-3-5-haiku-20241022",
-			Name:        "Claude 3.5 Haiku",
-			Description: "Fastest model, best for simple tasks",
-		},
-		{
-			ID:          "claude-3-opus-20240229",
-			Name:        "Claude 3 Opus",
-			Description: "Powerful model for highly complex tasks",
-		},
-		{
-			ID:          "claude-3-sonnet-20240229",
-			Name:        "Claude 3 Sonnet",
-			Description: "Balanced performance and speed",
-		},
-		{
-			ID:          "claude-3-haiku-20240307",
-			Name:        "Claude 3 Haiku",
-			Description: "Fast and compact model",
-		},
-	}, nil
+	if apiKey == "" {
+		apiKey = p.apiKey
+	}
+	if baseURL == "" {
+		baseURL = p.baseURL
+	}
+
+	// Create a temporary client for this request
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp struct {
+			Error struct {
+				Type    string `json:"type"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(body, &errorResp); err == nil {
+			return nil, fmt.Errorf("Anthropic API error (%s): %s", errorResp.Error.Type, errorResp.Error.Message)
+		}
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response struct {
+		Data []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+			CreatedAt   string `json:"created_at"`
+			Type        string `json:"type"`
+		} `json:"data"`
+		FirstID string `json:"first_id"`
+		HasMore bool   `json:"has_more"`
+		LastID  string `json:"last_id"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	var modelList []models.ModelInfo
+	for _, model := range response.Data {
+		// Only include models that are of type "model"
+		if model.Type == "model" {
+			modelList = append(modelList, models.ModelInfo{
+				ID:          model.ID,
+				Name:        model.DisplayName,
+				Description: fmt.Sprintf("Anthropic %s (created: %s)", model.DisplayName, model.CreatedAt),
+			})
+		}
+	}
+
+	return modelList, nil
 }
