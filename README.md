@@ -1,6 +1,6 @@
 # Gego - GEO System for your brand, working with all LLMs
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
 
 Gego is an open-source GEO (Generative Engine Optimization) tracker that schedules prompts across multiple Large Language Models (LLMs) and automatically extracts keywords from their responses. It helps you understand which keywords (brands, products, concepts) appear most frequently, which prompts generate the most mentions.
@@ -42,7 +42,7 @@ cd gego
 go build -o gego cmd/gego/main.go
 ```
 
-### Install
+### Install via Go
 
 ```bash
 go install github.com/AI2HU/gego/cmd/gego@latest
