@@ -47,33 +47,6 @@ go build -o gego cmd/gego/main.go
 ```bash
 # Install Gego directly from GitHub
 go install github.com/AI2HU/gego/cmd/gego@latest
-
-# If the above doesn't work, try this alternative:
-go install github.com/AI2HU/gego@latest
-```
-
-### Troubleshooting Installation
-
-If you encounter the error `module github.com/AI2HU/gego@latest found, but does not contain package github.com/AI2HU/gego/cmd/gego`, try these solutions:
-
-1. **Clone and install locally:**
-```bash
-git clone https://github.com/AI2HU/gego.git
-cd gego
-go install ./cmd/gego
-```
-
-2. **Use the build method instead:**
-```bash
-git clone https://github.com/AI2HU/gego.git
-cd gego
-make build
-sudo cp build/gego /usr/local/bin/
-```
-
-3. **Check Go version compatibility:**
-```bash
-go version  # Should be 1.21 or higher
 ```
 
 ## Quick Start
