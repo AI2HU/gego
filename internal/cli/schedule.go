@@ -232,7 +232,7 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%sPrompts: %s\n", LabelStyle, FormatCount(len(schedule.PromptIDs)))
 	fmt.Printf("%sLLMs: %s\n", LabelStyle, FormatCount(len(schedule.LLMIDs)))
 	fmt.Printf("%sTemperature: %s\n", LabelStyle, FormatValue(fmt.Sprintf("%.1f", schedule.Temperature)))
-	fmt.Printf("\n%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego run"), Reset)
+	fmt.Printf("\n%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
 
 	return nil
 }
@@ -375,7 +375,7 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("%s✅ Successfully deleted %s schedules!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
-		fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego run"), Reset)
+		fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
 		return nil
 	}
 
@@ -395,7 +395,7 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("%s✅ Schedule deleted successfully!%s\n", SuccessStyle, Reset)
-	fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego run"), Reset)
+	fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
 	return nil
 }
 
@@ -414,7 +414,7 @@ func runScheduleEnable(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("%s✅ Schedule enabled!%s\n", SuccessStyle, Reset)
-	fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego run"), Reset)
+	fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
 	return nil
 }
 
@@ -433,7 +433,7 @@ func runScheduleDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("%s✅ Schedule disabled!%s\n", SuccessStyle, Reset)
-	fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego run"), Reset)
+	fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
 	return nil
 }
 
