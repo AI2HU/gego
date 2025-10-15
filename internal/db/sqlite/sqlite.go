@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -26,14 +29,37 @@ func New(config *models.Config) (*SQLite, error) {
 
 // Connect establishes connection to SQLite
 func (s *SQLite) Connect(ctx context.Context) error {
-	db, err := sql.Open("sqlite3", s.config.URI)
+	// Expand the URI path (handle ~ and relative paths)
+	dbPath := s.config.URI
+	if strings.HasPrefix(dbPath, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		dbPath = filepath.Join(home, dbPath[1:])
+	} else if !filepath.IsAbs(dbPath) {
+		// Convert relative path to absolute
+		absPath, err := filepath.Abs(dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to resolve absolute path: %w", err)
+		}
+		dbPath = absPath
+	}
+
+	// Ensure the directory exists
+	dir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create database directory: %w", err)
+	}
+
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to open SQLite database: %w", err)
+		return fmt.Errorf("failed to open SQLite database at path '%s': %w", dbPath, err)
 	}
 
 	// Test the connection
 	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("failed to ping SQLite database: %w", err)
+		return fmt.Errorf("failed to ping SQLite database at path '%s': %w", dbPath, err)
 	}
 
 	s.db = db
@@ -41,6 +67,11 @@ func (s *SQLite) Connect(ctx context.Context) error {
 	// Create tables
 	if err := s.createTables(ctx); err != nil {
 		return fmt.Errorf("failed to create tables: %w", err)
+	}
+
+	// Run migrations
+	if err := s.runMigrations(ctx); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return nil
@@ -87,6 +118,7 @@ func (s *SQLite) createTables(ctx context.Context) error {
 		prompt_ids TEXT NOT NULL, -- JSON array of prompt IDs
 		llm_ids TEXT NOT NULL,    -- JSON array of LLM IDs
 		cron_expr TEXT NOT NULL,
+		temperature REAL DEFAULT 0.7,
 		enabled BOOLEAN NOT NULL DEFAULT 1,
 		last_run DATETIME,
 		next_run DATETIME,
@@ -109,6 +141,20 @@ func (s *SQLite) createTables(ctx context.Context) error {
 		if _, err := s.db.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("failed to execute query: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// runMigrations runs database migrations
+func (s *SQLite) runMigrations(ctx context.Context) error {
+	// Migration 1: Add temperature column to schedules table if it doesn't exist
+	query := `ALTER TABLE schedules ADD COLUMN temperature REAL DEFAULT 0.7;`
+	_, err := s.db.ExecContext(ctx, query)
+	if err != nil {
+		// Column might already exist, which is fine
+		// In SQLite, ALTER TABLE ADD COLUMN fails if column already exists
+		// We can ignore this error
 	}
 
 	return nil
@@ -167,8 +213,32 @@ func jsonToSlice(jsonStr string) []string {
 	if jsonStr == "" || jsonStr == "[]" {
 		return []string{}
 	}
-	// For now, return empty slice - proper JSON parsing would be needed
-	return []string{}
+
+	// Remove brackets and split by comma
+	jsonStr = strings.TrimSpace(jsonStr)
+	if !strings.HasPrefix(jsonStr, "[") || !strings.HasSuffix(jsonStr, "]") {
+		return []string{}
+	}
+
+	// Remove brackets
+	jsonStr = jsonStr[1 : len(jsonStr)-1]
+	if jsonStr == "" {
+		return []string{}
+	}
+
+	// Split by comma and clean up quotes
+	parts := strings.Split(jsonStr, ",")
+	var result []string
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		// Remove quotes if present
+		if strings.HasPrefix(part, `"`) && strings.HasSuffix(part, `"`) {
+			part = part[1 : len(part)-1]
+		}
+		result = append(result, part)
+	}
+
+	return result
 }
 
 // LLM Operations
@@ -360,8 +430,8 @@ func (s *SQLite) CreateSchedule(ctx context.Context, schedule *models.Schedule) 
 	schedule.UpdatedAt = time.Now()
 
 	query := `
-		INSERT INTO schedules (id, name, prompt_ids, llm_ids, cron_expr, enabled, last_run, next_run, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		INSERT INTO schedules (id, name, prompt_ids, llm_ids, cron_expr, temperature, enabled, last_run, next_run, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := s.db.ExecContext(ctx, query,
 		schedule.ID,
@@ -369,6 +439,7 @@ func (s *SQLite) CreateSchedule(ctx context.Context, schedule *models.Schedule) 
 		sliceToJSON(schedule.PromptIDs),
 		sliceToJSON(schedule.LLMIDs),
 		schedule.CronExpr,
+		schedule.Temperature,
 		schedule.Enabled,
 		schedule.LastRun,
 		schedule.NextRun,
@@ -382,7 +453,7 @@ func (s *SQLite) CreateSchedule(ctx context.Context, schedule *models.Schedule) 
 // GetSchedule retrieves a schedule by ID
 func (s *SQLite) GetSchedule(ctx context.Context, id string) (*models.Schedule, error) {
 	query := `
-		SELECT id, name, prompt_ids, llm_ids, cron_expr, enabled, last_run, next_run, created_at, updated_at
+		SELECT id, name, prompt_ids, llm_ids, cron_expr, temperature, enabled, last_run, next_run, created_at, updated_at
 		FROM schedules WHERE id = ?`
 
 	var schedule models.Schedule
@@ -394,6 +465,7 @@ func (s *SQLite) GetSchedule(ctx context.Context, id string) (*models.Schedule, 
 		&promptIDsJSON,
 		&llmIDsJSON,
 		&schedule.CronExpr,
+		&schedule.Temperature,
 		&schedule.Enabled,
 		&schedule.LastRun,
 		&schedule.NextRun,
@@ -416,7 +488,7 @@ func (s *SQLite) GetSchedule(ctx context.Context, id string) (*models.Schedule, 
 // ListSchedules lists all schedules, optionally filtered by enabled status
 func (s *SQLite) ListSchedules(ctx context.Context, enabled *bool) ([]*models.Schedule, error) {
 	query := `
-		SELECT id, name, prompt_ids, llm_ids, cron_expr, enabled, last_run, next_run, created_at, updated_at
+		SELECT id, name, prompt_ids, llm_ids, cron_expr, temperature, enabled, last_run, next_run, created_at, updated_at
 		FROM schedules`
 	args := []interface{}{}
 
@@ -444,6 +516,7 @@ func (s *SQLite) ListSchedules(ctx context.Context, enabled *bool) ([]*models.Sc
 			&promptIDsJSON,
 			&llmIDsJSON,
 			&schedule.CronExpr,
+			&schedule.Temperature,
 			&schedule.Enabled,
 			&schedule.LastRun,
 			&schedule.NextRun,
@@ -468,7 +541,7 @@ func (s *SQLite) UpdateSchedule(ctx context.Context, schedule *models.Schedule) 
 
 	query := `
 		UPDATE schedules 
-		SET name = ?, prompt_ids = ?, llm_ids = ?, cron_expr = ?, enabled = ?, last_run = ?, next_run = ?, updated_at = ?
+		SET name = ?, prompt_ids = ?, llm_ids = ?, cron_expr = ?, temperature = ?, enabled = ?, last_run = ?, next_run = ?, updated_at = ?
 		WHERE id = ?`
 
 	result, err := s.db.ExecContext(ctx, query,
@@ -476,6 +549,7 @@ func (s *SQLite) UpdateSchedule(ctx context.Context, schedule *models.Schedule) 
 		sliceToJSON(schedule.PromptIDs),
 		sliceToJSON(schedule.LLMIDs),
 		schedule.CronExpr,
+		schedule.Temperature,
 		schedule.Enabled,
 		schedule.LastRun,
 		schedule.NextRun,

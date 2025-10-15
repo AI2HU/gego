@@ -70,10 +70,7 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 			Backend: genai.BackendGeminiAPI,
 		})
 		if err != nil {
-			return &llm.Response{
-				Error:     fmt.Sprintf("failed to create Google client: %v", err),
-				LatencyMs: time.Since(startTime).Milliseconds(),
-			}, nil
+			return nil, fmt.Errorf("failed to create Google client: %w", err)
 		}
 	}
 
@@ -107,10 +104,7 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 	// Generate content
 	result, err := client.Models.GenerateContent(ctx, model, content, generationConfig)
 	if err != nil {
-		return &llm.Response{
-			Error:     fmt.Sprintf("Google AI API error: %v", err),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("Google AI API error: %v", err)
 	}
 
 	// Extract the generated text

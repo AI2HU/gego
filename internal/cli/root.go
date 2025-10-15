@@ -139,6 +139,7 @@ func init() {
 	rootCmd.AddCommand(llmCmd)
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(scheduleCmd)
+	rootCmd.AddCommand(schedulerCmd)
 	rootCmd.AddCommand(statsCmd)
 	rootCmd.AddCommand(searchCmd)
 	rootCmd.AddCommand(runCmd)

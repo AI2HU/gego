@@ -94,13 +94,19 @@ gego schedule add
 
 Create schedules to run prompts automatically using cron expressions.
 
-### 5. Start the Scheduler
+### 5. Run Prompts
 
 ```bash
+# Run all prompts with all LLMs once
 gego run
+
+# Start scheduler for scheduled execution
+gego scheduler start
 ```
 
-The scheduler will execute your prompts according to their schedules and collect responses.
+**Run Command**: Executes all enabled prompts with all enabled LLMs immediately.
+
+**Scheduler Commands**: Manage scheduled execution of prompts.
 
 ## Usage Examples
 
@@ -167,6 +173,24 @@ gego schedule disable <id>
 # Delete schedule
 gego schedule delete <id>
 ```
+
+### Manage Scheduler
+
+```bash
+# Check scheduler status
+gego scheduler status
+
+# Start scheduler (asks which schedule to start)
+gego scheduler start
+
+# Stop scheduler (asks which schedule to stop)
+gego scheduler stop
+
+# Restart scheduler (asks which schedule to restart)
+gego scheduler restart
+```
+
+**Interactive Schedule Selection**: All scheduler commands will show available schedules and ask you to select which one to manage, or choose "all" for all schedules.
 
 ## Configuration
 
@@ -394,7 +418,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Roadmap
 
 - [ ] Persona embedding to simulate Chat version of models
-- [ ] System prompt to simulate Chat version of models
+- [ ] System prompt to simulate Chat version of models for each model
+- [ ] Schedules / run time estimation until finish
 - [ ] Schedules cost forecast
 - [ ] Prompts batches to optimize costs
 - [ ] Prompts threading per provider for speed
@@ -404,7 +429,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] Webhook notifications
 - [ ] Custom keyword extraction rules and patterns
 - [ ] Time-series trend analysis
-- [ ] Multi-tenancy support
 - [ ] Docker support
 
 ## License

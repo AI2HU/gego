@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"golang.org/x/time/rate"
 
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/llm"
@@ -22,25 +24,49 @@ const (
 	DefaultRetryDelay = 30 * time.Second
 )
 
-// Scheduler manages scheduled prompt executions
+// Rate limiting configuration
+const (
+	// 6 requests per minute = 1 request every 10 seconds
+	RequestsPerMinute = 6
+	RateLimitBurst    = 1
+)
+
+// Scheduler manages scheduled prompt executions using robfig/cron
 type Scheduler struct {
 	db          db.Database
 	llmRegistry *llm.Registry
 	cron        *cron.Cron
 	running     bool
 	mu          sync.RWMutex
+	// Rate limiters per LLM provider (keyed by provider name)
+	rateLimiters map[string]*rate.Limiter
+	rateMu       sync.RWMutex
+	// Track registered schedule IDs for management
+	scheduleEntries map[string]cron.EntryID
+	entriesMu       sync.RWMutex
 }
 
-// New creates a new scheduler
+// New creates a new scheduler with proper cron configuration
 func New(database db.Database, llmRegistry *llm.Registry) *Scheduler {
+	// Create cron with proper configuration
+	c := cron.New(
+		cron.WithLocation(time.UTC),
+		cron.WithLogger(cron.DefaultLogger),
+		cron.WithChain(
+			cron.Recover(cron.DefaultLogger), // Recover from panics
+		),
+	)
+
 	return &Scheduler{
-		db:          database,
-		llmRegistry: llmRegistry,
-		cron:        cron.New(),
+		db:              database,
+		llmRegistry:     llmRegistry,
+		cron:            c,
+		rateLimiters:    make(map[string]*rate.Limiter),
+		scheduleEntries: make(map[string]cron.EntryID),
 	}
 }
 
-// Start starts the scheduler
+// Start starts the scheduler and loads all enabled schedules
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -76,14 +102,15 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		logger.Info("Successfully registered %d schedule(s) with cron", registeredCount)
 	}
 
+	// Start the cron scheduler
 	s.cron.Start()
 	s.running = true
 
-	logger.Info("Scheduler started")
+	logger.Info("Scheduler started successfully")
 	return nil
 }
 
-// Stop stops the scheduler
+// Stop stops the scheduler and removes all registered schedules
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -92,8 +119,14 @@ func (s *Scheduler) Stop() {
 		return
 	}
 
+	// Stop the cron scheduler
 	s.cron.Stop()
 	s.running = false
+
+	// Clear all schedule entries
+	s.entriesMu.Lock()
+	s.scheduleEntries = make(map[string]cron.EntryID)
+	s.entriesMu.Unlock()
 
 	logger.Info("Scheduler stopped")
 }
@@ -107,7 +140,7 @@ func (s *Scheduler) GetStatus(ctx context.Context) (bool, int, error) {
 		return false, 0, nil
 	}
 
-	// Get count of enabled schedules
+	// Get count of enabled schedules from database
 	schedules, err := s.db.ListSchedules(ctx, boolPtr(true))
 	if err != nil {
 		return s.running, 0, fmt.Errorf("failed to get schedule count: %w", err)
@@ -116,19 +149,28 @@ func (s *Scheduler) GetStatus(ctx context.Context) (bool, int, error) {
 	return s.running, len(schedules), nil
 }
 
-// registerSchedule registers a schedule with cron
-func (s *Scheduler) registerSchedule(_ context.Context, schedule *models.Schedule) error {
-	_, err := s.cron.AddFunc(schedule.CronExpr, func() {
+// registerSchedule registers a schedule with cron and stores the entry ID
+func (s *Scheduler) registerSchedule(ctx context.Context, schedule *models.Schedule) error {
+	// Create a job function that executes the schedule
+	jobFunc := func() {
+		logger.Info("Executing scheduled job: %s", schedule.Name)
 		if err := s.executeSchedule(context.Background(), schedule); err != nil {
 			logger.Error("Failed to execute schedule %s: %v", schedule.ID, err)
 		}
-	})
+	}
 
+	// Add the job to cron and get the entry ID
+	entryID, err := s.cron.AddFunc(schedule.CronExpr, jobFunc)
 	if err != nil {
 		return fmt.Errorf("failed to add cron job: %w", err)
 	}
 
-	logger.Info("Registered schedule %s with cron expression: %s", schedule.ID, schedule.CronExpr)
+	// Store the entry ID for this schedule
+	s.entriesMu.Lock()
+	s.scheduleEntries[schedule.ID] = entryID
+	s.entriesMu.Unlock()
+
+	logger.Info("Registered schedule %s with cron expression: %s (Entry ID: %d)", schedule.ID, schedule.CronExpr, entryID)
 	return nil
 }
 
@@ -250,10 +292,17 @@ func (s *Scheduler) executePromptWithRetry(ctx context.Context, scheduleID strin
 		lastErr = err
 		logger.Warning("❌ Attempt %d/%d failed for prompt '%s' with LLM '%s': %v", attempt, maxRetries, prompt.Template[:min(50, len(prompt.Template))]+"...", llmConfig.Name, err)
 
+		// Check if it's a rate limiting error - use longer delay
+		retryDelayToUse := retryDelay
+		if strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "quota") || strings.Contains(err.Error(), "rate limit") {
+			retryDelayToUse = 2 * time.Minute // Wait 2 minutes for rate limit errors
+			logger.Info("Rate limit detected, using extended retry delay: %v", retryDelayToUse)
+		}
+
 		// Don't wait after the last attempt
 		if attempt < maxRetries {
-			logger.Info("⏳ Waiting %v before retry attempt %d...", retryDelay, attempt+1)
-			time.Sleep(retryDelay)
+			logger.Info("⏳ Waiting %v before retry attempt %d...", retryDelayToUse, attempt+1)
+			time.Sleep(retryDelayToUse)
 		}
 	}
 
@@ -272,6 +321,16 @@ func (s *Scheduler) executePromptWithLLM(ctx context.Context, scheduleID string,
 		return fmt.Errorf("provider not found: %s", llmConfig.Provider)
 	}
 	logger.Debug("Found provider for: %s", llmConfig.Provider)
+
+	// Get rate limiter for this provider
+	rateLimiter := s.getRateLimiter(llmConfig.Provider)
+
+	// Wait for rate limiter before making the request
+	logger.Debug("Waiting for rate limiter for provider: %s", llmConfig.Provider)
+	if err := rateLimiter.Wait(ctx); err != nil {
+		logger.Error("Rate limiter wait failed: %v", err)
+		return fmt.Errorf("rate limiter wait failed: %w", err)
+	}
 
 	// Prepare config
 	config := make(map[string]interface{})
@@ -383,6 +442,31 @@ func (s *Scheduler) Reload(ctx context.Context) error {
 	s.Stop()
 	time.Sleep(100 * time.Millisecond) // Give it time to stop
 	return s.Start(ctx)
+}
+
+// getRateLimiter gets or creates a rate limiter for the given provider
+func (s *Scheduler) getRateLimiter(provider string) *rate.Limiter {
+	s.rateMu.RLock()
+	limiter, exists := s.rateLimiters[provider]
+	s.rateMu.RUnlock()
+
+	if exists {
+		return limiter
+	}
+
+	// Create new rate limiter
+	s.rateMu.Lock()
+	defer s.rateMu.Unlock()
+
+	// Double-check in case another goroutine created it
+	if limiter, exists := s.rateLimiters[provider]; exists {
+		return limiter
+	}
+
+	// Create rate limiter: 6 requests per minute = 1 request every 10 seconds
+	limiter = rate.NewLimiter(rate.Every(time.Minute/RequestsPerMinute), RateLimitBurst)
+	s.rateLimiters[provider] = limiter
+	return limiter
 }
 
 func boolPtr(b bool) *bool {

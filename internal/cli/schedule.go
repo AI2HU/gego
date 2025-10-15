@@ -107,14 +107,7 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	for i, p := range prompts {
-		// Show truncated template instead of name
-		template := p.Template
-		if len(template) > 50 {
-			template = template[:47] + "..."
-		}
-		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(template))
-		fmt.Printf("     %sTemplate: %s%s\n", LabelStyle, FormatDim(p.Template), Reset)
-		fmt.Println()
+		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(p.Template))
 	}
 
 	fmt.Printf("\n%sSelect prompts (comma-separated numbers or 'all'): %s", LabelStyle, Reset)

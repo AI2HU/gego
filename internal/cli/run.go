@@ -24,85 +24,21 @@ func boolPtr(b bool) *bool {
 
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Run prompts with LLMs",
-	Long:  `Run prompts with LLMs either via scheduler (scheduled execution) or run once (immediate execution of all prompts with all models).`,
+	Short: "Run all prompts with all LLMs once",
+	Long:  `Execute all enabled prompts with all enabled LLMs immediately. Use 'gego scheduler start' for scheduled execution.`,
 	RunE:  runCommand,
 }
 
 func runCommand(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Printf("%s🚀 Run Prompts with LLMs%s\n", FormatHeader(""), Reset)
-	fmt.Printf("%s========================%s\n", DimStyle, Reset)
-	fmt.Println()
 
 	// Initialize LLM providers
 	if err := initializeLLMProviders(ctx); err != nil {
 		return fmt.Errorf("failed to initialize LLM providers: %w", err)
 	}
 
-	// Check if there are any schedules
-	schedules, err := database.ListSchedules(ctx, boolPtr(true))
-	if err != nil {
-		return fmt.Errorf("failed to check schedules: %w", err)
-	}
-
-	// Check if there are any prompts and LLMs
-	prompts, err := database.ListPrompts(ctx, boolPtr(true))
-	if err != nil {
-		return fmt.Errorf("failed to check prompts: %w", err)
-	}
-
-	llms, err := database.ListLLMs(ctx, boolPtr(true))
-	if err != nil {
-		return fmt.Errorf("failed to check LLMs: %w", err)
-	}
-
-	// Show available options
-	fmt.Printf("%sChoose how to run prompts:%s\n", LabelStyle, Reset)
-	fmt.Printf("  %s1. Scheduler Mode%s - Run scheduled tasks continuously%s\n", CountStyle, Reset, DimStyle+" (requires schedules)"+Reset)
-	fmt.Printf("  %s2. Run Once%s - Execute all prompts with all LLMs immediately%s\n", CountStyle, Reset, DimStyle+" (requires prompts and LLMs)"+Reset)
-	fmt.Println()
-
-	// Show current status
-	if len(schedules) > 0 {
-		fmt.Printf("%s📅 Found %s enabled schedule(s)%s\n", InfoStyle, FormatCount(len(schedules)), Reset)
-	} else {
-		fmt.Printf("%s📅 No enabled schedules found%s\n", WarningStyle, Reset)
-	}
-
-	if len(prompts) > 0 && len(llms) > 0 {
-		fmt.Printf("%s📝 Found %s prompt(s) and %s LLM(s) for run-once mode%s\n", InfoStyle, FormatCount(len(prompts)), FormatCount(len(llms)), Reset)
-	} else {
-		fmt.Printf("%s📝 Run-once mode requires prompts and LLMs%s\n", WarningStyle, Reset)
-		if len(prompts) == 0 {
-			fmt.Printf("   %s• No enabled prompts found%s\n", DimStyle, Reset)
-		}
-		if len(llms) == 0 {
-			fmt.Printf("   %s• No enabled LLMs found%s\n", DimStyle, Reset)
-		}
-	}
-	fmt.Println()
-
-	// Get user choice
-	choice, err := promptWithRetry(reader, fmt.Sprintf("%sSelect mode (1 or 2): %s", LabelStyle, Reset), func(input string) (string, error) {
-		switch input {
-		case "1", "2":
-			return input, nil
-		default:
-			return "", fmt.Errorf("invalid choice: %s (choose 1 or 2)", input)
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	if choice == "1" {
-		return runSchedulerMode(ctx)
-	} else {
-		return runOnceMode(ctx)
-	}
+	// Run-once mode directly
+	return runOnceMode(ctx)
 }
 
 func runSchedulerMode(ctx context.Context) error {
