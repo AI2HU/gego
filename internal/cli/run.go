@@ -10,11 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/AI2HU/gego/internal/logger"
-	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/services"
 )
 
 // boolPtr returns a pointer to a boolean value
@@ -67,12 +66,15 @@ func runSchedulerMode(ctx context.Context) error {
 
 func runOnceMode(ctx context.Context) error {
 	// Get all enabled prompts and LLMs
-	prompts, err := database.ListPrompts(ctx, boolPtr(true))
+	promptService := services.NewPromptManagementService(database)
+	llmService := services.NewLLMService(database)
+
+	prompts, err := promptService.GetEnabledPrompts(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list prompts: %w", err)
 	}
 
-	llms, err := database.ListLLMs(ctx, boolPtr(true))
+	llms, err := llmService.GetEnabledLLMs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list LLMs: %w", err)
 	}
@@ -114,7 +116,15 @@ func runOnceMode(ctx context.Context) error {
 			fmt.Printf("%s🌡️  Using temperature: %s%s\n", InfoStyle, FormatValue(fmt.Sprintf("%.1f", currentTemperature)), Reset)
 
 			// Execute the prompt with the LLM
-			if err := executePromptWithLLM(ctx, prompt, llm, currentTemperature); err != nil {
+			executionService := services.NewExecutionService(database, llmRegistry)
+			config := &services.ExecutionConfig{
+				Temperature: currentTemperature,
+				MaxRetries:  3,
+				RetryDelay:  30 * time.Second,
+			}
+
+			_, err := executionService.ExecutePromptWithLLM(ctx, prompt, llm, config)
+			if err != nil {
 				fmt.Printf("%s❌ Failed: %s%s\n", ErrorStyle, FormatValue(err.Error()), Reset)
 			} else {
 				fmt.Printf("%s✅ Success%s\n", SuccessStyle, Reset)
@@ -128,75 +138,4 @@ func runOnceMode(ctx context.Context) error {
 
 	fmt.Printf("%s🎉 Completed all executions!%s\n", SuccessStyle, Reset)
 	return nil
-}
-
-func executePromptWithLLM(ctx context.Context, prompt *models.Prompt, llm *models.LLMConfig, temperature float64) error {
-	// Get the LLM provider
-	provider, ok := llmRegistry.Get(llm.Provider)
-	if !ok {
-		return fmt.Errorf("LLM provider %s not found", llm.Provider)
-	}
-
-	const maxRetries = 3
-	const retryDelay = 30 * time.Second
-
-	var lastErr error
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// Generate response
-		response, err := provider.Generate(ctx, prompt.Template, map[string]interface{}{
-			"model":       llm.Model,
-			"temperature": temperature,
-		})
-
-		if err != nil {
-			lastErr = fmt.Errorf("failed to generate response: %w", err)
-			if attempt < maxRetries {
-				fmt.Printf("%s❌ Attempt %d/%d failed: %s%s\n", WarningStyle, attempt, maxRetries, FormatValue(err.Error()), Reset)
-				fmt.Printf("%s⏳ Waiting %ds before retry attempt %d...%s\n", InfoStyle, retryDelay/time.Second, attempt+1, Reset)
-				time.Sleep(retryDelay)
-				continue
-			}
-			return lastErr
-		}
-
-		if response.Error != "" {
-			lastErr = fmt.Errorf("LLM error: %s", response.Error)
-			if attempt < maxRetries {
-				fmt.Printf("%s❌ Attempt %d/%d failed: %s%s\n", WarningStyle, attempt, maxRetries, FormatValue(response.Error), Reset)
-				fmt.Printf("%s⏳ Waiting %ds before retry attempt %d...%s\n", InfoStyle, retryDelay/time.Second, attempt+1, Reset)
-				time.Sleep(retryDelay)
-				continue
-			}
-			return lastErr
-		}
-
-		// Success! Save response to database
-		responseModel := &models.Response{
-			ID:           uuid.New().String(),
-			PromptID:     prompt.ID,
-			LLMID:        llm.ID,
-			PromptText:   prompt.Template,
-			ResponseText: response.Text,
-			LLMName:      llm.Name,
-			LLMProvider:  llm.Provider,
-			LLMModel:     llm.Model,
-			Temperature:  temperature,
-			TokensUsed:   response.TokensUsed,
-			LatencyMs:    response.LatencyMs,
-			CreatedAt:    time.Now(),
-		}
-
-		if err := database.CreateResponse(ctx, responseModel); err != nil {
-			return fmt.Errorf("failed to save response: %w", err)
-		}
-
-		// Log success with retry info if applicable
-		if attempt > 1 {
-			fmt.Printf("%s✅ Prompt execution succeeded on attempt %d after %d previous failures%s\n", SuccessStyle, attempt, attempt-1, Reset)
-		}
-
-		return nil
-	}
-
-	return fmt.Errorf("all %d attempts failed. Last error: %w", maxRetries, lastErr)
 }

@@ -7,9 +7,13 @@ toolchain go1.24.7
 require (
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/openai/openai-go/v3 v3.3.0
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/sgaunet/perplexity-go/v2 v2.13.0
 	github.com/spf13/cobra v1.10.1
 	go.mongodb.org/mongo-driver v1.17.4
+	golang.org/x/time v0.14.0
+	google.golang.org/genai v1.30.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -31,8 +35,6 @@ require (
 	github.com/klauspost/compress v1.17.6 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
-	github.com/openai/openai-go/v3 v3.3.0 // indirect
-	github.com/sgaunet/perplexity-go/v2 v2.13.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -48,8 +50,6 @@ require (
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genai v1.30.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.66.2 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect

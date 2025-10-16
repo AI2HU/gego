@@ -13,95 +13,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/services"
 )
-
-// Provider represents available LLM providers
-type Provider int
-
-const (
-	OpenAI Provider = iota + 1
-	Anthropic
-	Ollama
-	Google
-	Perplexity
-)
-
-// String returns the string representation of the provider
-func (p Provider) String() string {
-	switch p {
-	case OpenAI:
-		return "openai"
-	case Anthropic:
-		return "anthropic"
-	case Ollama:
-		return "ollama"
-	case Google:
-		return "google"
-	case Perplexity:
-		return "perplexity"
-	default:
-		return "unknown"
-	}
-}
-
-// FromString converts a string to a Provider
-func FromString(s string) Provider {
-	switch s {
-	case "openai":
-		return OpenAI
-	case "anthropic":
-		return Anthropic
-	case "ollama":
-		return Ollama
-	case "google":
-		return Google
-	case "perplexity":
-		return Perplexity
-	default:
-		return 0 // Unknown provider
-	}
-}
-
-// DisplayName returns the display name for the provider with model info
-func (p Provider) DisplayName() string {
-	switch p {
-	case OpenAI:
-		return "OpenAI (ChatGPT)"
-	case Anthropic:
-		return "Anthropic (Claude)"
-	case Ollama:
-		return "Ollama (local models)"
-	case Google:
-		return "Google (Gemini)"
-	case Perplexity:
-		return "Perplexity (Sonar)"
-	default:
-		return "Unknown"
-	}
-}
-
-// AllProviders returns a slice of all available providers
-func AllProviders() []Provider {
-	return []Provider{OpenAI, Anthropic, Ollama, Google, Perplexity}
-}
-
-// GetConsoleURL returns the console URL where API keys can be generated for the provider
-func (p Provider) GetConsoleURL() string {
-	switch p {
-	case OpenAI:
-		return "https://platform.openai.com/api-keys"
-	case Anthropic:
-		return "https://console.anthropic.com/"
-	case Google:
-		return "https://makersuite.google.com/app/apikey"
-	case Perplexity:
-		return "https://www.perplexity.ai/settings/api"
-	case Ollama:
-		return "https://ollama.ai/" // Ollama doesn't need API keys, but provides setup info
-	default:
-		return ""
-	}
-}
 
 var llmCmd = &cobra.Command{
 	Use:   "llm",
@@ -177,7 +90,7 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 
 	// Step 1: Select provider
 	fmt.Printf("%sAvailable providers:%s\n", LabelStyle, Reset)
-	providers := AllProviders()
+	providers := services.AllProviders()
 	for i, provider := range providers {
 		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(provider.DisplayName()))
 	}
@@ -194,18 +107,18 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var selectedProvider Provider
+	var selectedProvider services.Provider
 	switch providerChoice {
 	case "1":
-		selectedProvider = OpenAI
+		selectedProvider = services.OpenAI
 	case "2":
-		selectedProvider = Anthropic
+		selectedProvider = services.Anthropic
 	case "3":
-		selectedProvider = Ollama
+		selectedProvider = services.Ollama
 	case "4":
-		selectedProvider = Google
+		selectedProvider = services.Google
 	case "5":
-		selectedProvider = Perplexity
+		selectedProvider = services.Perplexity
 	}
 
 	providerName := selectedProvider.String()
@@ -213,12 +126,13 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 	// Step 2: Get credentials
 	var apiKey, baseURL string
 
-	if selectedProvider == OpenAI || selectedProvider == Anthropic || selectedProvider == Google || selectedProvider == Perplexity {
+	if selectedProvider == services.OpenAI || selectedProvider == services.Anthropic || selectedProvider == services.Google || selectedProvider == services.Perplexity {
 		fmt.Printf("\n🔑 %s API Key Required\n", selectedProvider.DisplayName())
 		fmt.Printf("Get your API key from: %s\n", selectedProvider.GetConsoleURL())
 
 		// Check for existing API keys for this provider
-		existingKeys, err := getExistingAPIKeysForProvider(ctx, providerName)
+		llmService := services.NewLLMService(database)
+		existingKeys, err := llmService.GetExistingAPIKeysForProvider(ctx, providerName)
 		if err != nil {
 			return fmt.Errorf("failed to check existing API keys: %w", err)
 		}
@@ -226,7 +140,7 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 		if len(existingKeys) > 0 {
 			fmt.Printf("\n%sFound existing API key(s) for %s:%s\n", InfoStyle, selectedProvider.DisplayName(), Reset)
 			for i, key := range existingKeys {
-				fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, maskAPIKey(key))
+				fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, services.MaskAPIKey(key))
 			}
 			fmt.Printf("  %s%d. Add new API key%s\n", CountStyle, len(existingKeys)+1, Reset)
 
@@ -248,7 +162,7 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 			if choiceIdx <= len(existingKeys) {
 				// Use existing API key
 				apiKey = existingKeys[choiceIdx-1]
-				fmt.Printf("%s✅ Using existing API key: %s%s\n", SuccessStyle, maskAPIKey(apiKey), Reset)
+				fmt.Printf("%s✅ Using existing API key: %s%s\n", SuccessStyle, services.MaskAPIKey(apiKey), Reset)
 			} else {
 				// Add new API key
 				apiKey, err = promptWithRetry(reader, "\nNew API Key: ", func(input string) (string, error) {
@@ -275,7 +189,7 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if selectedProvider == Ollama {
+	if selectedProvider == services.Ollama {
 		fmt.Printf("\n🌐 %s Configuration\n", selectedProvider.DisplayName())
 		fmt.Printf("Ollama setup guide: %s\n", selectedProvider.GetConsoleURL())
 
@@ -390,7 +304,8 @@ func runLLMAdd(cmd *cobra.Command, args []string) error {
 func runLLMList(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	llms, err := database.ListLLMs(ctx, nil)
+	llmService := services.NewLLMService(database)
+	llms, err := llmService.ListLLMs(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list LLMs: %w", err)
 	}
@@ -428,7 +343,8 @@ func runLLMGet(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	id := args[0]
 
-	llm, err := database.GetLLM(ctx, id)
+	llmService := services.NewLLMService(database)
+	llm, err := llmService.GetLLM(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to get LLM: %w", err)
 	}
@@ -439,7 +355,7 @@ func runLLMGet(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%sName: %s\n", LabelStyle, FormatValue(llm.Name))
 	fmt.Printf("%sProvider: %s\n", LabelStyle, FormatSecondary(llm.Provider))
 	fmt.Printf("%sModel: %s\n", LabelStyle, FormatValue(llm.Model))
-	fmt.Printf("%sAPI Key: %s\n", LabelStyle, FormatSecondary(maskAPIKey(llm.APIKey)))
+	fmt.Printf("%sAPI Key: %s\n", LabelStyle, FormatSecondary(services.MaskAPIKey(llm.APIKey)))
 	if llm.BaseURL != "" {
 		fmt.Printf("%sBase URL: %s\n", LabelStyle, FormatSecondary(llm.BaseURL))
 	}
@@ -466,7 +382,8 @@ func runLLMDelete(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Get all LLMs
-	llms, err := database.ListLLMs(ctx, nil)
+	llmService := services.NewLLMService(database)
+	llms, err := llmService.ListLLMs(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list LLMs: %w", err)
 	}
@@ -551,7 +468,7 @@ func runLLMDelete(cmd *cobra.Command, args []string) error {
 	// Delete selected LLMs
 	deletedCount := 0
 	for _, llm := range selectedLLMs {
-		if err := database.DeleteLLM(ctx, llm.ID); err != nil {
+		if err := llmService.DeleteLLM(ctx, llm.ID); err != nil {
 			fmt.Printf("%s❌ Failed to delete %s: %s%s\n", ErrorStyle, FormatValue(llm.Name), FormatValue(err.Error()), Reset)
 			continue
 		}
@@ -567,14 +484,9 @@ func runLLMEnable(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	id := args[0]
 
-	llm, err := database.GetLLM(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to get LLM: %w", err)
-	}
-
-	llm.Enabled = true
-	if err := database.UpdateLLM(ctx, llm); err != nil {
-		return fmt.Errorf("failed to update LLM: %w", err)
+	llmService := services.NewLLMService(database)
+	if err := llmService.EnableLLM(ctx, id); err != nil {
+		return fmt.Errorf("failed to enable LLM: %w", err)
 	}
 
 	fmt.Printf("%s✅ LLM provider enabled!%s\n", SuccessStyle, Reset)
@@ -585,14 +497,9 @@ func runLLMDisable(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	id := args[0]
 
-	llm, err := database.GetLLM(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to get LLM: %w", err)
-	}
-
-	llm.Enabled = false
-	if err := database.UpdateLLM(ctx, llm); err != nil {
-		return fmt.Errorf("failed to update LLM: %w", err)
+	llmService := services.NewLLMService(database)
+	if err := llmService.DisableLLM(ctx, id); err != nil {
+		return fmt.Errorf("failed to disable LLM: %w", err)
 	}
 
 	fmt.Printf("%s✅ LLM provider disabled!%s\n", SuccessStyle, Reset)
@@ -605,7 +512,8 @@ func runLLMUpdate(cmd *cobra.Command, args []string) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	// Get the existing LLM
-	llm, err := database.GetLLM(ctx, id)
+	llmService := services.NewLLMService(database)
+	llm, err := llmService.GetLLM(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to get LLM: %w", err)
 	}
@@ -619,13 +527,13 @@ func runLLMUpdate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Name: %s\n", llm.Name)
 	fmt.Printf("  Provider: %s\n", llm.Provider)
 	fmt.Printf("  Model: %s\n", llm.Model)
-	fmt.Printf("  API Key: %s\n", maskAPIKey(llm.APIKey))
+	fmt.Printf("  API Key: %s\n", services.MaskAPIKey(llm.APIKey))
 	fmt.Printf("  Base URL: %s\n", llm.BaseURL)
 	fmt.Printf("  Enabled: %t\n", llm.Enabled)
 	fmt.Println()
 
 	// Update API Key
-	provider := FromString(llm.Provider)
+	provider := services.FromString(llm.Provider)
 	apiKeyURL := provider.GetConsoleURL()
 	if apiKeyURL != "" {
 		fmt.Printf("Get API key from: %s\n", apiKeyURL)
@@ -638,7 +546,7 @@ func runLLMUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update Base URL (only for Ollama and custom providers)
-	if provider == Ollama || llm.Provider == "custom" {
+	if provider == services.Ollama || llm.Provider == "custom" {
 		fmt.Print("Enter new base URL (press Enter to keep current): ")
 		baseURL, _ := reader.ReadString('\n')
 		baseURL = strings.TrimSpace(baseURL)
@@ -659,43 +567,10 @@ func runLLMUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save the updated LLM
-	if err := database.UpdateLLM(ctx, llm); err != nil {
+	if err := llmService.UpdateLLM(ctx, llm); err != nil {
 		return fmt.Errorf("failed to update LLM: %w", err)
 	}
 
 	fmt.Println("\n✅ LLM provider updated successfully!")
 	return nil
-}
-
-// maskAPIKey masks the API key for display (shows first 4 and last 4 characters)
-func maskAPIKey(apiKey string) string {
-	if apiKey == "" {
-		return "(not set)"
-	}
-	if len(apiKey) <= 8 {
-		return "***"
-	}
-	return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
-}
-
-// getExistingAPIKeysForProvider returns existing API keys for a given provider
-func getExistingAPIKeysForProvider(ctx context.Context, provider string) ([]string, error) {
-	llms, err := database.ListLLMs(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var apiKeys []string
-	seenKeys := make(map[string]bool)
-
-	for _, llm := range llms {
-		if llm.Provider == provider && llm.APIKey != "" {
-			if !seenKeys[llm.APIKey] {
-				apiKeys = append(apiKeys, llm.APIKey)
-				seenKeys[llm.APIKey] = true
-			}
-		}
-	}
-
-	return apiKeys, nil
 }
