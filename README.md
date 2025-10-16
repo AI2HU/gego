@@ -49,6 +49,54 @@ go build -o gego cmd/gego/main.go
 go install github.com/AI2HU/gego/cmd/gego@latest
 ```
 
+### Docker Installation
+
+Gego can be easily deployed using Docker with automatic database setup and migrations.
+
+#### Docker
+
+```bash
+# Build the Docker image
+docker build -t gego:latest .
+
+# Run with external MongoDB
+docker run -d \
+  --name gego \
+  -p 8989:8989 \
+  -e MONGODB_URI=mongodb://your-mongodb-host:27017 \
+  gego:latest
+```
+
+#### Docker Environment Variables
+
+- `GEGO_CONFIG_PATH`: Path to configuration file (default: `/app/config/config.yaml`)
+- `GEGO_DATA_PATH`: Path to SQLite data directory (default: `/app/data`)
+- `GEGO_LOG_PATH`: Path to log directory (default: `/app/logs`)
+
+#### Docker Volumes
+
+The Docker setup uses named volumes for persistent data:
+- `gego_data`: SQLite database and configuration
+- `gego_config`: Application configuration files
+- `gego_logs`: Application logs
+- `mongodb_data`: MongoDB data
+
+#### Health Checks
+
+Both containers include health checks:
+- **Gego**: Checks API health endpoint every 30 seconds
+- **MongoDB**: Checks database connectivity every 30 seconds
+
+#### Stopping the Services
+
+```bash
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes (WARNING: This will delete all data)
+docker-compose down -v
+```
+
 ## Quick Start
 
 ### 1. Initialize Configuration

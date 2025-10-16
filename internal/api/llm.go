@@ -20,7 +20,6 @@ func (s *Server) listLLMs(c *gin.Context) {
 		return
 	}
 
-	// Convert to response format and mask API keys
 	responses := make([]models.LLMResponse, len(llms))
 	for i, llm := range llms {
 		responses[i] = models.LLMResponse{
@@ -74,7 +73,6 @@ func (s *Server) createLLM(c *gin.Context) {
 		return
 	}
 
-	// Validate provider
 	if !s.isValidProvider(req.Provider) {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid provider. Must be one of: openai, anthropic, ollama, google, perplexity")
 		return
@@ -126,14 +124,12 @@ func (s *Server) updateLLM(c *gin.Context) {
 		return
 	}
 
-	// Get existing LLM
 	llm, err := s.llmService.GetLLM(c.Request.Context(), id)
 	if err != nil {
 		s.errorResponse(c, http.StatusNotFound, "LLM not found: "+err.Error())
 		return
 	}
 
-	// Update fields if provided
 	if req.Name != "" {
 		llm.Name = req.Name
 	}
