@@ -94,10 +94,7 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 		},
 	)
 	if err != nil {
-		return &llm.Response{
-			Error:     fmt.Sprintf("OpenAI API error: %v", err),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
 
 	// Extract the generated text

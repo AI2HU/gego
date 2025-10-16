@@ -84,28 +84,19 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 
 	// Validate the request
 	if err := req.Validate(); err != nil {
-		return &llm.Response{
-			Error:     fmt.Sprintf("request validation failed: %v", err),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
 	// Send the request
 	resp, err := p.client.SendCompletionRequest(req)
 	if err != nil {
-		return &llm.Response{
-			Error:     err.Error(),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
 	// Extract response content
 	content := resp.GetLastContent()
 	if content == "" {
-		return &llm.Response{
-			Error:     "no content returned from API",
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("no content returned from API")
 	}
 
 	// Get token usage information

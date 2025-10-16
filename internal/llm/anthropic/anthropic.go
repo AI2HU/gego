@@ -92,10 +92,7 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return &llm.Response{
-			Error:     err.Error(),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -105,10 +102,7 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return &llm.Response{
-			Error:     fmt.Sprintf("API error: %s", string(body)),
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("API error (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 
 	var anthropicResp struct {
@@ -127,10 +121,7 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 	}
 
 	if len(anthropicResp.Content) == 0 {
-		return &llm.Response{
-			Error:     "no content returned from API",
-			LatencyMs: time.Since(startTime).Milliseconds(),
-		}, nil
+		return nil, fmt.Errorf("no content returned from API")
 	}
 
 	totalTokens := anthropicResp.Usage.InputTokens + anthropicResp.Usage.OutputTokens

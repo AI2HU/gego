@@ -346,13 +346,13 @@ func (s *Scheduler) executePromptWithLLM(ctx context.Context, scheduleID string,
 	logger.Debug("Prepared config for LLM: model=%s temperature=%.2f api_key=%s base_url=%s", llmConfig.Model, temperature, maskAPIKey(llmConfig.APIKey), llmConfig.BaseURL)
 
 	// Generate response
-	logger.Debug("Calling LLM provider with prompt: %s", prompt.Template[:min(50, len(prompt.Template))]+"...")
+	logger.Debug("[%s] Calling LLM provider with prompt: %s", llmConfig.Name, prompt.Template[:min(50, len(prompt.Template))]+"...")
 	startTime := time.Now()
 	resp, err := provider.Generate(ctx, prompt.Template, config)
 	duration := time.Since(startTime)
 
 	if err != nil {
-		logger.Error("LLM call failed after %v: %v", duration, err)
+		logger.Error("[%s] LLM call failed after %v: %v", llmConfig.Name, duration, err)
 		// Store error response
 		response := &models.Response{
 			ID:          uuid.New().String(),
@@ -371,7 +371,7 @@ func (s *Scheduler) executePromptWithLLM(ctx context.Context, scheduleID string,
 		return s.db.CreateResponse(ctx, response)
 	}
 
-	logger.Info("LLM call succeeded after %v, response length: %d", duration, len(resp.Text))
+	logger.Info("[%s] LLM call succeeded after %v, response length: %d", llmConfig.Name, duration, len(resp.Text))
 
 	// Create response record
 	response := &models.Response{
