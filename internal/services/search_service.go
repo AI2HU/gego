@@ -90,7 +90,7 @@ func (s *SearchService) SearchResponses(ctx context.Context, config *SearchConfi
 	// Process matches
 	var matches []SearchMatch
 	for _, response := range responses {
-		responseMatches := s.findMatches(response, regex, config.Keyword, config.ContextLength)
+		responseMatches := s.findMatches(response, regex, config.ContextLength)
 		matches = append(matches, responseMatches...)
 	}
 
@@ -98,7 +98,7 @@ func (s *SearchService) SearchResponses(ctx context.Context, config *SearchConfi
 }
 
 // findMatches finds all matches in a response
-func (s *SearchService) findMatches(response *models.Response, regex *regexp.Regexp, keyword string, contextLength int) []SearchMatch {
+func (s *SearchService) findMatches(response *models.Response, regex *regexp.Regexp, contextLength int) []SearchMatch {
 	var matches []SearchMatch
 
 	// Find all matches in the response text

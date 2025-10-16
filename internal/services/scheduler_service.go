@@ -200,7 +200,7 @@ func (s *SchedulerService) Reload(ctx context.Context) error {
 }
 
 // registerSchedule registers a schedule with cron and stores the entry ID
-func (s *SchedulerService) registerSchedule(ctx context.Context, schedule *models.Schedule) error {
+func (s *SchedulerService) registerSchedule(_ context.Context, schedule *models.Schedule) error {
 	// Create a job function that executes the schedule
 	jobFunc := func() {
 		logger.Info("Executing scheduled job: %s", schedule.Name)
