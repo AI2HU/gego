@@ -109,6 +109,82 @@ gego scheduler start
 
 **Scheduler Commands**: Manage scheduled execution of prompts.
 
+### 6. Start API Server
+
+```bash
+# Start API server on default port 8989
+gego api
+
+# Start API server on custom port
+gego api --port 3000
+
+# Start API server on custom host and port
+gego api --host 127.0.0.1 --port 5000
+
+# Start API server with custom CORS origin
+gego api --cors-origin "https://myapp.com"
+
+# Start API server allowing all origins (default)
+gego api --cors-origin "*"
+```
+
+**API Server**: Provides REST API endpoints for managing LLMs, prompts, schedules, and retrieving statistics.
+
+**Default Configuration:**
+- **Host**: `0.0.0.0` (all interfaces)
+- **Port**: `8989`
+- **CORS Origin**: `*` (all origins allowed)
+- **Base URL**: `http://localhost:8989/api/v1`
+
+**CORS Support:**
+- **All HTTP Methods**: GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD
+- **Headers**: Content-Type, Authorization, X-Requested-With, Accept, Origin
+- **Credentials**: Supported
+- **Preflight**: Automatic OPTIONS handling
+
+**Available Endpoints:**
+- `GET /api/v1/health` - Health check
+- `GET /api/v1/llms` - List all LLMs
+- `POST /api/v1/llms` - Create new LLM
+- `GET /api/v1/llms/{id}` - Get LLM by ID
+- `PUT /api/v1/llms/{id}` - Update LLM
+- `DELETE /api/v1/llms/{id}` - Delete LLM
+- `GET /api/v1/prompts` - List all prompts
+- `POST /api/v1/prompts` - Create new prompt
+- `GET /api/v1/prompts/{id}` - Get prompt by ID
+- `PUT /api/v1/prompts/{id}` - Update prompt
+- `DELETE /api/v1/prompts/{id}` - Delete prompt
+- `GET /api/v1/schedules` - List all schedules
+- `POST /api/v1/schedules` - Create new schedule
+- `GET /api/v1/schedules/{id}` - Get schedule by ID
+- `PUT /api/v1/schedules/{id}` - Update schedule
+- `DELETE /api/v1/schedules/{id}` - Delete schedule
+- `GET /api/v1/stats` - Get statistics
+- `POST /api/v1/search` - Search responses
+
+**Example API Usage:**
+```bash
+# Health check
+curl http://localhost:8989/api/v1/health
+
+# List all LLMs
+curl http://localhost:8989/api/v1/llms
+
+# Create a new LLM
+curl -X POST http://localhost:8989/api/v1/llms \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My GPT-4",
+    "provider": "openai",
+    "model": "gpt-4",
+    "api_key": "sk-...",
+    "enabled": true
+  }'
+
+# Get statistics
+curl http://localhost:8989/api/v1/stats
+```
+
 ## Usage Examples
 
 ### View Statistics

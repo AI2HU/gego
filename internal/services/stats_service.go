@@ -21,6 +21,51 @@ func NewStatsService(database db.Database) *StatsService {
 	return &StatsService{db: database}
 }
 
+// GetTotalResponses returns the total number of responses
+func (s *StatsService) GetTotalResponses(ctx context.Context) (int64, error) {
+	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 1})
+	if err != nil {
+		return 0, err
+	}
+	// This is a placeholder - we need a proper count method in the database interface
+	return int64(len(responses)), nil
+}
+
+// GetTotalPrompts returns the total number of prompts
+func (s *StatsService) GetTotalPrompts(ctx context.Context) (int64, error) {
+	prompts, err := s.db.ListPrompts(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(prompts)), nil
+}
+
+// GetTotalLLMs returns the total number of LLMs
+func (s *StatsService) GetTotalLLMs(ctx context.Context) (int64, error) {
+	llms, err := s.db.ListLLMs(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(llms)), nil
+}
+
+// GetTotalSchedules returns the total number of schedules
+func (s *StatsService) GetTotalSchedules(ctx context.Context) (int64, error) {
+	schedules, err := s.db.ListSchedules(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(schedules)), nil
+}
+
+// GetResponseTrends returns response trends over time
+func (s *StatsService) GetResponseTrends(ctx context.Context, startTime, endTime time.Time) ([]models.TimeSeriesPoint, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would query the database for responses within the time range
+	// and group them by time intervals (e.g., daily, hourly)
+	return []models.TimeSeriesPoint{}, nil
+}
+
 // GetTopKeywords returns the top keywords by mention count
 func (s *StatsService) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error) {
 	return s.db.GetTopKeywords(ctx, limit, startTime, endTime)

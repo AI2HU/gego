@@ -18,7 +18,7 @@ import (
 	"github.com/AI2HU/gego/internal/llm/perplexity"
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
-	"github.com/AI2HU/gego/internal/scheduler"
+	"github.com/AI2HU/gego/internal/services"
 	"github.com/AI2HU/gego/internal/stats"
 )
 
@@ -29,7 +29,7 @@ var (
 	cfg          *config.Config
 	database     db.Database
 	llmRegistry  *llm.Registry
-	sched        *scheduler.Scheduler
+	sched        *services.SchedulerService
 	statsService *stats.Service
 )
 
@@ -48,8 +48,8 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to initialize logging: %w", err)
 		}
 
-		// Skip init for the init command
-		if cmd.Name() == "init" {
+		// Skip init for the init and api commands
+		if cmd.Name() == "init" || cmd.Name() == "api" {
 			return nil
 		}
 
@@ -109,7 +109,7 @@ and compare performance across different LLM providers.`,
 		llmRegistry.Register(perplexity.New("", ""))
 
 		// Initialize scheduler
-		sched = scheduler.New(database, llmRegistry)
+		sched = services.NewSchedulerService(database, llmRegistry)
 
 		return nil
 	},
@@ -136,6 +136,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(apiCmd)
 	rootCmd.AddCommand(llmCmd)
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(scheduleCmd)

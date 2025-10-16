@@ -1,0 +1,142 @@
+package api
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/AI2HU/gego/internal/db"
+	"github.com/AI2HU/gego/internal/services"
+)
+
+// Server represents the API server
+type Server struct {
+	db              db.Database
+	llmService      *services.LLMService
+	promptService   *services.PromptManagementService
+	scheduleService *services.ScheduleService
+	statsService    *services.StatsService
+	searchService   *services.SearchService
+	router          *gin.Engine
+	corsOrigin      string
+}
+
+// NewServer creates a new API server
+func NewServer(database db.Database, corsOrigin string) *Server {
+	gin.SetMode(gin.ReleaseMode)
+
+	router := gin.Default()
+
+	router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", corsOrigin)
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Max-Age", "86400")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
+	server := &Server{
+		db:              database,
+		llmService:      services.NewLLMService(database),
+		promptService:   services.NewPromptManagementService(database),
+		scheduleService: services.NewScheduleService(database),
+		statsService:    services.NewStatsService(database),
+		searchService:   services.NewSearchService(database),
+		router:          router,
+		corsOrigin:      corsOrigin,
+	}
+
+	server.setupRoutes()
+	return server
+}
+
+// setupRoutes configures all API routes
+func (s *Server) setupRoutes() {
+	api := s.router.Group("/api/v1")
+
+	api.GET("/llms", s.listLLMs)
+	api.GET("/llms/:id", s.getLLM)
+	api.POST("/llms", s.createLLM)
+	api.PUT("/llms/:id", s.updateLLM)
+	api.DELETE("/llms/:id", s.deleteLLM)
+
+	api.GET("/prompts", s.listPrompts)
+	api.GET("/prompts/:id", s.getPrompt)
+	api.POST("/prompts", s.createPrompt)
+	api.PUT("/prompts/:id", s.updatePrompt)
+	api.DELETE("/prompts/:id", s.deletePrompt)
+
+	api.GET("/schedules", s.listSchedules)
+	api.GET("/schedules/:id", s.getSchedule)
+	api.POST("/schedules", s.createSchedule)
+	api.PUT("/schedules/:id", s.updateSchedule)
+	api.DELETE("/schedules/:id", s.deleteSchedule)
+
+	api.GET("/stats", s.getStats)
+
+	api.POST("/search", s.search)
+
+	api.GET("/health", s.healthCheck)
+}
+
+// Run starts the API server
+func (s *Server) Run(address string) error {
+	return s.router.Run(address)
+}
+
+// Response structures
+type APIResponse struct {
+	Success bool        `json:"success"`
+	Data    interface{} `json:"data,omitempty"`
+	Error   string      `json:"error,omitempty"`
+	Message string      `json:"message,omitempty"`
+}
+
+type PaginatedResponse struct {
+	Data       interface{} `json:"data"`
+	Pagination Pagination  `json:"pagination"`
+}
+
+type Pagination struct {
+	Page       int   `json:"page"`
+	Limit      int   `json:"limit"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
+}
+
+// Helper functions
+func (s *Server) successResponse(c *gin.Context, data interface{}) {
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data:    data,
+	})
+}
+
+func (s *Server) errorResponse(c *gin.Context, status int, message string) {
+	c.JSON(status, APIResponse{
+		Success: false,
+		Error:   message,
+	})
+}
+
+func (s *Server) parsePagination(c *gin.Context) (int, int) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	return page, limit
+}

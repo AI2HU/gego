@@ -22,6 +22,16 @@ func NewSearchService(database db.Database) *SearchService {
 	return &SearchService{db: database}
 }
 
+// SearchKeyword searches for a keyword and returns statistics
+func (s *SearchService) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error) {
+	return s.db.SearchKeyword(ctx, keyword, startTime, endTime)
+}
+
+// ListResponses lists responses with filtering
+func (s *SearchService) ListResponses(ctx context.Context, filter shared.ResponseFilter) ([]*models.Response, error) {
+	return s.db.ListResponses(ctx, filter)
+}
+
 // SearchMatch represents a search match in a response
 type SearchMatch struct {
 	ResponseID  string    `json:"response_id"`
