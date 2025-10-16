@@ -64,16 +64,6 @@ func (s *SQLite) Connect(ctx context.Context) error {
 
 	s.db = db
 
-	// Create tables
-	if err := s.createTables(ctx); err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
-	}
-
-	// Run migrations
-	if err := s.runMigrations(ctx); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
-	}
-
 	return nil
 }
 
@@ -91,73 +81,6 @@ func (s *SQLite) Ping(ctx context.Context) error {
 		return fmt.Errorf("not connected to database")
 	}
 	return s.db.PingContext(ctx)
-}
-
-// createTables creates necessary tables
-func (s *SQLite) createTables(ctx context.Context) error {
-	// Create LLMs table
-	createLLMsTable := `
-	CREATE TABLE IF NOT EXISTS llms (
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL,
-		provider TEXT NOT NULL,
-		model TEXT NOT NULL,
-		api_key TEXT,
-		base_url TEXT,
-		config TEXT, -- JSON string for additional config
-		enabled BOOLEAN NOT NULL DEFAULT 1,
-		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
-	);`
-
-	// Create Schedules table
-	createSchedulesTable := `
-	CREATE TABLE IF NOT EXISTS schedules (
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL,
-		prompt_ids TEXT NOT NULL, -- JSON array of prompt IDs
-		llm_ids TEXT NOT NULL,    -- JSON array of LLM IDs
-		cron_expr TEXT NOT NULL,
-		temperature REAL DEFAULT 0.7,
-		enabled BOOLEAN NOT NULL DEFAULT 1,
-		last_run DATETIME,
-		next_run DATETIME,
-		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
-	);`
-
-	// Create indexes
-	createIndexes := []string{
-		"CREATE INDEX IF NOT EXISTS idx_llms_provider ON llms(provider);",
-		"CREATE INDEX IF NOT EXISTS idx_llms_enabled ON llms(enabled);",
-		"CREATE INDEX IF NOT EXISTS idx_schedules_enabled ON schedules(enabled);",
-		"CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run);",
-	}
-
-	queries := []string{createLLMsTable, createSchedulesTable}
-	queries = append(queries, createIndexes...)
-
-	for _, query := range queries {
-		if _, err := s.db.ExecContext(ctx, query); err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// runMigrations runs database migrations
-func (s *SQLite) runMigrations(ctx context.Context) error {
-	// Migration 1: Add temperature column to schedules table if it doesn't exist
-	query := `ALTER TABLE schedules ADD COLUMN temperature REAL DEFAULT 0.7;`
-	_, err := s.db.ExecContext(ctx, query)
-	if err != nil {
-		// Column might already exist, which is fine
-		// In SQLite, ALTER TABLE ADD COLUMN fails if column already exists
-		// We can ignore this error
-	}
-
-	return nil
 }
 
 // Helper function to convert map to JSON string

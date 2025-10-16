@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -105,6 +107,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✅ Database connection successful!")
 
+	// Run database migrations
+	fmt.Println("\n🔄 Running database migrations...")
+	if err := runMigrations(sqlitePath); err != nil {
+		fmt.Printf("❌ Failed to run migrations: %v\n", err)
+		fmt.Println("You may need to run migrations manually later.")
+		// Don't return error, continue with setup
+	} else {
+		fmt.Println("✅ Database migrations completed successfully!")
+	}
+
 	// Save configuration
 	fmt.Println("\n💾 Saving configuration...")
 	if err := cfg.Save(configPath); err != nil {
@@ -131,6 +143,57 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("  2. Create prompts: gego prompt add")
 	fmt.Println("  3. Set up schedules: gego schedule add")
 	fmt.Println("  4. Start scheduler: gego run")
+	fmt.Println()
+	fmt.Println("Migration commands:")
+	fmt.Println("  • Run migrations: gego migrate up")
+	fmt.Println("  • Check status: gego migrate status")
+
+	return nil
+}
+
+// runMigrations executes database migrations using gomigrate
+func runMigrations(sqlitePath string) error {
+	// Check if migrate command is available
+	if _, err := exec.LookPath("migrate"); err != nil {
+		return fmt.Errorf("migrate command not found. Please install golang-migrate: https://github.com/golang-migrate/migrate")
+	}
+
+	// Get the migrations directory path
+	migrationsDir := filepath.Join("internal", "db", "migrations")
+
+	// Check if migrations directory exists
+	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
+		return fmt.Errorf("migrations directory not found: %s", migrationsDir)
+	}
+
+	// Convert relative SQLite path to absolute path
+	absSQLitePath, err := filepath.Abs(sqlitePath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve SQLite path: %w", err)
+	}
+
+	// Construct database URL for SQLite
+	dbURL := fmt.Sprintf("sqlite3://%s", absSQLitePath)
+
+	// Run migrate up command
+	cmd := exec.Command("migrate",
+		"-path", migrationsDir,
+		"-database", dbURL,
+		"up")
+
+	// Set working directory to project root
+	cmd.Dir = "."
+
+	// Capture output
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("migration failed: %w\nOutput: %s", err, string(output))
+	}
+
+	// Check if there were any migrations to run
+	if len(output) > 0 {
+		fmt.Printf("Migration output: %s", string(output))
+	}
 
 	return nil
 }

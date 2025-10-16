@@ -48,8 +48,8 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to initialize logging: %w", err)
 		}
 
-		// Skip init for the init command itself
-		if cmd.Name() == "init" {
+		// Skip init for the init and migrate commands
+		if cmd.Name() == "init" || cmd.Name() == "migrate" {
 			return nil
 		}
 
@@ -136,6 +136,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(llmCmd)
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(scheduleCmd)
