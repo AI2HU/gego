@@ -11,38 +11,7 @@ import (
 	"github.com/AI2HU/gego/internal/shared"
 )
 
-// Stats request/response structures
-type StatsResponse struct {
-	TotalResponses int64                    `json:"total_responses"`
-	TotalPrompts   int64                    `json:"total_prompts"`
-	TotalLLMs      int64                    `json:"total_llms"`
-	TotalSchedules int64                    `json:"total_schedules"`
-	TopKeywords    []models.KeywordCount    `json:"top_keywords"`
-	PromptStats    []*models.PromptStats    `json:"prompt_stats"`
-	LLMStats       []*models.LLMStats       `json:"llm_stats"`
-	ResponseTrends []models.TimeSeriesPoint `json:"response_trends"`
-	LastUpdated    time.Time                `json:"last_updated"`
-}
-
-type SearchRequest struct {
-	Keyword   string     `json:"keyword" binding:"required"`
-	StartTime *time.Time `json:"start_time,omitempty"`
-	EndTime   *time.Time `json:"end_time,omitempty"`
-	Limit     int        `json:"limit,omitempty"`
-}
-
-type SearchResponse struct {
-	Keyword       string             `json:"keyword"`
-	TotalMentions int                `json:"total_mentions"`
-	UniquePrompts int                `json:"unique_prompts"`
-	UniqueLLMs    int                `json:"unique_llms"`
-	ByPrompt      map[string]int     `json:"by_prompt"`
-	ByLLM         map[string]int     `json:"by_llm"`
-	ByProvider    map[string]int     `json:"by_provider"`
-	FirstSeen     time.Time          `json:"first_seen"`
-	LastSeen      time.Time          `json:"last_seen"`
-	Responses     []*models.Response `json:"responses,omitempty"`
-}
+// Stats request/response structures are now defined in models package
 
 // Stats endpoint
 
@@ -109,7 +78,7 @@ func (s *Server) getStats(c *gin.Context) {
 		return
 	}
 
-	response := StatsResponse{
+	response := models.StatsResponse{
 		TotalResponses: totalResponses,
 		TotalPrompts:   totalPrompts,
 		TotalLLMs:      totalLLMs,
@@ -128,7 +97,7 @@ func (s *Server) getStats(c *gin.Context) {
 
 // search handles POST /api/v1/search
 func (s *Server) search(c *gin.Context) {
-	var req SearchRequest
+	var req models.SearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
@@ -170,7 +139,7 @@ func (s *Server) search(c *gin.Context) {
 		return
 	}
 
-	response := SearchResponse{
+	response := models.SearchResponse{
 		Keyword:       keywordStats.Keyword,
 		TotalMentions: keywordStats.TotalMentions,
 		UniquePrompts: keywordStats.UniquePrompts,
@@ -192,14 +161,14 @@ func (s *Server) search(c *gin.Context) {
 func (s *Server) healthCheck(c *gin.Context) {
 	// Test database connection
 	if err := s.db.Ping(c.Request.Context()); err != nil {
-		c.JSON(http.StatusServiceUnavailable, APIResponse{
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
 			Success: false,
 			Error:   "Database connection failed",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
+	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
 			"status":    "healthy",

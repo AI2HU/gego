@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/services"
 )
 
@@ -38,30 +35,6 @@ func runCommand(cmd *cobra.Command, args []string) error {
 
 	// Run-once mode directly
 	return runOnceMode(ctx)
-}
-
-func runSchedulerMode(ctx context.Context) error {
-	logger.Info("🚀 Starting Gego Scheduler")
-	logger.Info("=========================")
-
-	// Start scheduler
-	if err := sched.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start scheduler: %w", err)
-	}
-
-	logger.Info("✅ Scheduler is running. Press Ctrl+C to stop.")
-
-	// Wait for interrupt signal
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	<-sigChan
-
-	logger.Info("⏸️  Stopping scheduler...")
-	sched.Stop()
-
-	logger.Info("✅ Scheduler stopped. Goodbye!")
-	return nil
 }
 
 func runOnceMode(ctx context.Context) error {

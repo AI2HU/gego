@@ -3,50 +3,21 @@ package api
 import (
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
-// Prompt request/response structures
-type CreatePromptRequest struct {
-	Template string   `json:"template" binding:"required"`
-	Tags     []string `json:"tags,omitempty"`
-	Enabled  bool     `json:"enabled"`
-}
-
-type UpdatePromptRequest struct {
-	Template string   `json:"template,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Enabled  *bool    `json:"enabled,omitempty"`
-}
-
-type PromptResponse struct {
-	ID        string    `json:"id"`
-	Template  string    `json:"template"`
-	Tags      []string  `json:"tags,omitempty"`
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
+// Prompt request/response structures are now defined in models package
 
 // Prompt endpoints
 
 // listPrompts handles GET /api/v1/prompts
 func (s *Server) listPrompts(c *gin.Context) {
-	enabledStr := c.Query("enabled")
-	var enabled *bool
-
-	if enabledStr != "" {
-		if enabledStr == "true" {
-			enabled = &[]bool{true}[0]
-		} else if enabledStr == "false" {
-			enabled = &[]bool{false}[0]
-		}
-	}
+	enabled := shared.ParseEnabledFilter(c)
 
 	page, limit := s.parsePagination(c)
 
@@ -71,9 +42,9 @@ func (s *Server) listPrompts(c *gin.Context) {
 	}
 
 	// Convert to response format
-	responses := make([]PromptResponse, len(prompts))
+	responses := make([]models.PromptResponse, len(prompts))
 	for i, prompt := range prompts {
-		responses[i] = PromptResponse{
+		responses[i] = models.PromptResponse{
 			ID:        prompt.ID,
 			Template:  prompt.Template,
 			Tags:      prompt.Tags,
@@ -85,9 +56,9 @@ func (s *Server) listPrompts(c *gin.Context) {
 
 	totalPages := (total + limit - 1) / limit
 
-	c.JSON(http.StatusOK, PaginatedResponse{
+	c.JSON(http.StatusOK, models.PaginatedResponse{
 		Data: responses,
-		Pagination: Pagination{
+		Pagination: models.Pagination{
 			Page:       page,
 			Limit:      limit,
 			Total:      int64(total),
@@ -106,7 +77,7 @@ func (s *Server) getPrompt(c *gin.Context) {
 		return
 	}
 
-	response := PromptResponse{
+	response := models.PromptResponse{
 		ID:        prompt.ID,
 		Template:  prompt.Template,
 		Tags:      prompt.Tags,
@@ -120,7 +91,7 @@ func (s *Server) getPrompt(c *gin.Context) {
 
 // createPrompt handles POST /api/v1/prompts
 func (s *Server) createPrompt(c *gin.Context) {
-	var req CreatePromptRequest
+	var req models.CreatePromptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
@@ -157,7 +128,7 @@ func (s *Server) createPrompt(c *gin.Context) {
 		return
 	}
 
-	response := PromptResponse{
+	response := models.PromptResponse{
 		ID:        prompt.ID,
 		Template:  prompt.Template,
 		Tags:      prompt.Tags,
@@ -166,7 +137,7 @@ func (s *Server) createPrompt(c *gin.Context) {
 		UpdatedAt: prompt.UpdatedAt,
 	}
 
-	c.JSON(http.StatusCreated, APIResponse{
+	c.JSON(http.StatusCreated, models.APIResponse{
 		Success: true,
 		Data:    response,
 		Message: "Prompt created successfully",
@@ -177,7 +148,7 @@ func (s *Server) createPrompt(c *gin.Context) {
 func (s *Server) updatePrompt(c *gin.Context) {
 	id := c.Param("id")
 
-	var req UpdatePromptRequest
+	var req models.UpdatePromptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
@@ -220,7 +191,7 @@ func (s *Server) updatePrompt(c *gin.Context) {
 		return
 	}
 
-	response := PromptResponse{
+	response := models.PromptResponse{
 		ID:        prompt.ID,
 		Template:  prompt.Template,
 		Tags:      prompt.Tags,
@@ -241,7 +212,7 @@ func (s *Server) deletePrompt(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
+	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Message: "Prompt deleted successfully",
 	})

@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/AI2HU/gego/internal/db"
+	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
 )
 
@@ -92,36 +93,18 @@ func (s *Server) Run(address string) error {
 	return s.router.Run(address)
 }
 
-// Response structures
-type APIResponse struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Message string      `json:"message,omitempty"`
-}
-
-type PaginatedResponse struct {
-	Data       interface{} `json:"data"`
-	Pagination Pagination  `json:"pagination"`
-}
-
-type Pagination struct {
-	Page       int   `json:"page"`
-	Limit      int   `json:"limit"`
-	Total      int64 `json:"total"`
-	TotalPages int   `json:"total_pages"`
-}
+// Response structures are now defined in models package
 
 // Helper functions
 func (s *Server) successResponse(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusOK, APIResponse{
+	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Data:    data,
 	})
 }
 
 func (s *Server) errorResponse(c *gin.Context, status int, message string) {
-	c.JSON(status, APIResponse{
+	c.JSON(status, models.APIResponse{
 		Success: false,
 		Error:   message,
 	})

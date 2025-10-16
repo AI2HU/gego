@@ -2,62 +2,17 @@ package api
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/shared"
 )
-
-// LLM request/response structures
-type CreateLLMRequest struct {
-	Name     string            `json:"name" binding:"required"`
-	Provider string            `json:"provider" binding:"required"`
-	Model    string            `json:"model" binding:"required"`
-	APIKey   string            `json:"api_key,omitempty"`
-	BaseURL  string            `json:"base_url,omitempty"`
-	Config   map[string]string `json:"config,omitempty"`
-	Enabled  bool              `json:"enabled"`
-}
-
-type UpdateLLMRequest struct {
-	Name     string            `json:"name,omitempty"`
-	Provider string            `json:"provider,omitempty"`
-	Model    string            `json:"model,omitempty"`
-	APIKey   string            `json:"api_key,omitempty"`
-	BaseURL  string            `json:"base_url,omitempty"`
-	Config   map[string]string `json:"config,omitempty"`
-	Enabled  *bool             `json:"enabled,omitempty"`
-}
-
-type LLMResponse struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Provider  string            `json:"provider"`
-	Model     string            `json:"model"`
-	APIKey    string            `json:"api_key,omitempty"`
-	BaseURL   string            `json:"base_url,omitempty"`
-	Config    map[string]string `json:"config,omitempty"`
-	Enabled   bool              `json:"enabled"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
-}
-
-// LLM endpoints
 
 // listLLMs handles GET /api/v1/llms
 func (s *Server) listLLMs(c *gin.Context) {
-	enabledStr := c.Query("enabled")
-	var enabled *bool
-
-	if enabledStr != "" {
-		if enabledStr == "true" {
-			enabled = &[]bool{true}[0]
-		} else if enabledStr == "false" {
-			enabled = &[]bool{false}[0]
-		}
-	}
+	enabled := shared.ParseEnabledFilter(c)
 
 	llms, err := s.llmService.ListLLMs(c.Request.Context(), enabled)
 	if err != nil {
@@ -66,9 +21,9 @@ func (s *Server) listLLMs(c *gin.Context) {
 	}
 
 	// Convert to response format and mask API keys
-	responses := make([]LLMResponse, len(llms))
+	responses := make([]models.LLMResponse, len(llms))
 	for i, llm := range llms {
-		responses[i] = LLMResponse{
+		responses[i] = models.LLMResponse{
 			ID:        llm.ID,
 			Name:      llm.Name,
 			Provider:  llm.Provider,
@@ -95,7 +50,7 @@ func (s *Server) getLLM(c *gin.Context) {
 		return
 	}
 
-	response := LLMResponse{
+	response := models.LLMResponse{
 		ID:        llm.ID,
 		Name:      llm.Name,
 		Provider:  llm.Provider,
@@ -113,7 +68,7 @@ func (s *Server) getLLM(c *gin.Context) {
 
 // createLLM handles POST /api/v1/llms
 func (s *Server) createLLM(c *gin.Context) {
-	var req CreateLLMRequest
+	var req models.CreateLLMRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
@@ -141,7 +96,7 @@ func (s *Server) createLLM(c *gin.Context) {
 		return
 	}
 
-	response := LLMResponse{
+	response := models.LLMResponse{
 		ID:        llm.ID,
 		Name:      llm.Name,
 		Provider:  llm.Provider,
@@ -154,7 +109,7 @@ func (s *Server) createLLM(c *gin.Context) {
 		UpdatedAt: llm.UpdatedAt,
 	}
 
-	c.JSON(http.StatusCreated, APIResponse{
+	c.JSON(http.StatusCreated, models.APIResponse{
 		Success: true,
 		Data:    response,
 		Message: "LLM created successfully",
@@ -165,7 +120,7 @@ func (s *Server) createLLM(c *gin.Context) {
 func (s *Server) updateLLM(c *gin.Context) {
 	id := c.Param("id")
 
-	var req UpdateLLMRequest
+	var req models.UpdateLLMRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
@@ -210,7 +165,7 @@ func (s *Server) updateLLM(c *gin.Context) {
 		return
 	}
 
-	response := LLMResponse{
+	response := models.LLMResponse{
 		ID:        llm.ID,
 		Name:      llm.Name,
 		Provider:  llm.Provider,
@@ -235,7 +190,7 @@ func (s *Server) deleteLLM(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
+	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Message: "LLM deleted successfully",
 	})
