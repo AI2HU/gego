@@ -56,14 +56,14 @@ func (s *Server) getStats(c *gin.Context) {
 	}
 
 	// Get prompt stats
-	promptStats, err := s.statsService.GetPromptStats(c.Request.Context())
+	promptStats, err := s.statsService.GetAllPromptStats(c.Request.Context())
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to get prompt stats: "+err.Error())
 		return
 	}
 
 	// Get LLM stats
-	llmStats, err := s.statsService.GetLLMStats(c.Request.Context())
+	llmStats, err := s.statsService.GetAllLLMStats(c.Request.Context())
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to get LLM stats: "+err.Error())
 		return

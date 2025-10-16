@@ -19,7 +19,6 @@ import (
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
-	"github.com/AI2HU/gego/internal/stats"
 )
 
 var (
@@ -30,7 +29,7 @@ var (
 	database     db.Database
 	llmRegistry  *llm.Registry
 	sched        *services.SchedulerService
-	statsService *stats.Service
+	statsService *services.StatsService
 )
 
 // rootCmd represents the base command
@@ -92,12 +91,8 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 
-		// Initialize stats service using NoSQL database
-		if hybridDB, ok := database.(*db.HybridDB); ok {
-			if mongoDB := hybridDB.GetNoSQLDatabase(); mongoDB != nil {
-				statsService = stats.New(mongoDB.GetDatabase())
-			}
-		}
+		// Initialize stats service
+		statsService = services.NewStatsService(database)
 
 		// Initialize LLM registry
 		llmRegistry = llm.NewRegistry()

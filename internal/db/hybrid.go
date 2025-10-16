@@ -194,6 +194,15 @@ func (h *HybridDB) GetTopKeywords(ctx context.Context, limit int, startTime, end
 	return h.nosqlDB.GetTopKeywords(ctx, limit, startTime, endTime)
 }
 
+// Statistics operations - Use NoSQL
+func (h *HybridDB) GetPromptStats(ctx context.Context, promptID string) (*models.PromptStats, error) {
+	return h.nosqlDB.GetPromptStats(ctx, promptID)
+}
+
+func (h *HybridDB) GetLLMStats(ctx context.Context, llmID string) (*models.LLMStats, error) {
+	return h.nosqlDB.GetLLMStats(ctx, llmID)
+}
+
 // GetNoSQLDatabase returns the underlying NoSQL database instance for stats service
 func (h *HybridDB) GetNoSQLDatabase() *mongodb.MongoDB {
 	if mongoDB, ok := h.nosqlDB.(*mongodb.MongoDB); ok {

@@ -32,4 +32,8 @@ type NoSQLDatabase interface {
 	// Keyword search (on-demand, searches through response_text)
 	SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error)
 	GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error)
+
+	// Statistics operations
+	GetPromptStats(ctx context.Context, promptID string) (*models.PromptStats, error)
+	GetLLMStats(ctx context.Context, llmID string) (*models.LLMStats, error)
 }

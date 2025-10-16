@@ -82,16 +82,54 @@ func (s *StatsService) GetKeywordTrends(ctx context.Context, keyword string, sta
 	return nil, fmt.Errorf("keyword trends not implemented")
 }
 
-// GetPromptStats returns statistics for prompts - placeholder for future implementation
-func (s *StatsService) GetPromptStats(ctx context.Context) ([]*models.PromptStats, error) {
-	// TODO: Implement GetPromptStats in database interface
-	return nil, fmt.Errorf("prompt stats not implemented")
+// GetPromptStats returns statistics for a specific prompt
+func (s *StatsService) GetPromptStats(ctx context.Context, promptID string) (*models.PromptStats, error) {
+	return s.db.GetPromptStats(ctx, promptID)
 }
 
-// GetLLMStats returns statistics for LLMs - placeholder for future implementation
-func (s *StatsService) GetLLMStats(ctx context.Context) ([]*models.LLMStats, error) {
-	// TODO: Implement GetLLMStats in database interface
-	return nil, fmt.Errorf("LLM stats not implemented")
+// GetLLMStats returns statistics for a specific LLM
+func (s *StatsService) GetLLMStats(ctx context.Context, llmID string) (*models.LLMStats, error) {
+	return s.db.GetLLMStats(ctx, llmID)
+}
+
+// GetAllPromptStats returns statistics for all prompts
+func (s *StatsService) GetAllPromptStats(ctx context.Context) ([]*models.PromptStats, error) {
+	prompts, err := s.db.ListPrompts(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get prompts: %w", err)
+	}
+
+	var allStats []*models.PromptStats
+	for _, prompt := range prompts {
+		stats, err := s.db.GetPromptStats(ctx, prompt.ID)
+		if err != nil {
+			// Log error but continue with other prompts
+			continue
+		}
+		allStats = append(allStats, stats)
+	}
+
+	return allStats, nil
+}
+
+// GetAllLLMStats returns statistics for all LLMs
+func (s *StatsService) GetAllLLMStats(ctx context.Context) ([]*models.LLMStats, error) {
+	llms, err := s.db.ListLLMs(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLMs: %w", err)
+	}
+
+	var allStats []*models.LLMStats
+	for _, llm := range llms {
+		stats, err := s.db.GetLLMStats(ctx, llm.ID)
+		if err != nil {
+			// Log error but continue with other LLMs
+			continue
+		}
+		allStats = append(allStats, stats)
+	}
+
+	return allStats, nil
 }
 
 // GetOverallStats returns overall system statistics
