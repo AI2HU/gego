@@ -95,7 +95,6 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 	name, _ := reader.ReadString('\n')
 	schedule.Name = strings.TrimSpace(name)
 
-	// Get prompts
 	fmt.Printf("\n%sAvailable Prompts:%s\n", LabelStyle, Reset)
 	prompts, err := database.ListPrompts(ctx, nil)
 	if err != nil {
@@ -119,7 +118,6 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 			schedule.PromptIDs = append(schedule.PromptIDs, p.ID)
 		}
 	} else {
-		// Parse selection
 		selections := strings.Split(promptSelection, ",")
 		for _, sel := range selections {
 			sel = strings.TrimSpace(sel)
@@ -131,7 +129,6 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Get LLMs
 	fmt.Printf("\n%sAvailable LLMs:%s\n", LabelStyle, Reset)
 	llms, err := database.ListLLMs(ctx, nil)
 	if err != nil {
@@ -166,7 +163,6 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Get cron expression
 	fmt.Printf("\n%sSchedule Frequency:%s\n", LabelStyle, Reset)
 	fmt.Printf("  %s1. Every day%s\n", CountStyle, Reset)
 	fmt.Printf("  %s2. Every week%s\n", CountStyle, Reset)
@@ -216,7 +212,6 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 
 	schedule.CronExpr = cronExpr
 
-	// Get temperature
 	temperature, err := promptTemperature(reader)
 	if err != nil {
 		return fmt.Errorf("failed to get temperature: %w", err)
@@ -314,7 +309,6 @@ func runScheduleGet(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			fmt.Printf("  - %s (error: %s)\n", FormatValue(promptID), FormatValue(err.Error()))
 		} else {
-			// Show truncated template instead of name
 			template := prompt.Template
 			if len(template) > 50 {
 				template = template[:47] + "..."
@@ -340,9 +334,7 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	reader := bufio.NewReader(os.Stdin)
 
-	// If no ID provided, prompt for delete all
 	if len(args) == 0 {
-		// First, get all schedules to show what will be deleted
 		schedules, err := database.ListSchedules(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("failed to list schedules: %w", err)
@@ -368,7 +360,6 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		// Use database delete all method
 		deletedCount, err := database.DeleteAllSchedules(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to delete all schedules: %w", err)
@@ -379,7 +370,6 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Handle individual schedule deletion
 	id := args[0]
 	fmt.Printf("%sAre you sure you want to delete schedule %s? (y/N): %s", ErrorStyle, FormatValue(id), Reset)
 	response, _ := reader.ReadString('\n')

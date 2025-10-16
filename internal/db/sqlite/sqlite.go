@@ -29,7 +29,6 @@ func New(config *models.Config) (*SQLite, error) {
 
 // Connect establishes connection to SQLite
 func (s *SQLite) Connect(ctx context.Context) error {
-	// Expand the URI path (handle ~ and relative paths)
 	dbPath := s.config.URI
 	if strings.HasPrefix(dbPath, "~") {
 		home, err := os.UserHomeDir()
@@ -38,7 +37,6 @@ func (s *SQLite) Connect(ctx context.Context) error {
 		}
 		dbPath = filepath.Join(home, dbPath[1:])
 	} else if !filepath.IsAbs(dbPath) {
-		// Convert relative path to absolute
 		absPath, err := filepath.Abs(dbPath)
 		if err != nil {
 			return fmt.Errorf("failed to resolve absolute path: %w", err)
@@ -46,7 +44,6 @@ func (s *SQLite) Connect(ctx context.Context) error {
 		dbPath = absPath
 	}
 
-	// Ensure the directory exists
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create database directory: %w", err)
@@ -57,7 +54,6 @@ func (s *SQLite) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to open SQLite database at path '%s': %w", dbPath, err)
 	}
 
-	// Test the connection
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("failed to ping SQLite database at path '%s': %w", dbPath, err)
 	}
@@ -83,12 +79,10 @@ func (s *SQLite) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
-// Helper function to convert map to JSON string
 func mapToJSON(m map[string]string) string {
 	if len(m) == 0 {
 		return "{}"
 	}
-	// Simple JSON conversion for map[string]string
 	result := "{"
 	first := true
 	for k, v := range m {
@@ -102,18 +96,13 @@ func mapToJSON(m map[string]string) string {
 	return result
 }
 
-// Helper function to parse JSON string to map
 func jsonToMap(jsonStr string) map[string]string {
-	// Simple JSON parsing for map[string]string
-	// This is a basic implementation - in production, use proper JSON library
 	if jsonStr == "" || jsonStr == "{}" {
 		return make(map[string]string)
 	}
-	// For now, return empty map - proper JSON parsing would be needed
 	return make(map[string]string)
 }
 
-// Helper function to convert string slice to JSON array
 func sliceToJSON(slice []string) string {
 	if len(slice) == 0 {
 		return "[]"
@@ -129,32 +118,25 @@ func sliceToJSON(slice []string) string {
 	return result
 }
 
-// Helper function to parse JSON array to string slice
 func jsonToSlice(jsonStr string) []string {
-	// Simple JSON parsing for []string
-	// This is a basic implementation - in production, use proper JSON library
 	if jsonStr == "" || jsonStr == "[]" {
 		return []string{}
 	}
 
-	// Remove brackets and split by comma
 	jsonStr = strings.TrimSpace(jsonStr)
 	if !strings.HasPrefix(jsonStr, "[") || !strings.HasSuffix(jsonStr, "]") {
 		return []string{}
 	}
 
-	// Remove brackets
 	jsonStr = jsonStr[1 : len(jsonStr)-1]
 	if jsonStr == "" {
 		return []string{}
 	}
 
-	// Split by comma and clean up quotes
 	parts := strings.Split(jsonStr, ",")
 	var result []string
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		// Remove quotes if present
 		if strings.HasPrefix(part, `"`) && strings.HasSuffix(part, `"`) {
 			part = part[1 : len(part)-1]
 		}
@@ -163,8 +145,6 @@ func jsonToSlice(jsonStr string) []string {
 
 	return result
 }
-
-// LLM Operations
 
 // CreateLLM creates a new LLM configuration
 func (s *SQLite) CreateLLM(ctx context.Context, llm *models.LLMConfig) error {
@@ -344,8 +324,6 @@ func (s *SQLite) DeleteAllLLMs(ctx context.Context) (int, error) {
 
 	return int(rowsAffected), nil
 }
-
-// Schedule Operations
 
 // CreateSchedule creates a new schedule
 func (s *SQLite) CreateSchedule(ctx context.Context, schedule *models.Schedule) error {

@@ -23,7 +23,6 @@ func New(sqlConfig, nosqlConfig *models.Config) (*HybridDB, error) {
 	var nosqlDB NoSQLDatabase
 	var err error
 
-	// Initialize SQLite for LLMs and Schedules
 	switch sqlConfig.Provider {
 	case "sqlite":
 		sqlDB, err = sqlite.New(sqlConfig)
@@ -34,7 +33,6 @@ func New(sqlConfig, nosqlConfig *models.Config) (*HybridDB, error) {
 		return nil, fmt.Errorf("unsupported SQL database provider: %s", sqlConfig.Provider)
 	}
 
-	// Initialize NoSQL for Prompts and Responses
 	switch nosqlConfig.Provider {
 	case "mongodb":
 		nosqlDB, err = mongodb.New(nosqlConfig)
@@ -94,7 +92,6 @@ func (h *HybridDB) Ping(ctx context.Context) error {
 	return nil
 }
 
-// LLM operations - Use SQLite
 func (h *HybridDB) CreateLLM(ctx context.Context, llm *models.LLMConfig) error {
 	return h.sqlDB.CreateLLM(ctx, llm)
 }
@@ -119,7 +116,6 @@ func (h *HybridDB) DeleteAllLLMs(ctx context.Context) (int, error) {
 	return h.sqlDB.DeleteAllLLMs(ctx)
 }
 
-// Schedule operations - Use SQLite
 func (h *HybridDB) CreateSchedule(ctx context.Context, schedule *models.Schedule) error {
 	return h.sqlDB.CreateSchedule(ctx, schedule)
 }
@@ -169,7 +165,6 @@ func (h *HybridDB) DeleteAllPrompts(ctx context.Context) (int, error) {
 	return h.nosqlDB.DeleteAllPrompts(ctx)
 }
 
-// Response operations - Use NoSQL
 func (h *HybridDB) CreateResponse(ctx context.Context, response *models.Response) error {
 	return h.nosqlDB.CreateResponse(ctx, response)
 }
@@ -194,7 +189,6 @@ func (h *HybridDB) GetTopKeywords(ctx context.Context, limit int, startTime, end
 	return h.nosqlDB.GetTopKeywords(ctx, limit, startTime, endTime)
 }
 
-// Statistics operations - Use NoSQL
 func (h *HybridDB) GetPromptStats(ctx context.Context, promptID string) (*models.PromptStats, error) {
 	return h.nosqlDB.GetPromptStats(ctx, promptID)
 }
@@ -203,7 +197,6 @@ func (h *HybridDB) GetLLMStats(ctx context.Context, llmID string) (*models.LLMSt
 	return h.nosqlDB.GetLLMStats(ctx, llmID)
 }
 
-// GetNoSQLDatabase returns the underlying NoSQL database instance for stats service
 func (h *HybridDB) GetNoSQLDatabase() *mongodb.MongoDB {
 	if mongoDB, ok := h.nosqlDB.(*mongodb.MongoDB); ok {
 		return mongoDB

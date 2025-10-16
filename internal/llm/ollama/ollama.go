@@ -46,18 +46,15 @@ func (p *Provider) Validate(config map[string]string) error {
 }
 
 // Generate sends a prompt to Ollama and returns the response
-func (p *Provider) Generate(ctx context.Context, prompt string, config map[string]interface{}) (*llm.Response, error) {
+func (p *Provider) Generate(ctx context.Context, prompt string, config llm.Config) (*llm.Response, error) {
 	startTime := time.Now()
 
 	model := "llama2"
-	if m, ok := config["model"].(string); ok && m != "" {
-		model = m
+	if config.Model != "" {
+		model = config.Model
 	}
 
-	temperature := 0.7
-	if t, ok := config["temperature"].(float64); ok {
-		temperature = t
-	}
+	temperature := config.Temperature
 
 	requestBody := map[string]interface{}{
 		"model":  model,
@@ -107,7 +104,6 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	// Ollama doesn't provide token count in the same way, estimate from context length
 	tokensUsed := len(ollamaResp.Context)
 
 	return &llm.Response{
@@ -160,26 +156,20 @@ func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]mo
 
 	var textModels []models.ModelInfo
 	for _, model := range listResp.Models {
-		// Filter for text-to-text models only
-		// Skip embedding models, image models, and other non-text models
 		modelName := strings.ToLower(model.Name)
 
-		// Skip embedding models
 		if strings.Contains(modelName, "embed") || strings.Contains(modelName, "embedding") {
 			continue
 		}
 
-		// Skip image models
 		if strings.Contains(modelName, "vision") || strings.Contains(modelName, "image") || strings.Contains(modelName, "clip") {
 			continue
 		}
 
-		// Skip code-specific models that aren't general text models
 		if strings.Contains(modelName, "code") && !strings.Contains(modelName, "llama") && !strings.Contains(modelName, "mistral") {
 			continue
 		}
 
-		// Skip multimodal models that aren't primarily text
 		if strings.Contains(modelName, "multimodal") && !strings.Contains(modelName, "llama") {
 			continue
 		}

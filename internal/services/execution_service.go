@@ -49,7 +49,6 @@ func (s *ExecutionService) ExecutePromptWithLLM(ctx context.Context, prompt *mod
 		config = DefaultExecutionConfig()
 	}
 
-	// Get the LLM provider
 	provider, ok := s.llmRegistry.Get(llmConfig.Provider)
 	if !ok {
 		return nil, fmt.Errorf("LLM provider %s not found", llmConfig.Provider)
@@ -57,10 +56,9 @@ func (s *ExecutionService) ExecutePromptWithLLM(ctx context.Context, prompt *mod
 
 	var lastErr error
 	for attempt := 1; attempt <= config.MaxRetries; attempt++ {
-		// Generate response
-		response, err := provider.Generate(ctx, prompt.Template, map[string]interface{}{
-			"model":       llmConfig.Model,
-			"temperature": config.Temperature,
+		response, err := provider.Generate(ctx, prompt.Template, llm.Config{
+			Model:       llmConfig.Model,
+			Temperature: config.Temperature,
 		})
 
 		if err != nil {
@@ -81,7 +79,6 @@ func (s *ExecutionService) ExecutePromptWithLLM(ctx context.Context, prompt *mod
 			return nil, lastErr
 		}
 
-		// Success! Create response model
 		responseModel := &models.Response{
 			ID:           uuid.New().String(),
 			PromptID:     prompt.ID,
@@ -97,7 +94,6 @@ func (s *ExecutionService) ExecutePromptWithLLM(ctx context.Context, prompt *mod
 			CreatedAt:    time.Now(),
 		}
 
-		// Save response to database
 		if err := s.db.CreateResponse(ctx, responseModel); err != nil {
 			return nil, fmt.Errorf("failed to save response: %w", err)
 		}
@@ -110,7 +106,6 @@ func (s *ExecutionService) ExecutePromptWithLLM(ctx context.Context, prompt *mod
 
 // ExecuteSchedule executes all prompts in a schedule with all LLMs
 func (s *ExecutionService) ExecuteSchedule(ctx context.Context, scheduleID string, config *ExecutionConfig) (*ExecutionResult, error) {
-	// Get schedule execution plan
 	scheduleService := NewScheduleService(s.db)
 	plan, err := scheduleService.GetScheduleExecutionPlan(ctx, scheduleID)
 	if err != nil {
@@ -128,10 +123,8 @@ func (s *ExecutionService) ExecuteSchedule(ctx context.Context, scheduleID strin
 		StartTime:            time.Now(),
 	}
 
-	// Execute each prompt with each LLM
 	for _, prompt := range plan.Prompts {
 		for _, llmConfig := range plan.LLMs {
-			// Use schedule temperature or config temperature
 			temperature := plan.Temperature
 			if config != nil {
 				temperature = config.Temperature
@@ -161,9 +154,7 @@ func (s *ExecutionService) ExecuteSchedule(ctx context.Context, scheduleID strin
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 
-	// Update schedule last run time
 	if err := scheduleService.UpdateLastRun(ctx, scheduleID, result.StartTime); err != nil {
-		// Log error but don't fail the execution
 		fmt.Printf("Warning: failed to update schedule last run time: %v\n", err)
 	}
 
@@ -172,7 +163,6 @@ func (s *ExecutionService) ExecuteSchedule(ctx context.Context, scheduleID strin
 
 // ExecuteAllEnabledPrompts executes all enabled prompts with all enabled LLMs
 func (s *ExecutionService) ExecuteAllEnabledPrompts(ctx context.Context, config *ExecutionConfig) (*ExecutionResult, error) {
-	// Get enabled prompts and LLMs
 	promptService := NewPromptManagementService(s.db)
 	llmService := NewLLMService(s.db)
 
@@ -205,7 +195,6 @@ func (s *ExecutionService) ExecuteAllEnabledPrompts(ctx context.Context, config 
 		StartTime:            time.Now(),
 	}
 
-	// Execute each prompt with each LLM
 	for _, prompt := range prompts {
 		for _, llmConfig := range llms {
 			response, err := s.ExecutePromptWithLLM(ctx, prompt, llmConfig, config)

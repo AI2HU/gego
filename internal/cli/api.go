@@ -50,7 +50,6 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	fmt.Printf("URL: http://%s:%s/api/v1\n", apiHost, apiPort)
 	fmt.Println()
 
-	// Load configuration
 	configPath := config.GetConfigPath()
 	if !config.Exists(configPath) {
 		return fmt.Errorf("configuration file not found. Run 'gego init' to create one")
@@ -61,7 +60,6 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Initialize hybrid database (SQLite + NoSQL)
 	sqlConfig := &models.Config{
 		Provider: cfg.SQLDatabase.Provider,
 		URI:      cfg.SQLDatabase.URI,
@@ -87,17 +85,14 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	}
 	defer database.Disconnect(ctx)
 
-	// Test database connection
 	if err := database.Ping(ctx); err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
 
 	fmt.Println("✅ Database connection successful!")
 
-	// Create API server
 	server := api.NewServer(database, corsOrigin)
 
-	// Setup graceful shutdown
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
@@ -139,7 +134,6 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Press Ctrl+C to stop the server")
 
-	// Start the server
 	address := fmt.Sprintf("%s:%s", apiHost, apiPort)
 	return server.Run(address)
 }

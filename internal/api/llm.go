@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -195,12 +196,7 @@ func (s *Server) deleteLLM(c *gin.Context) {
 // Helper functions for LLM endpoints
 func (s *Server) isValidProvider(provider string) bool {
 	validProviders := []string{"openai", "anthropic", "ollama", "google", "perplexity"}
-	for _, valid := range validProviders {
-		if provider == valid {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(validProviders, provider)
 }
 
 func (s *Server) maskAPIKey(apiKey string) string {

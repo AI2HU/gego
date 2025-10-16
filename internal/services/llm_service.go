@@ -156,7 +156,6 @@ func (s *LLMService) ValidateLLMConfig(config *models.LLMConfig) error {
 		return fmt.Errorf("unknown provider: %s", config.Provider)
 	}
 
-	// Validate API key for providers that require it
 	if provider != Ollama && config.APIKey == "" {
 		return fmt.Errorf("API key is required for %s", provider.DisplayName())
 	}
@@ -223,8 +222,6 @@ func (s *LLMService) GetEnabledLLMs(ctx context.Context) ([]*models.LLMConfig, e
 
 // ValidateProviderModel validates if a model is available for a provider
 func (s *LLMService) ValidateProviderModel(provider string, model string) error {
-	// This would typically check against a provider's available models
-	// For now, we'll do basic validation
 	if provider == "" {
 		return fmt.Errorf("provider is required")
 	}
@@ -232,7 +229,6 @@ func (s *LLMService) ValidateProviderModel(provider string, model string) error 
 		return fmt.Errorf("model is required")
 	}
 
-	// Basic provider validation
 	if FromString(provider) == 0 {
 		return fmt.Errorf("unknown provider: %s", provider)
 	}

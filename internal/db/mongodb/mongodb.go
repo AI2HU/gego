@@ -49,7 +49,6 @@ func (m *MongoDB) Connect(ctx context.Context) error {
 	m.client = client
 	m.database = client.Database(m.config.Database)
 
-	// Create indexes
 	if err := m.createIndexes(ctx); err != nil {
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
@@ -75,7 +74,6 @@ func (m *MongoDB) Ping(ctx context.Context) error {
 
 // createIndexes creates necessary indexes for optimal query performance
 func (m *MongoDB) createIndexes(ctx context.Context) error {
-	// Responses indexes - critical for performance
 	responseIndexes := []mongo.IndexModel{
 		{
 			Keys: bson.D{
@@ -103,7 +101,6 @@ func (m *MongoDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error
 	prompt.CreatedAt = time.Now()
 	prompt.UpdatedAt = time.Now()
 
-	// Convert to BSON document with explicit _id field
 	doc := bson.M{
 		"_id":        prompt.ID,
 		"template":   prompt.Template,
@@ -128,7 +125,6 @@ func (m *MongoDB) GetPrompt(ctx context.Context, id string) (*models.Prompt, err
 		return nil, err
 	}
 
-	// Convert BSON document to Prompt struct
 	var promptID string
 	if id, ok := doc["_id"].(string); ok {
 		promptID = id
@@ -146,7 +142,6 @@ func (m *MongoDB) GetPrompt(ctx context.Context, id string) (*models.Prompt, err
 		UpdatedAt: getTime(doc, "updated_at"),
 	}
 
-	// Handle optional fields
 	if tags, ok := doc["tags"].([]interface{}); ok {
 		for _, t := range tags {
 			if str, ok := t.(string); ok {
@@ -244,7 +239,6 @@ func (m *MongoDB) UpdatePrompt(ctx context.Context, prompt *models.Prompt) error
 
 // DeletePrompt deletes a prompt by ID
 func (m *MongoDB) DeletePrompt(ctx context.Context, id string) error {
-	// Try to parse as ObjectID first (for old documents), then as string
 	var filter bson.M
 	if objectID, err := primitive.ObjectIDFromHex(id); err == nil {
 		filter = bson.M{"_id": objectID}
@@ -277,7 +271,6 @@ func (m *MongoDB) DeleteAllPrompts(ctx context.Context) (int, error) {
 func (m *MongoDB) CreateResponse(ctx context.Context, response *models.Response) error {
 	response.CreatedAt = time.Now()
 
-	// Convert to BSON document with explicit field names
 	doc := bson.M{
 		"_id":           response.ID,
 		"prompt_id":     response.PromptID,
@@ -293,7 +286,6 @@ func (m *MongoDB) CreateResponse(ctx context.Context, response *models.Response)
 		"created_at":    response.CreatedAt,
 	}
 
-	// Add metadata if it exists
 	if response.Metadata != nil {
 		doc["metadata"] = response.Metadata
 	}
@@ -326,7 +318,6 @@ func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilte
 		query["schedule_id"] = filter.ScheduleID
 	}
 	if filter.Keyword != "" {
-		// Search in response_text field using regex for case-insensitive search
 		query["response_text"] = bson.M{
 			"$regex":   filter.Keyword,
 			"$options": "i",
@@ -392,19 +383,15 @@ func getBool(doc bson.M, key string) bool {
 
 func getTime(doc bson.M, key string) time.Time {
 	if val, ok := doc[key]; ok && val != nil {
-		// Handle time.Time directly
 		if t, ok := val.(time.Time); ok {
 			return t
 		}
-		// Handle primitive.DateTime
 		if dt, ok := val.(primitive.DateTime); ok {
 			return dt.Time()
 		}
-		// Handle int64 (Unix timestamp)
 		if ts, ok := val.(int64); ok {
 			return time.Unix(ts, 0)
 		}
-		// Handle float64 (Unix timestamp)
 		if ts, ok := val.(float64); ok {
 			return time.Unix(int64(ts), 0)
 		}
@@ -423,7 +410,6 @@ func (m *MongoDB) DeleteAllResponses(ctx context.Context) (int, error) {
 
 // GetPromptStats calculates prompt statistics on-demand from responses
 func (m *MongoDB) GetPromptStats(ctx context.Context, promptID string) (*models.PromptStats, error) {
-	// Aggregate responses for this prompt
 	pipeline := []bson.M{
 		{
 			"$match": bson.M{
@@ -467,7 +453,6 @@ func (m *MongoDB) GetPromptStats(ctx context.Context, promptID string) (*models.
 		}
 	}
 
-	// Get LLM counts for this prompt
 	llmCounts, err := m.getLLMCountsForPrompt(ctx, promptID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM counts: %w", err)
@@ -485,7 +470,6 @@ func (m *MongoDB) GetPromptStats(ctx context.Context, promptID string) (*models.
 
 // GetLLMStats calculates LLM statistics on-demand from responses
 func (m *MongoDB) GetLLMStats(ctx context.Context, llmID string) (*models.LLMStats, error) {
-	// Aggregate responses for this LLM
 	pipeline := []bson.M{
 		{
 			"$match": bson.M{
@@ -529,7 +513,6 @@ func (m *MongoDB) GetLLMStats(ctx context.Context, llmID string) (*models.LLMSta
 		}
 	}
 
-	// Get prompt counts for this LLM
 	promptCounts, err := m.getPromptCountsForLLM(ctx, llmID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get prompt counts: %w", err)

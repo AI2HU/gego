@@ -73,14 +73,13 @@ func ParseLogLevel(level string) LogLevel {
 	case "ERROR":
 		return ERROR
 	default:
-		return INFO // Default to INFO level
+		return INFO
 	}
 }
 
 // GetLogger returns the global logger instance
 func GetLogger() *Logger {
 	if globalLogger == nil {
-		// Initialize with default INFO level if not initialized
 		Init(INFO, os.Stdout)
 	}
 	return globalLogger

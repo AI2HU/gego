@@ -49,23 +49,16 @@ func (p *Provider) Validate(config map[string]string) error {
 }
 
 // Generate sends a prompt to Anthropic and returns the response
-func (p *Provider) Generate(ctx context.Context, prompt string, config map[string]interface{}) (*llm.Response, error) {
+func (p *Provider) Generate(ctx context.Context, prompt string, config llm.Config) (*llm.Response, error) {
 	startTime := time.Now()
 
 	model := "claude-3-7-sonnet-20250219"
-	if m, ok := config["model"].(string); ok && m != "" {
-		model = m
+	if config.Model != "" {
+		model = config.Model
 	}
 
-	temperature := 0.7
-	if t, ok := config["temperature"].(float64); ok {
-		temperature = t
-	}
-
-	maxTokens := 1000
-	if mt, ok := config["max_tokens"].(int); ok {
-		maxTokens = mt
-	}
+	temperature := config.Temperature
+	maxTokens := config.MaxTokens
 
 	requestBody := map[string]interface{}{
 		"model": model,
@@ -144,7 +137,6 @@ func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]mo
 		baseURL = p.baseURL
 	}
 
-	// Create a temporary client for this request
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -199,7 +191,6 @@ func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]mo
 
 	var modelList []models.ModelInfo
 	for _, model := range response.Data {
-		// Only include models that are of type "model"
 		if model.Type == "model" {
 			modelList = append(modelList, models.ModelInfo{
 				ID:          model.ID,

@@ -42,17 +42,14 @@ and analyzes brand mentions in their responses.
 Track which brands appear most frequently, which prompts generate the most mentions,
 and compare performance across different LLM providers.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Initialize logging first
 		if err := initializeLogging(); err != nil {
 			return fmt.Errorf("failed to initialize logging: %w", err)
 		}
 
-		// Skip init for the init and api commands
 		if cmd.Name() == "init" || cmd.Name() == "api" {
 			return nil
 		}
 
-		// Load configuration
 		if cfgFile == "" {
 			cfgFile = config.GetConfigPath()
 		}
@@ -67,7 +64,6 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Initialize hybrid database (SQLite + NoSQL)
 		sqlConfig := &models.Config{
 			Provider: cfg.SQLDatabase.Provider,
 			URI:      cfg.SQLDatabase.URI,
@@ -91,19 +87,15 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 
-		// Initialize stats service
 		statsService = services.NewStatsService(database)
 
-		// Initialize LLM registry
 		llmRegistry = llm.NewRegistry()
-		// Register default providers for model listing
 		llmRegistry.Register(openai.New("", ""))
 		llmRegistry.Register(anthropic.New("", ""))
 		llmRegistry.Register(ollama.New(""))
 		llmRegistry.Register(google.New("", ""))
 		llmRegistry.Register(perplexity.New("", ""))
 
-		// Initialize scheduler
 		sched = services.NewSchedulerService(database, llmRegistry)
 
 		return nil
@@ -126,10 +118,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "INFO", "log level (DEBUG, INFO, WARNING, ERROR)")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "log file path (default: stdout)")
 
-	// Disable completion command
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	// Add subcommands
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(apiCmd)
 	rootCmd.AddCommand(llmCmd)
@@ -174,10 +164,8 @@ func initializeLLMProviders(ctx context.Context) error {
 
 // initializeLogging sets up the logging system based on command line flags
 func initializeLogging() error {
-	// Parse log level
 	level := logger.ParseLogLevel(logLevel)
 
-	// Determine output destination
 	var output io.Writer = os.Stdout
 	if logFile != "" {
 		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -187,10 +175,8 @@ func initializeLogging() error {
 		output = file
 	}
 
-	// Initialize the logger
 	logger.Init(level, output)
 
-	// Log the initialization
 	logger.Info("Logging initialized - Level: %s", level.String())
 	if logFile != "" {
 		logger.Info("Logging to file: %s", logFile)

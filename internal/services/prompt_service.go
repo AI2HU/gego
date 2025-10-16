@@ -103,8 +103,6 @@ func (s *PromptManagementService) ValidatePromptTags(tags []string) error {
 
 // SearchPrompts searches prompts by template content
 func (s *PromptManagementService) SearchPrompts(ctx context.Context, query string) ([]*models.Prompt, error) {
-	// This would typically implement search logic
-	// For now, we'll get all prompts and filter client-side
 	prompts, err := s.db.ListPrompts(ctx, nil)
 	if err != nil {
 		return nil, err

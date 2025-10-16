@@ -67,7 +67,6 @@ func runStatsKeywords(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Calculate total mentions for percentage calculation
 	totalMentions := 0
 	for _, keyword := range keywords {
 		totalMentions += keyword.Count
@@ -114,7 +113,6 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%sLast Seen: %s\n", LabelStyle, FormatMeta(stats.LastSeen.Format("2006-01-02 15:04:05")))
 	fmt.Println()
 
-	// Top prompts for this keyword
 	fmt.Printf("%sTop Prompts:%s\n", SuccessStyle, Reset)
 	fmt.Printf("%s────────────%s\n", DimStyle, Reset)
 	type kv struct {
@@ -136,16 +134,13 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 		prompt, err := database.GetPrompt(ctx, item.Key)
 		displayText := item.Key
 		if err == nil {
-			// Show the actual prompt content instead of the ID
 			displayText = prompt.Template
-			// Truncate if too long (show start and end)
 			if len(displayText) > 80 {
 				start := displayText[:35]
 				end := displayText[len(displayText)-35:]
 				displayText = start + "..." + end
 			}
 		} else {
-			// Show that this is historical data
 			displayText = fmt.Sprintf("[Deleted Prompt: %s]", item.Key[:8])
 		}
 		percentage := float64(item.Value) / float64(stats.TotalMentions) * 100
@@ -155,7 +150,6 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 
-	// Top LLMs for this keyword
 	fmt.Printf("%sTop LLMs:%s\n", SuccessStyle, Reset)
 	fmt.Printf("%s─────────%s\n", DimStyle, Reset)
 	var llmList []kv
@@ -173,10 +167,8 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 		llm, err := database.GetLLM(ctx, item.Key)
 		displayText := item.Key
 		if err == nil {
-			// Show model name and provider instead of ID
 			displayText = fmt.Sprintf("%s (%s)", llm.Model, llm.Provider)
 		} else {
-			// Show that this is historical data
 			displayText = fmt.Sprintf("[Deleted LLM: %s]", item.Key[:8])
 		}
 		percentage := float64(item.Value) / float64(stats.TotalMentions) * 100
@@ -186,7 +178,6 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 
-	// Top providers for this brand
 	fmt.Printf("%sBy Provider:%s\n", SuccessStyle, Reset)
 	fmt.Printf("%s────────────%s\n", DimStyle, Reset)
 	var providerList []kv
@@ -240,7 +231,6 @@ func runStatsReset(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\n%s🗑️  Clearing all responses...%s\n", InfoStyle, Reset)
 
-	// Get count of responses before deletion
 	responses, err := database.ListResponses(ctx, shared.ResponseFilter{Limit: 1})
 	if err != nil {
 		return fmt.Errorf("failed to check responses: %w", err)
@@ -251,7 +241,6 @@ func runStatsReset(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Delete all responses
 	deletedCount, err := database.DeleteAllResponses(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete responses: %w", err)

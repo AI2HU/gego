@@ -92,7 +92,6 @@ func runPromptAdd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%sThe LLM responses will be analyzed to track brand mentions and keywords.%s\n", InfoStyle, Reset)
 	fmt.Println()
 
-	// Step 1: Choose prompt creation method
 	fmt.Printf("%sChoose how to create your prompt:%s\n", LabelStyle, Reset)
 	fmt.Printf("  %s1. Generate prompts using LLM%s\n", CountStyle, Reset)
 	fmt.Printf("  %s2. Add a custom prompt%s\n", CountStyle, Reset)
@@ -193,7 +192,6 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s🗑️  Delete Prompts%s\n", FormatHeader(""), Reset)
 	fmt.Printf("%s==================%s\n", DimStyle, Reset)
 
-	// Get all prompts
 	prompts, err := database.ListPrompts(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list prompts: %w", err)
@@ -204,7 +202,6 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Display all prompts with numbers
 	fmt.Printf("\n%sAvailable prompts:%s\n", LabelStyle, Reset)
 	fmt.Printf("%s==================%s\n", DimStyle, Reset)
 	for i, prompt := range prompts {
@@ -216,7 +213,6 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Ask user to select prompts to delete
 	fmt.Printf("%sEnter the numbers of prompts you want to delete (comma-separated, e.g., 1,3,5) or 'all' to delete all: %s", LabelStyle, Reset)
 	selection, _ := reader.ReadString('\n')
 	selection = strings.TrimSpace(selection)
@@ -226,17 +222,14 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Parse selection
 	var selectedIndices []int
 
 	if strings.ToLower(selection) == "all" {
-		// Select all prompts
 		for i := range prompts {
 			selectedIndices = append(selectedIndices, i)
 		}
 		fmt.Printf("%sSelected all %s prompts.%s\n", SuccessStyle, FormatCount(len(prompts)), Reset)
 	} else {
-		// Parse individual selections
 		selections := strings.Split(selection, ",")
 		for _, sel := range selections {
 			sel = strings.TrimSpace(sel)
@@ -255,7 +248,6 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Confirm deletion
 	fmt.Printf("\n%s⚠️  You are about to delete %s prompt(s). This action cannot be undone!%s\n", ErrorStyle, FormatCount(len(selectedIndices)), Reset)
 	confirmed, err := promptYesNo(reader, fmt.Sprintf("%sAre you sure? (y/N): %s", ErrorStyle, Reset))
 	if err != nil {
@@ -267,7 +259,6 @@ func runPromptDelete(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Delete selected prompts
 	fmt.Printf("\n%s🗑️  Deleting selected prompts...%s\n", InfoStyle, Reset)
 	deletedCount := 0
 	for _, idx := range selectedIndices {
@@ -324,7 +315,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 	fmt.Printf("\n%s🤖 Generate Prompts Using LLM%s\n", FormatHeader(""), Reset)
 	fmt.Printf("%s==============================%s\n", DimStyle, Reset)
 
-	// Check if there are any LLMs available
 	llms, err := database.ListLLMs(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list LLMs: %w", err)
@@ -336,13 +326,11 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return nil
 	}
 
-	// Display available LLMs
 	fmt.Printf("\n%sAvailable LLM providers:%s\n", LabelStyle, Reset)
 	for i, llm := range llms {
 		fmt.Printf("  %s%d. %s (%s)%s\n", CountStyle, i+1, Reset, FormatValue(llm.Name), FormatSecondary(llm.Provider))
 	}
 
-	// Let user select LLM
 	llmChoice, err := promptWithRetry(reader, fmt.Sprintf("\nSelect a model to prompt generation (1-%d): ", len(llms)), func(input string) (string, error) {
 		var idx int
 		_, err := fmt.Sscanf(input, "%d", &idx)
@@ -359,7 +347,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 	fmt.Sscanf(llmChoice, "%d", &idx)
 	selectedLLM := llms[idx-1]
 
-	// Language selection
 	languageCode, err := promptWithRetry(reader, fmt.Sprintf("\n%sEnter language code (e.g., FR, EN, IT, ES, DE, etc.): %s", LabelStyle, Reset), func(input string) (string, error) {
 		input = strings.ToUpper(strings.TrimSpace(input))
 		if input == "" {
@@ -374,7 +361,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return err
 	}
 
-	// Get language name for display
 	languageNames := map[string]string{
 		"EN": "English", "FR": "Français", "IT": "Italiano", "ES": "Español", "DE": "Deutsch",
 		"PT": "Português", "RU": "Русский", "JA": "日本語", "KO": "한국어", "ZH": "中文",
@@ -391,7 +377,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		languageName = languageCode // Fallback to code if name not found
 	}
 
-	// Get user input for prompt generation
 	userInput, err := promptWithRetry(reader, fmt.Sprintf("\n%sDescribe what kind of prompts you need in %s (e.g., 'questions about streaming services'): %s", LabelStyle, FormatValue(languageName), Reset), func(input string) (string, error) {
 		if input == "" {
 			return "", fmt.Errorf("description is required")
@@ -402,11 +387,10 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return err
 	}
 
-	// Get number of prompts to generate
 	promptCountStr, err := promptWithRetry(reader, fmt.Sprintf("\n%sHow many prompts would you like to generate? [20]: %s", LabelStyle, Reset), func(input string) (string, error) {
 		input = strings.TrimSpace(input)
 		if input == "" {
-			return "20", nil // Default to 20
+			return "20", nil
 		}
 		var count int
 		_, err := fmt.Sscanf(input, "%d", &count)
@@ -425,7 +409,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 	var promptCount int
 	fmt.Sscanf(promptCountStr, "%d", &promptCount)
 
-	// Fetch existing prompts to avoid repetition
 	fmt.Printf("\n%s📋 Fetching existing prompts...%s\n", InfoStyle, Reset)
 	existingPrompts, err := database.ListPrompts(ctx, nil)
 	if err != nil {
@@ -434,19 +417,15 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 
 	fmt.Printf("Found %d existing prompts.\n", len(existingPrompts))
 
-	// Extract prompt templates from existing prompts
 	var existingPromptTemplates []string
 	for _, prompt := range existingPrompts {
 		existingPromptTemplates = append(existingPromptTemplates, prompt.Template)
 	}
 
-	// Generate prompts using LLM
 	fmt.Printf("\n%s🔍 Generating prompts...%s\n", InfoStyle, Reset)
 
-	// Create the pre-prompt using the GEO template with existing prompts
 	prePrompt := llm.GenerateGEOPromptTemplate(userInput, existingPromptTemplates, languageCode, promptCount)
 
-	// Create a new provider instance with the actual API key from the database
 	var provider llm.Provider
 	switch selectedLLM.Provider {
 	case "openai":
@@ -461,9 +440,8 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return fmt.Errorf("unsupported LLM provider: %s", selectedLLM.Provider)
 	}
 
-	// Generate the response
-	response, err := provider.Generate(ctx, prePrompt, map[string]interface{}{
-		"model": selectedLLM.Model,
+	response, err := provider.Generate(ctx, prePrompt, llm.Config{
+		Model: selectedLLM.Model,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to generate prompts: %w", err)
@@ -473,7 +451,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return fmt.Errorf("LLM error: %s", response.Error)
 	}
 
-	// Parse the generated prompts
 	promptLines := strings.Split(strings.TrimSpace(response.Text), "\n")
 	var generatedPrompts []string
 
@@ -483,7 +460,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 			continue
 		}
 
-		// Remove numbering (e.g., "1. " or "1) ")
 		if len(line) > 2 && (line[1] == '.' || line[1] == ')') && (line[0] >= '0' && line[0] <= '9') {
 			line = strings.TrimSpace(line[2:])
 		}
@@ -497,14 +473,12 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 		return fmt.Errorf("no valid prompts were generated")
 	}
 
-	// Display generated prompts
 	fmt.Printf("\n%s✅ Generated %s prompts:%s\n", SuccessStyle, FormatCount(len(generatedPrompts)), Reset)
 	fmt.Printf("%s================================%s\n", DimStyle, Reset)
 	for i, prompt := range generatedPrompts {
 		fmt.Printf("%s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(prompt))
 	}
 
-	// Let user choose to save all prompts or cancel
 	fmt.Printf("\n%sWould you like to save all %s generated prompts? (y/n): %s", LabelStyle, FormatCount(len(generatedPrompts)), Reset)
 	choice, _ := reader.ReadString('\n')
 	choice = strings.TrimSpace(strings.ToLower(choice))
@@ -516,7 +490,6 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 
 	fmt.Printf("%sSelected all %s prompts.%s\n", SuccessStyle, FormatCount(len(generatedPrompts)), Reset)
 
-	// Save all prompts
 	fmt.Printf("\n%s💾 Saving all prompts...%s\n", InfoStyle, Reset)
 	savedCount := 0
 	for _, promptText := range generatedPrompts {

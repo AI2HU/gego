@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,7 +49,6 @@ type SchedulerService struct {
 
 // NewSchedulerService creates a new scheduler service with proper cron configuration
 func NewSchedulerService(database db.Database, llmRegistry *llm.Registry) *SchedulerService {
-	// Create cron with proper configuration
 	c := cron.New(
 		cron.WithLocation(time.UTC),
 		cron.WithLogger(cron.DefaultLogger),
@@ -75,7 +75,6 @@ func (s *SchedulerService) Start(ctx context.Context) error {
 		return fmt.Errorf("scheduler already running")
 	}
 
-	// Load all enabled schedules
 	schedules, err := s.db.ListSchedules(ctx, boolPtr(true))
 	if err != nil {
 		return fmt.Errorf("failed to load schedules: %w", err)
@@ -88,7 +87,6 @@ func (s *SchedulerService) Start(ctx context.Context) error {
 		logger.Info("Loaded %d enabled schedule(s)", len(schedules))
 	}
 
-	// Register each schedule with cron
 	registeredCount := 0
 	for _, schedule := range schedules {
 		if err := s.registerSchedule(ctx, schedule); err != nil {
@@ -102,7 +100,6 @@ func (s *SchedulerService) Start(ctx context.Context) error {
 		logger.Info("Successfully registered %d schedule(s) with cron", registeredCount)
 	}
 
-	// Start the cron scheduler
 	s.cron.Start()
 	s.running = true
 
@@ -119,11 +116,9 @@ func (s *SchedulerService) Stop() {
 		return
 	}
 
-	// Stop the cron scheduler
 	s.cron.Stop()
 	s.running = false
 
-	// Clear all schedule entries
 	s.entriesMu.Lock()
 	s.scheduleEntries = make(map[string]cron.EntryID)
 	s.entriesMu.Unlock()
@@ -140,7 +135,6 @@ func (s *SchedulerService) GetStatus(ctx context.Context) (bool, int, error) {
 		return false, 0, nil
 	}
 
-	// Get count of enabled schedules from database
 	schedules, err := s.db.ListSchedules(ctx, boolPtr(true))
 	if err != nil {
 		return s.running, 0, fmt.Errorf("failed to get schedule count: %w", err)
@@ -181,7 +175,6 @@ func (s *SchedulerService) ExecutePrompt(ctx context.Context, promptID string, l
 		wg.Add(1)
 		go func(l *models.LLMConfig) {
 			defer wg.Done()
-			// Use retry mechanism: 3 attempts with 30-second delays
 			if err := s.executePromptWithRetry(ctx, "", prompt, l, 0.7, DefaultMaxRetries, DefaultRetryDelay); err != nil {
 				logger.Error("Failed to execute prompt %s with LLM %s after all retries: %v", prompt.ID, l.ID, err)
 			}
@@ -201,7 +194,6 @@ func (s *SchedulerService) Reload(ctx context.Context) error {
 
 // registerSchedule registers a schedule with cron and stores the entry ID
 func (s *SchedulerService) registerSchedule(_ context.Context, schedule *models.Schedule) error {
-	// Create a job function that executes the schedule
 	jobFunc := func() {
 		logger.Info("Executing scheduled job: %s", schedule.Name)
 		if err := s.executeSchedule(context.Background(), schedule); err != nil {
@@ -209,13 +201,11 @@ func (s *SchedulerService) registerSchedule(_ context.Context, schedule *models.
 		}
 	}
 
-	// Add the job to cron and get the entry ID
 	entryID, err := s.cron.AddFunc(schedule.CronExpr, jobFunc)
 	if err != nil {
 		return fmt.Errorf("failed to add cron job: %w", err)
 	}
 
-	// Store the entry ID for this schedule
 	s.entriesMu.Lock()
 	s.scheduleEntries[schedule.ID] = entryID
 	s.entriesMu.Unlock()
@@ -229,7 +219,6 @@ func (s *SchedulerService) executeSchedule(ctx context.Context, schedule *models
 	logger.Info("Executing schedule: %s", schedule.ID)
 	logger.Info("Schedule has %d prompts and %d LLMs", len(schedule.PromptIDs), len(schedule.LLMIDs))
 
-	// Get prompts
 	prompts := make([]*models.Prompt, 0, len(schedule.PromptIDs))
 	for _, promptID := range schedule.PromptIDs {
 		logger.Debug("Getting prompt: %s", promptID)
@@ -242,7 +231,6 @@ func (s *SchedulerService) executeSchedule(ctx context.Context, schedule *models
 		prompts = append(prompts, prompt)
 	}
 
-	// Get LLMs
 	llms := make([]*models.LLMConfig, 0, len(schedule.LLMIDs))
 	for _, llmID := range schedule.LLMIDs {
 		logger.Debug("Getting LLM: %s", llmID)
@@ -261,7 +249,6 @@ func (s *SchedulerService) executeSchedule(ctx context.Context, schedule *models
 
 	logger.Info("Found %d prompts and %d enabled LLMs", len(prompts), len(llms))
 
-	// Execute each prompt against each LLM
 	var wg sync.WaitGroup
 	executionCount := 0
 	for _, prompt := range prompts {
@@ -272,7 +259,6 @@ func (s *SchedulerService) executeSchedule(ctx context.Context, schedule *models
 				defer wg.Done()
 				logger.Debug("Executing prompt '%s' with LLM '%s'", p.Template, l.Name)
 
-				// Generate random temperature for each prompt if random was selected
 				currentTemperature := schedule.Temperature
 				if schedule.Temperature == -1.0 { // Special value indicating "random" was selected
 					rand.Seed(time.Now().UnixNano())
@@ -280,7 +266,6 @@ func (s *SchedulerService) executeSchedule(ctx context.Context, schedule *models
 					logger.Debug("Generated random temperature %.1f for prompt '%s'", currentTemperature, p.Template)
 				}
 
-				// Use retry mechanism: 3 attempts with 30-second delays
 				if err := s.executePromptWithRetry(ctx, schedule.ID, p, l, currentTemperature, DefaultMaxRetries, DefaultRetryDelay); err != nil {
 					logger.Error("Failed to execute prompt %s with LLM %s after all retries: %v", p.ID, l.ID, err)
 				} else {
@@ -294,7 +279,6 @@ func (s *SchedulerService) executeSchedule(ctx context.Context, schedule *models
 	wg.Wait()
 	logger.Info("Completed %d executions", executionCount)
 
-	// Update schedule last run time
 	now := time.Now()
 	schedule.LastRun = &now
 	if err := s.db.UpdateSchedule(ctx, schedule); err != nil {
@@ -323,14 +307,12 @@ func (s *SchedulerService) executePromptWithRetry(ctx context.Context, scheduleI
 		lastErr = err
 		logger.Warning("❌ Attempt %d/%d failed for prompt '%s' with LLM '%s': %v", attempt, maxRetries, prompt.Template[:min(50, len(prompt.Template))]+"...", llmConfig.Name, err)
 
-		// Check if it's a rate limiting error - use longer delay
 		retryDelayToUse := retryDelay
 		if strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "quota") || strings.Contains(err.Error(), "rate limit") {
 			retryDelayToUse = 2 * time.Minute // Wait 2 minutes for rate limit errors
 			logger.Info("Rate limit detected, using extended retry delay: %v", retryDelayToUse)
 		}
 
-		// Don't wait after the last attempt
 		if attempt < maxRetries {
 			logger.Info("⏳ Waiting %v before retry attempt %d...", retryDelayToUse, attempt+1)
 			time.Sleep(retryDelayToUse)
@@ -345,7 +327,6 @@ func (s *SchedulerService) executePromptWithRetry(ctx context.Context, scheduleI
 func (s *SchedulerService) executePromptWithLLM(ctx context.Context, scheduleID string, prompt *models.Prompt, llmConfig *models.LLMConfig, temperature float64) error {
 	logger.Info("Starting execution: prompt='%s' LLM='%s' provider='%s' temperature=%.2f", prompt.Template, llmConfig.Name, llmConfig.Provider, temperature)
 
-	// Get LLM provider
 	provider, ok := s.llmRegistry.Get(llmConfig.Provider)
 	if !ok {
 		logger.Error("Provider not found: %s", llmConfig.Provider)
@@ -353,38 +334,56 @@ func (s *SchedulerService) executePromptWithLLM(ctx context.Context, scheduleID 
 	}
 	logger.Debug("Found provider for: %s", llmConfig.Provider)
 
-	// Get rate limiter for this provider
 	rateLimiter := s.getRateLimiter(llmConfig.Provider)
 
-	// Wait for rate limiter before making the request
 	logger.Debug("Waiting for rate limiter for provider: %s", llmConfig.Provider)
 	if err := rateLimiter.Wait(ctx); err != nil {
 		logger.Error("Rate limiter wait failed: %v", err)
 		return fmt.Errorf("rate limiter wait failed: %w", err)
 	}
 
-	// Prepare config
-	config := make(map[string]interface{})
-	config["model"] = llmConfig.Model
-	config["temperature"] = temperature
-	config["api_key"] = llmConfig.APIKey
-	if llmConfig.BaseURL != "" {
-		config["base_url"] = llmConfig.BaseURL
+	llmConfigStruct := llm.Config{
+		Model:       llmConfig.Model,
+		Temperature: temperature,
 	}
-	for k, v := range llmConfig.Config {
-		config[k] = v
+
+	if llmConfig.Config != nil {
+		if tempStr, ok := llmConfig.Config["temperature"]; ok {
+			if temp, err := strconv.ParseFloat(tempStr, 64); err == nil {
+				llmConfigStruct.Temperature = temp
+			}
+		}
+		if maxTokensStr, ok := llmConfig.Config["max_tokens"]; ok {
+			if maxTokens, err := strconv.Atoi(maxTokensStr); err == nil {
+				llmConfigStruct.MaxTokens = maxTokens
+			}
+		}
+		if topPStr, ok := llmConfig.Config["top_p"]; ok {
+			if topP, err := strconv.ParseFloat(topPStr, 64); err == nil {
+				llmConfigStruct.TopP = topP
+			}
+		}
+		if topKStr, ok := llmConfig.Config["top_k"]; ok {
+			if topK, err := strconv.Atoi(topKStr); err == nil {
+				llmConfigStruct.TopK = topK
+			}
+		}
+		if streamStr, ok := llmConfig.Config["stream"]; ok {
+			if stream, err := strconv.ParseBool(streamStr); err == nil {
+				llmConfigStruct.Stream = stream
+			}
+		}
 	}
+
 	logger.Debug("Prepared config for LLM: model=%s temperature=%.2f api_key=%s base_url=%s", llmConfig.Model, temperature, maskAPIKey(llmConfig.APIKey), llmConfig.BaseURL)
 
-	// Generate response
 	logger.Debug("[%s] Calling LLM provider with prompt: %s", llmConfig.Name, prompt.Template[:min(50, len(prompt.Template))]+"...")
 	startTime := time.Now()
-	resp, err := provider.Generate(ctx, prompt.Template, config)
+	resp, err := provider.Generate(ctx, prompt.Template, llmConfigStruct)
 	duration := time.Since(startTime)
 
 	if err != nil {
 		logger.Error("[%s] LLM call failed after %v: %v", llmConfig.Name, duration, err)
-		// Store error response
 		response := &models.Response{
 			ID:          uuid.New().String(),
 			PromptID:    prompt.ID,
@@ -404,7 +403,6 @@ func (s *SchedulerService) executePromptWithLLM(ctx context.Context, scheduleID 
 
 	logger.Info("[%s] LLM call succeeded after %v, response length: %d", llmConfig.Name, duration, len(resp.Text))
 
-	// Create response record
 	response := &models.Response{
 		ID:           uuid.New().String(),
 		PromptID:     prompt.ID,
@@ -435,16 +433,13 @@ func (s *SchedulerService) getRateLimiter(provider string) *rate.Limiter {
 		return limiter
 	}
 
-	// Create new rate limiter
 	s.rateMu.Lock()
 	defer s.rateMu.Unlock()
 
-	// Double-check in case another goroutine created it
 	if limiter, exists := s.rateLimiters[provider]; exists {
 		return limiter
 	}
 
-	// Create rate limiter: 6 requests per minute = 1 request every 10 seconds
 	limiter = rate.NewLimiter(rate.Every(time.Minute/RequestsPerMinute), RateLimitBurst)
 	s.rateLimiters[provider] = limiter
 	return limiter

@@ -9,13 +9,35 @@ import (
 	"github.com/AI2HU/gego/internal/models"
 )
 
+// Config represents the common configuration for all LLM providers
+type Config struct {
+	Model       string  `json:"model"`
+	Temperature float64 `json:"temperature"`
+	MaxTokens   int     `json:"max_tokens"`
+	TopP        float64 `json:"top_p"`
+	TopK        int     `json:"top_k"`
+	Stream      bool    `json:"stream"`
+}
+
+// DefaultConfig returns a config with sensible defaults
+func DefaultConfig() Config {
+	return Config{
+		Model:       "",
+		Temperature: 0.7,
+		MaxTokens:   1000,
+		TopP:        1.0,
+		TopK:        0,
+		Stream:      false,
+	}
+}
+
 // Provider defines the interface for LLM providers
 type Provider interface {
 	// Name returns the provider name (e.g., "openai", "anthropic")
 	Name() string
 
 	// Generate sends a prompt to the LLM and returns the response
-	Generate(ctx context.Context, prompt string, config map[string]interface{}) (*Response, error)
+	Generate(ctx context.Context, prompt string, config Config) (*Response, error)
 
 	// Validate validates the provider configuration
 	Validate(config map[string]string) error
@@ -72,7 +94,7 @@ type GenerateRequest struct {
 	Provider string
 	Model    string
 	Prompt   string
-	Config   map[string]interface{}
+	Config   Config
 	Timeout  time.Duration
 }
 

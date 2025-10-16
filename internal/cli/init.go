@@ -29,7 +29,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("======================================")
 	fmt.Println()
 
-	// Check if config already exists
 	configPath := config.GetConfigPath()
 	if config.Exists(configPath) {
 		fmt.Printf("Configuration file already exists at: %s\n", configPath)
@@ -45,7 +44,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	cfg := config.DefaultConfig()
 
-	// Database configuration
 	fmt.Println("\n📊 Database Configuration")
 	fmt.Println("--------------------------")
 	fmt.Println("Gego uses a hybrid approach:")
@@ -53,7 +51,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("  • MongoDB for Prompts and Responses (unstructured data)")
 	fmt.Println()
 
-	// SQLite configuration
 	fmt.Println("🗄️  SQLite Configuration (for LLMs and Schedules)")
 	sqlitePath, err := promptOptional(reader, "SQLite database path [gego.db]: ", "gego.db")
 	if err != nil {
@@ -63,7 +60,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 	cfg.SQLDatabase.URI = sqlitePath
 	cfg.SQLDatabase.Database = "gego"
 
-	// MongoDB configuration
 	fmt.Println("\n🍃 MongoDB Configuration (for Prompts and Responses)")
 	mongoURI, err2 := promptOptional(reader, "MongoDB URI [mongodb://localhost:27017]: ", "mongodb://localhost:27017")
 	if err2 != nil {
@@ -73,7 +69,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 	cfg.NoSQLDatabase.URI = mongoURI
 	cfg.NoSQLDatabase.Database = "gego"
 
-	// Test database connections
 	fmt.Println("\n🔌 Testing database connections...")
 	sqlConfig := &models.Config{
 		Provider: cfg.SQLDatabase.Provider,
@@ -107,17 +102,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✅ Database connection successful!")
 
-	// Run database migrations
 	fmt.Println("\n🔄 Running database migrations...")
 	if err := runMigrations(sqlitePath); err != nil {
 		fmt.Printf("❌ Failed to run migrations: %v\n", err)
 		fmt.Println("You may need to run migrations manually later.")
-		// Don't return error, continue with setup
 	} else {
 		fmt.Println("✅ Database migrations completed successfully!")
 	}
 
-	// Save configuration
 	fmt.Println("\n💾 Saving configuration...")
 	if err := cfg.Save(configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -125,7 +117,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✅ Configuration saved to: %s\n", configPath)
 
-	// Summary
 	fmt.Println("\n📋 Configuration Summary")
 	fmt.Println("========================")
 	fmt.Printf("SQLite Database: %s (%s)\n", cfg.SQLDatabase.Provider, cfg.SQLDatabase.URI)
@@ -153,44 +144,35 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 // runMigrations executes database migrations using gomigrate
 func runMigrations(sqlitePath string) error {
-	// Check if migrate command is available
 	if _, err := exec.LookPath("migrate"); err != nil {
 		return fmt.Errorf("migrate command not found. Please install golang-migrate: https://github.com/golang-migrate/migrate")
 	}
 
-	// Get the migrations directory path
 	migrationsDir := filepath.Join("internal", "db", "migrations")
 
-	// Check if migrations directory exists
 	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
 		return fmt.Errorf("migrations directory not found: %s", migrationsDir)
 	}
 
-	// Convert relative SQLite path to absolute path
 	absSQLitePath, err := filepath.Abs(sqlitePath)
 	if err != nil {
 		return fmt.Errorf("failed to resolve SQLite path: %w", err)
 	}
 
-	// Construct database URL for SQLite
 	dbURL := fmt.Sprintf("sqlite3://%s", absSQLitePath)
 
-	// Run migrate up command
 	cmd := exec.Command("migrate",
 		"-path", migrationsDir,
 		"-database", dbURL,
 		"up")
 
-	// Set working directory to project root
 	cmd.Dir = "."
 
-	// Capture output
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("migration failed: %w\nOutput: %s", err, string(output))
 	}
 
-	// Check if there were any migrations to run
 	if len(output) > 0 {
 		fmt.Printf("Migration output: %s", string(output))
 	}

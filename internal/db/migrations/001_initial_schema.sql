@@ -1,7 +1,6 @@
 -- Migration: 001_initial_schema.sql
 -- Description: Initial database schema creation for Gego
--- Created: 2024-01-01
--- Author: Gego System
+-- Author: AI2HU
 
 -- Enable foreign key constraints
 PRAGMA foreign_keys = ON;
@@ -121,21 +120,3 @@ FROM schedules s
 LEFT JOIN json_each(s.prompt_ids) i ON 1=1
 LEFT JOIN json_each(s.llm_ids) j ON 1=1
 GROUP BY s.id, s.name, s.cron_expr, s.enabled, s.last_run, s.next_run;
-
--- Add comments for documentation
--- LLMs table stores configuration for different LLM providers
--- Each LLM has a unique ID, name, provider type, and model specification
--- API keys and base URLs are stored for authentication and connection
--- Additional configuration can be stored as JSON in the config field
-
--- Schedules table stores cron-based scheduling configurations
--- Each schedule references multiple prompts and LLMs via JSON arrays
--- Temperature controls the randomness of LLM responses (0.0-1.0)
--- last_run and next_run track execution timing
--- Cron expressions follow standard cron format
-
--- Indexes are created for common query patterns:
--- - Provider-based LLM filtering
--- - Enabled status filtering
--- - Time-based sorting and filtering
--- - Schedule execution timing queries

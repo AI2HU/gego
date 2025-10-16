@@ -4,8 +4,6 @@ import (
 	"time"
 )
 
-// Statistics-related models
-
 // TimeSeriesPoint represents a point in time-series data
 type TimeSeriesPoint struct {
 	Timestamp time.Time `json:"timestamp"`

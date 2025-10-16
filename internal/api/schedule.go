@@ -24,7 +24,6 @@ func (s *Server) listSchedules(c *gin.Context) {
 		return
 	}
 
-	// Apply pagination
 	total := len(schedules)
 	start := (page - 1) * limit
 	end := start + limit
@@ -38,7 +37,6 @@ func (s *Server) listSchedules(c *gin.Context) {
 		schedules = schedules[start:end]
 	}
 
-	// Convert to response format
 	responses := make([]models.ScheduleResponse, len(schedules))
 	for i, schedule := range schedules {
 		responses[i] = models.ScheduleResponse{
@@ -104,13 +102,11 @@ func (s *Server) createSchedule(c *gin.Context) {
 		return
 	}
 
-	// Validate temperature
 	if req.Temperature < 0.0 || req.Temperature > 1.0 {
 		s.errorResponse(c, http.StatusBadRequest, "Temperature must be between 0.0 and 1.0")
 		return
 	}
 
-	// Validate arrays
 	if len(req.PromptIDs) == 0 {
 		s.errorResponse(c, http.StatusBadRequest, "At least one prompt ID is required")
 		return
@@ -128,13 +124,11 @@ func (s *Server) createSchedule(c *gin.Context) {
 		return
 	}
 
-	// Validate cron expression (basic validation)
 	if len(req.CronExpr) == 0 {
 		s.errorResponse(c, http.StatusBadRequest, "Cron expression is required")
 		return
 	}
 
-	// Validate that referenced prompts and LLMs exist
 	if err := s.validateScheduleReferences(c.Request.Context(), req.PromptIDs, req.LLMIDs); err != nil {
 		s.errorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -186,14 +180,12 @@ func (s *Server) updateSchedule(c *gin.Context) {
 		return
 	}
 
-	// Get existing schedule
 	schedule, err := s.scheduleService.GetSchedule(c.Request.Context(), id)
 	if err != nil {
 		s.errorResponse(c, http.StatusNotFound, "Schedule not found: "+err.Error())
 		return
 	}
 
-	// Update fields if provided
 	if req.Name != "" {
 		schedule.Name = req.Name
 	}
@@ -233,7 +225,6 @@ func (s *Server) updateSchedule(c *gin.Context) {
 		schedule.Enabled = *req.Enabled
 	}
 
-	// Validate references if they were updated
 	if req.PromptIDs != nil || req.LLMIDs != nil {
 		if err := s.validateScheduleReferences(c.Request.Context(), schedule.PromptIDs, schedule.LLMIDs); err != nil {
 			s.errorResponse(c, http.StatusBadRequest, err.Error())
@@ -280,14 +271,12 @@ func (s *Server) deleteSchedule(c *gin.Context) {
 
 // validateScheduleReferences validates that all referenced prompts and LLMs exist
 func (s *Server) validateScheduleReferences(ctx context.Context, promptIDs, llmIDs []string) error {
-	// Validate prompts exist
 	for _, promptID := range promptIDs {
 		if _, err := s.promptService.GetPrompt(ctx, promptID); err != nil {
 			return fmt.Errorf("prompt not found: %s", promptID)
 		}
 	}
 
-	// Validate LLMs exist
 	for _, llmID := range llmIDs {
 		if _, err := s.llmService.GetLLM(ctx, llmID); err != nil {
 			return fmt.Errorf("LLM not found: %s", llmID)

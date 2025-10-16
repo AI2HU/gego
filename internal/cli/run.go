@@ -28,17 +28,14 @@ var runCmd = &cobra.Command{
 func runCommand(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Initialize LLM providers
 	if err := initializeLLMProviders(ctx); err != nil {
 		return fmt.Errorf("failed to initialize LLM providers: %w", err)
 	}
 
-	// Run-once mode directly
 	return runOnceMode(ctx)
 }
 
 func runOnceMode(ctx context.Context) error {
-	// Get all enabled prompts and LLMs
 	promptService := services.NewPromptManagementService(database)
 	llmService := services.NewLLMService(database)
 
@@ -67,7 +64,6 @@ func runOnceMode(ctx context.Context) error {
 	fmt.Printf("%sTotal executions: %s%s\n", LabelStyle, FormatCount(len(prompts)*len(llms)), Reset)
 	fmt.Println()
 
-	// Get temperature for this run
 	reader := bufio.NewReader(os.Stdin)
 	temperature, err := promptTemperature(reader)
 	if err != nil {
@@ -88,7 +84,6 @@ func runOnceMode(ctx context.Context) error {
 			fmt.Printf("%s🤖 Using LLM: %s (%s)%s\n", InfoStyle, FormatValue(llm.Name), FormatSecondary(llm.Provider), Reset)
 			fmt.Printf("%s🌡️  Using temperature: %s%s\n", InfoStyle, FormatValue(fmt.Sprintf("%.1f", currentTemperature)), Reset)
 
-			// Execute the prompt with the LLM
 			executionService := services.NewExecutionService(database, llmRegistry)
 			config := &services.ExecutionConfig{
 				Temperature: currentTemperature,

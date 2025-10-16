@@ -37,14 +37,12 @@ func (s *ScheduleService) ValidateSchedule(schedule *models.Schedule) error {
 		return fmt.Errorf("temperature must be between 0.0 and 1.0, got: %.2f", schedule.Temperature)
 	}
 
-	// Validate that all referenced prompts exist
 	for _, promptID := range schedule.PromptIDs {
 		if _, err := s.db.GetPrompt(context.Background(), promptID); err != nil {
 			return fmt.Errorf("prompt %s not found: %w", promptID, err)
 		}
 	}
 
-	// Validate that all referenced LLMs exist
 	for _, llmID := range schedule.LLMIDs {
 		if _, err := s.db.GetLLM(context.Background(), llmID); err != nil {
 			return fmt.Errorf("LLM %s not found: %w", llmID, err)
@@ -137,19 +135,16 @@ func (s *ScheduleService) ValidateCronExpression(cronExpr string) error {
 		return fmt.Errorf("cron expression is required")
 	}
 
-	// Basic validation - check if it has 5 parts
 	parts := splitCronExpression(cronExpr)
 	if len(parts) != 5 {
 		return fmt.Errorf("invalid cron expression: %s (must have 5 parts)", cronExpr)
 	}
 
-	// Additional validation could be added here using a cron library
 	return nil
 }
 
 // splitCronExpression splits a cron expression into its components
 func splitCronExpression(cronExpr string) []string {
-	// Simple split by space - in production, use a proper cron parser
 	var parts []string
 	var current string
 
@@ -185,7 +180,6 @@ func (s *ScheduleService) GetScheduleExecutionPlan(ctx context.Context, schedule
 		LLMs:         make([]*models.LLMConfig, 0, len(schedule.LLMIDs)),
 	}
 
-	// Get all prompts
 	for _, promptID := range schedule.PromptIDs {
 		prompt, err := s.db.GetPrompt(ctx, promptID)
 		if err != nil {
@@ -194,7 +188,6 @@ func (s *ScheduleService) GetScheduleExecutionPlan(ctx context.Context, schedule
 		plan.Prompts = append(plan.Prompts, prompt)
 	}
 
-	// Get all LLMs
 	for _, llmID := range schedule.LLMIDs {
 		llm, err := s.db.GetLLM(ctx, llmID)
 		if err != nil {

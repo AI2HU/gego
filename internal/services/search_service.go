@@ -68,10 +68,9 @@ func (s *SearchService) SearchResponses(ctx context.Context, config *SearchConfi
 		return nil, fmt.Errorf("keyword is required")
 	}
 
-	// Use the database interface to search for responses containing the keyword
 	filter := shared.ResponseFilter{
 		Keyword: config.Keyword,
-		Limit:   config.Limit * 10, // Get more responses to find matches
+		Limit:   config.Limit * 10,
 	}
 
 	responses, err := s.db.ListResponses(ctx, filter)
@@ -79,7 +78,6 @@ func (s *SearchService) SearchResponses(ctx context.Context, config *SearchConfi
 		return nil, fmt.Errorf("failed to search responses: %w", err)
 	}
 
-	// Create regex for case-sensitive/insensitive matching
 	var regex *regexp.Regexp
 	if config.CaseSensitive {
 		regex = regexp.MustCompile(regexp.QuoteMeta(config.Keyword))
@@ -87,7 +85,6 @@ func (s *SearchService) SearchResponses(ctx context.Context, config *SearchConfi
 		regex = regexp.MustCompile("(?i)" + regexp.QuoteMeta(config.Keyword))
 	}
 
-	// Process matches
 	var matches []SearchMatch
 	for _, response := range responses {
 		responseMatches := s.findMatches(response, regex, config.ContextLength)
@@ -101,14 +98,12 @@ func (s *SearchService) SearchResponses(ctx context.Context, config *SearchConfi
 func (s *SearchService) findMatches(response *models.Response, regex *regexp.Regexp, contextLength int) []SearchMatch {
 	var matches []SearchMatch
 
-	// Find all matches in the response text
 	indices := regex.FindAllStringIndex(response.ResponseText, -1)
 
 	for _, index := range indices {
 		start := index[0]
 		end := index[1]
 
-		// Get context: contextLength chars before and after
 		contextStart := start - contextLength
 		if contextStart < 0 {
 			contextStart = 0
@@ -120,7 +115,6 @@ func (s *SearchService) findMatches(response *models.Response, regex *regexp.Reg
 
 		contextText := response.ResponseText[contextStart:contextEnd]
 
-		// Get prompt name
 		promptName := "Unknown Prompt"
 		if prompt, err := s.db.GetPrompt(context.Background(), response.PromptID); err == nil {
 			promptName = prompt.Template
@@ -181,7 +175,6 @@ func (s *SearchService) SearchBySchedule(ctx context.Context, scheduleID string,
 
 // GetResponseStats returns statistics about responses
 func (s *SearchService) GetResponseStats(ctx context.Context) (*ResponseStats, error) {
-	// Get all responses for basic stats
 	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 10000})
 	if err != nil {
 		return nil, err
@@ -228,7 +221,6 @@ func HighlightKeyword(text, keyword string, caseSensitive bool) string {
 		return strings.ReplaceAll(text, keyword, fmt.Sprintf("**%s**", keyword))
 	}
 
-	// Case insensitive replacement
 	regex := regexp.MustCompile("(?i)" + regexp.QuoteMeta(keyword))
 	return regex.ReplaceAllStringFunc(text, func(match string) string {
 		return fmt.Sprintf("**%s**", match)

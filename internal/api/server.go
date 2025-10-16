@@ -93,8 +93,6 @@ func (s *Server) Run(address string) error {
 	return s.router.Run(address)
 }
 
-// Response structures are now defined in models package
-
 // Helper functions
 func (s *Server) successResponse(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, models.APIResponse{

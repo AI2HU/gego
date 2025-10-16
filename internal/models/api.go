@@ -4,8 +4,6 @@ import (
 	"time"
 )
 
-// API Response structures
-
 // APIResponse represents a standard API response
 type APIResponse struct {
 	Success bool        `json:"success"`
@@ -27,8 +25,6 @@ type Pagination struct {
 	Total      int64 `json:"total"`
 	TotalPages int   `json:"total_pages"`
 }
-
-// LLM API Request/Response structures
 
 // CreateLLMRequest represents the request to create a new LLM
 type CreateLLMRequest struct {
@@ -66,8 +62,6 @@ type LLMResponse struct {
 	UpdatedAt time.Time         `json:"updated_at"`
 }
 
-// Prompt API Request/Response structures
-
 // CreatePromptRequest represents the request to create a new prompt
 type CreatePromptRequest struct {
 	Template string   `json:"template" binding:"required"`
@@ -91,8 +85,6 @@ type PromptResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
-// Schedule API Request/Response structures
 
 // CreateScheduleRequest represents the request to create a new schedule
 type CreateScheduleRequest struct {
@@ -129,8 +121,6 @@ type ScheduleResponse struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-// Stats API Response structures
-
 // StatsResponse represents the response for statistics
 type StatsResponse struct {
 	TotalResponses int64             `json:"total_responses"`
@@ -143,8 +133,6 @@ type StatsResponse struct {
 	ResponseTrends []TimeSeriesPoint `json:"response_trends"`
 	LastUpdated    time.Time         `json:"last_updated"`
 }
-
-// Search API Request/Response structures
 
 // SearchRequest represents the request to search responses
 type SearchRequest struct {

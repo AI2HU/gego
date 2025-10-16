@@ -47,25 +47,17 @@ func (p *Provider) Validate(config map[string]string) error {
 }
 
 // Generate sends a prompt to Perplexity and returns the response
-func (p *Provider) Generate(ctx context.Context, prompt string, config map[string]interface{}) (*llm.Response, error) {
+func (p *Provider) Generate(ctx context.Context, prompt string, config llm.Config) (*llm.Response, error) {
 	startTime := time.Now()
 
 	model := "sonar"
-	if m, ok := config["model"].(string); ok && m != "" {
-		model = m
+	if config.Model != "" {
+		model = config.Model
 	}
 
-	temperature := 0.7
-	if t, ok := config["temperature"].(float64); ok {
-		temperature = t
-	}
+	temperature := config.Temperature
+	maxTokens := config.MaxTokens
 
-	maxTokens := 4000
-	if mt, ok := config["max_tokens"].(int); ok {
-		maxTokens = mt
-	}
-
-	// Create messages for Perplexity API
 	messages := []pplx.Message{
 		{
 			Role:    "user",
@@ -73,7 +65,6 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 		},
 	}
 
-	// Create completion request
 	req := pplx.NewCompletionRequest(
 		pplx.WithMessages(messages),
 		pplx.WithModel(model),
@@ -82,24 +73,20 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 		pplx.WithReturnImages(false),
 	)
 
-	// Validate the request
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
-	// Send the request
 	resp, err := p.client.SendCompletionRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	// Extract response content
 	content := resp.GetLastContent()
 	if content == "" {
 		return nil, fmt.Errorf("no content returned from API")
 	}
 
-	// Get token usage information
 	tokensUsed := resp.Usage.TotalTokens
 
 	return &llm.Response{
@@ -114,7 +101,6 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 // ListModels lists available text-to-text models from Perplexity
 // Since Perplexity doesn't have a public models API, we return a curated list
 func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]models.ModelInfo, error) {
-	// Return current Perplexity models for text generation
 	return []models.ModelInfo{
 		{
 			ID:          "sonar",

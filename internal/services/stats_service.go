@@ -27,7 +27,6 @@ func (s *StatsService) GetTotalResponses(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// This is a placeholder - we need a proper count method in the database interface
 	return int64(len(responses)), nil
 }
 
@@ -103,7 +102,6 @@ func (s *StatsService) GetAllPromptStats(ctx context.Context) ([]*models.PromptS
 	for _, prompt := range prompts {
 		stats, err := s.db.GetPromptStats(ctx, prompt.ID)
 		if err != nil {
-			// Log error but continue with other prompts
 			continue
 		}
 		allStats = append(allStats, stats)
@@ -123,7 +121,6 @@ func (s *StatsService) GetAllLLMStats(ctx context.Context) ([]*models.LLMStats, 
 	for _, llm := range llms {
 		stats, err := s.db.GetLLMStats(ctx, llm.ID)
 		if err != nil {
-			// Log error but continue with other LLMs
 			continue
 		}
 		allStats = append(allStats, stats)
@@ -134,7 +131,6 @@ func (s *StatsService) GetAllLLMStats(ctx context.Context) ([]*models.LLMStats, 
 
 // GetOverallStats returns overall system statistics
 func (s *StatsService) GetOverallStats(ctx context.Context) (*OverallStats, error) {
-	// Get basic counts
 	prompts, err := s.db.ListPrompts(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get prompts: %w", err)
@@ -155,7 +151,6 @@ func (s *StatsService) GetOverallStats(ctx context.Context) (*OverallStats, erro
 		return nil, fmt.Errorf("failed to get responses: %w", err)
 	}
 
-	// Count enabled items
 	enabledPrompts := 0
 	for _, prompt := range prompts {
 		if prompt.Enabled {
@@ -228,7 +223,6 @@ func (s *StatsService) GetProviderStats(ctx context.Context) (map[string]*Provid
 		stats.UniqueLLMs[response.LLMID] = true
 	}
 
-	// Calculate averages
 	for _, stats := range providerStats {
 		if stats.TotalResponses > 0 {
 			stats.AvgTokens = float64(stats.TotalTokens) / float64(stats.TotalResponses)
@@ -257,20 +251,17 @@ type ProviderStats struct {
 
 // GetTopPromptsByMentions returns prompts ranked by keyword mentions
 func (s *StatsService) GetTopPromptsByMentions(ctx context.Context, limit int) ([]*PromptMentionStats, error) {
-	// Get all responses
 	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 10000})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get responses: %w", err)
 	}
 
-	// Count mentions per prompt
 	promptMentions := make(map[string]int)
 	promptNames := make(map[string]string)
 
 	for _, response := range responses {
 		promptMentions[response.PromptID]++
 
-		// Get prompt name for display
 		if _, exists := promptNames[response.PromptID]; !exists {
 			if prompt, err := s.db.GetPrompt(ctx, response.PromptID); err == nil {
 				promptNames[response.PromptID] = prompt.Template
@@ -280,7 +271,6 @@ func (s *StatsService) GetTopPromptsByMentions(ctx context.Context, limit int) (
 		}
 	}
 
-	// Convert to slice and sort
 	var results []*PromptMentionStats
 	for promptID, count := range promptMentions {
 		results = append(results, &PromptMentionStats{
@@ -290,12 +280,10 @@ func (s *StatsService) GetTopPromptsByMentions(ctx context.Context, limit int) (
 		})
 	}
 
-	// Sort by mentions (descending)
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Mentions > results[j].Mentions
 	})
 
-	// Limit results
 	if limit > 0 && len(results) > limit {
 		results = results[:limit]
 	}
@@ -312,20 +300,17 @@ type PromptMentionStats struct {
 
 // GetTopLLMsByMentions returns LLMs ranked by keyword mentions
 func (s *StatsService) GetTopLLMsByMentions(ctx context.Context, limit int) ([]*LLMMentionStats, error) {
-	// Get all responses
 	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 10000})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get responses: %w", err)
 	}
 
-	// Count mentions per LLM
 	llmMentions := make(map[string]int)
 	llmNames := make(map[string]string)
 
 	for _, response := range responses {
 		llmMentions[response.LLMID]++
 
-		// Get LLM name for display
 		if _, exists := llmNames[response.LLMID]; !exists {
 			if llm, err := s.db.GetLLM(ctx, response.LLMID); err == nil {
 				llmNames[response.LLMID] = fmt.Sprintf("%s (%s)", llm.Name, llm.Provider)
@@ -335,7 +320,6 @@ func (s *StatsService) GetTopLLMsByMentions(ctx context.Context, limit int) ([]*
 		}
 	}
 
-	// Convert to slice and sort
 	var results []*LLMMentionStats
 	for llmID, count := range llmMentions {
 		results = append(results, &LLMMentionStats{
@@ -345,12 +329,10 @@ func (s *StatsService) GetTopLLMsByMentions(ctx context.Context, limit int) ([]*
 		})
 	}
 
-	// Sort by mentions (descending)
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Mentions > results[j].Mentions
 	})
 
-	// Limit results
 	if limit > 0 && len(results) > limit {
 		results = results[:limit]
 	}

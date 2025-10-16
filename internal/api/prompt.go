@@ -11,10 +11,6 @@ import (
 	"github.com/AI2HU/gego/internal/shared"
 )
 
-// Prompt request/response structures are now defined in models package
-
-// Prompt endpoints
-
 // listPrompts handles GET /api/v1/prompts
 func (s *Server) listPrompts(c *gin.Context) {
 	enabled := shared.ParseEnabledFilter(c)
@@ -27,7 +23,6 @@ func (s *Server) listPrompts(c *gin.Context) {
 		return
 	}
 
-	// Apply pagination
 	total := len(prompts)
 	start := (page - 1) * limit
 	end := start + limit
@@ -41,7 +36,6 @@ func (s *Server) listPrompts(c *gin.Context) {
 		prompts = prompts[start:end]
 	}
 
-	// Convert to response format
 	responses := make([]models.PromptResponse, len(prompts))
 	for i, prompt := range prompts {
 		responses[i] = models.PromptResponse{
@@ -97,13 +91,11 @@ func (s *Server) createPrompt(c *gin.Context) {
 		return
 	}
 
-	// Validate template length
 	if len(req.Template) > 10000 {
 		s.errorResponse(c, http.StatusBadRequest, "Template too long (max 10000 characters)")
 		return
 	}
 
-	// Validate tags
 	if len(req.Tags) > 20 {
 		s.errorResponse(c, http.StatusBadRequest, "Too many tags (max 20)")
 		return
@@ -154,14 +146,12 @@ func (s *Server) updatePrompt(c *gin.Context) {
 		return
 	}
 
-	// Get existing prompt
 	prompt, err := s.promptService.GetPrompt(c.Request.Context(), id)
 	if err != nil {
 		s.errorResponse(c, http.StatusNotFound, "Prompt not found: "+err.Error())
 		return
 	}
 
-	// Update fields if provided
 	if req.Template != "" {
 		if len(req.Template) > 10000 {
 			s.errorResponse(c, http.StatusBadRequest, "Template too long (max 10000 characters)")

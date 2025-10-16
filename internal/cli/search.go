@@ -39,10 +39,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s🔍 Searching for keyword: \"%s\"%s\n", HeaderStyle, CountStyle+keyword+Reset, Reset)
 	fmt.Println()
 
-	// Use the database interface to search for responses containing the keyword
 	filter := shared.ResponseFilter{
 		Keyword: keyword,
-		Limit:   searchLimit * 10, // Get more responses to find matches
+		Limit:   searchLimit * 10,
 	}
 
 	responses, err := database.ListResponses(ctx, filter)
@@ -58,7 +57,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Create regex for case-sensitive/insensitive matching
 	var regex *regexp.Regexp
 	if searchCaseSensitive {
 		regex = regexp.MustCompile(regexp.QuoteMeta(keyword))
@@ -66,7 +64,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		regex = regexp.MustCompile("(?i)" + regexp.QuoteMeta(keyword))
 	}
 
-	// Process matches
 	var matches []SearchMatch
 	for _, response := range responses {
 		matches = append(matches, findMatches(response, regex, keyword)...)
@@ -80,7 +77,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s✅ Found %s matches for keyword \"%s\"%s\n", SuccessStyle, CountStyle+fmt.Sprintf("%d", len(matches))+Reset, CountStyle+keyword+Reset, Reset)
 	fmt.Println()
 
-	// Display results
 	displayCount := 0
 	for i, match := range matches {
 		if displayCount >= searchLimit {
@@ -92,7 +88,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		fmt.Printf("   %s🏷️  Prompt:%s %s\n", LabelStyle, Reset, FormatValue(match.PromptName))
 		fmt.Printf("   %s🤖 LLM:%s %s (%s%s%s)\n", LabelStyle, Reset, FormatValue(match.LLMName), SecondaryStyle, match.LLMProvider, Reset)
 
-		// Display temperature with special handling for old responses
 		tempDisplay := fmt.Sprintf("%.1f", match.Temperature)
 		if match.Temperature == 0.0 {
 			tempDisplay = "N/A (legacy)"
@@ -133,14 +128,12 @@ type SearchMatch struct {
 func findMatches(response *models.Response, regex *regexp.Regexp, keyword string) []SearchMatch {
 	var matches []SearchMatch
 
-	// Find all matches in the response text
 	indices := regex.FindAllStringIndex(response.ResponseText, -1)
 
 	for _, index := range indices {
 		start := index[0]
 		end := index[1]
 
-		// Get context: 100 chars before and 100 chars after
 		contextStart := start - 100
 		if contextStart < 0 {
 			contextStart = 0
@@ -152,10 +145,8 @@ func findMatches(response *models.Response, regex *regexp.Regexp, keyword string
 
 		contextText := response.ResponseText[contextStart:contextEnd]
 
-		// Highlight the keyword in context with ANSI colors
 		highlightedContext := strings.ReplaceAll(contextText, keyword, FormatHighlight(keyword))
 
-		// Get prompt name
 		promptName := "Unknown Prompt"
 		if prompt, err := database.GetPrompt(context.Background(), response.PromptID); err == nil {
 			promptName = prompt.Template

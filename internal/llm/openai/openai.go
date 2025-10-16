@@ -23,12 +23,10 @@ type Provider struct {
 
 // New creates a new OpenAI provider
 func New(apiKey, baseURL string) *Provider {
-	// Create client using the official SDK
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
 	)
 
-	// Set custom base URL if provided
 	if baseURL != "" && baseURL != "https://api.openai.com/v1" {
 		client = openai.NewClient(
 			option.WithAPIKey(apiKey),
@@ -57,25 +55,17 @@ func (p *Provider) Validate(config map[string]string) error {
 }
 
 // Generate sends a prompt to OpenAI and returns the response
-func (p *Provider) Generate(ctx context.Context, prompt string, config map[string]interface{}) (*llm.Response, error) {
+func (p *Provider) Generate(ctx context.Context, prompt string, config llm.Config) (*llm.Response, error) {
 	startTime := time.Now()
 
 	model := shared.ChatModelGPT3_5Turbo
-	if m, ok := config["model"].(string); ok && m != "" {
-		model = shared.ChatModel(m)
+	if config.Model != "" {
+		model = shared.ChatModel(config.Model)
 	}
 
-	temperature := 0.7
-	if t, ok := config["temperature"].(float64); ok {
-		temperature = t
-	}
+	temperature := config.Temperature
+	maxTokens := config.MaxTokens
 
-	maxTokens := 1000
-	if mt, ok := config["max_tokens"].(int); ok {
-		maxTokens = mt
-	}
-
-	// Create chat completion request
 	chatCompletion, err := p.client.Chat.Completions.New(
 		ctx,
 		openai.ChatCompletionNewParams{
@@ -97,13 +87,11 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
 
-	// Extract the generated text
 	var generatedText string
 	if len(chatCompletion.Choices) > 0 && chatCompletion.Choices[0].Message.Content != "" {
 		generatedText = chatCompletion.Choices[0].Message.Content
 	}
 
-	// Get token usage
 	tokensUsed := 0
 	if chatCompletion.Usage.TotalTokens != 0 {
 		tokensUsed = int(chatCompletion.Usage.TotalTokens)
@@ -120,7 +108,6 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config map[strin
 
 // ListModels lists available text-to-text models from OpenAI
 func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]models.ModelInfo, error) {
-	// Create client for this request
 	client := p.client
 	if apiKey != "" && apiKey != p.apiKey {
 		client = openai.NewClient(
@@ -134,7 +121,6 @@ func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]mo
 		}
 	}
 
-	// List models using the SDK
 	modelList, err := client.Models.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list models: %w", err)
@@ -142,27 +128,21 @@ func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]mo
 
 	var textModels []models.ModelInfo
 	for _, model := range modelList.Data {
-		// Filter for text-to-text models only (GPT chat models)
 		modelID := string(model.ID)
 
-		// Only include GPT models that support chat completions
 		if strings.HasPrefix(strings.ToLower(modelID), "gpt") {
-			// Skip fine-tuned models (contains colons)
 			if strings.Contains(modelID, ":") {
 				continue
 			}
 
-			// Skip embedding models
 			if strings.Contains(strings.ToLower(modelID), "embed") || strings.Contains(strings.ToLower(modelID), "embedding") {
 				continue
 			}
 
-			// Skip image models
 			if strings.Contains(strings.ToLower(modelID), "vision") || strings.Contains(strings.ToLower(modelID), "image") {
 				continue
 			}
 
-			// Skip audio models
 			if strings.Contains(strings.ToLower(modelID), "whisper") || strings.Contains(strings.ToLower(modelID), "audio") {
 				continue
 			}

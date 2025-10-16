@@ -55,13 +55,11 @@ func (s *PromptGenerationService) GeneratePrompts(ctx context.Context, llmConfig
 		return nil, err
 	}
 
-	// Get the LLM provider
 	provider, ok := s.llmRegistry.Get(llmConfig.Provider)
 	if !ok {
 		return nil, fmt.Errorf("LLM provider %s not found", llmConfig.Provider)
 	}
 
-	// Create the pre-prompt using the GEO template
 	prePrompt := llm.GenerateGEOPromptTemplate(
 		config.UserInput,
 		config.ExistingPrompts,
@@ -69,9 +67,8 @@ func (s *PromptGenerationService) GeneratePrompts(ctx context.Context, llmConfig
 		config.PromptCount,
 	)
 
-	// Generate the response
-	response, err := provider.Generate(ctx, prePrompt, map[string]interface{}{
-		"model": llmConfig.Model,
+	response, err := provider.Generate(ctx, prePrompt, llm.Config{
+		Model: llmConfig.Model,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate prompts: %w", err)
@@ -81,7 +78,6 @@ func (s *PromptGenerationService) GeneratePrompts(ctx context.Context, llmConfig
 		return nil, fmt.Errorf("LLM error: %s", response.Error)
 	}
 
-	// Parse the generated prompts
 	promptLines := strings.Split(strings.TrimSpace(response.Text), "\n")
 	var generatedPrompts []string
 
@@ -91,7 +87,6 @@ func (s *PromptGenerationService) GeneratePrompts(ctx context.Context, llmConfig
 			continue
 		}
 
-		// Remove numbering (e.g., "1. " or "1) ")
 		if len(line) > 2 && (line[1] == '.' || line[1] == ')') && (line[0] >= '0' && line[0] <= '9') {
 			line = strings.TrimSpace(line[2:])
 		}
@@ -123,7 +118,7 @@ func GetLanguageName(languageCode string) string {
 
 	languageName := languageNames[strings.ToUpper(languageCode)]
 	if languageName == "" {
-		return languageCode // Fallback to code if name not found
+		return languageCode
 	}
 	return languageName
 }

@@ -33,12 +33,10 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s================%s\n", DimStyle, Reset)
 	fmt.Println()
 
-	// Initialize LLM providers
 	if err := initializeLLMProviders(ctx); err != nil {
 		return fmt.Errorf("failed to initialize LLM providers: %w", err)
 	}
 
-	// Get enabled schedules
 	schedules, err := database.ListSchedules(ctx, boolPtr(true))
 	if err != nil {
 		return fmt.Errorf("failed to check schedules: %w", err)
@@ -50,7 +48,6 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Show schedules that will be started
 	fmt.Printf("%sStarting Schedules:%s\n", LabelStyle, Reset)
 	for i, schedule := range schedules {
 		fmt.Printf("  %s%d. %s%s\n", CountStyle, i+1, Reset, FormatValue(schedule.Name))
@@ -58,7 +55,6 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Start all schedules automatically
 	if err := sched.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
@@ -69,12 +65,9 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s📝 Press Ctrl+C to stop the scheduler%s\n", InfoStyle, Reset)
 	fmt.Println()
 
-	// Keep the process running so the cron scheduler can continue
-	// Wait for interrupt signal to stop gracefully
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for signal
 	<-c
 	fmt.Printf("\n%s⏹️  Stopping scheduler...%s\n", InfoStyle, Reset)
 	sched.Stop()

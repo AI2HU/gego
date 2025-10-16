@@ -29,7 +29,7 @@ func ExtractCapitalizedWords(text string) []string {
 	re := regexp.MustCompile(`\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b`)
 	matches := re.FindAllString(text, -1)
 
-	// Filter common words
+	// Filter common words that can be confused with brand names
 	var filtered []string
 	commonWords := map[string]bool{
 		"The": true, "A": true, "An": true, "And": true, "Or": true,
