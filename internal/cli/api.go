@@ -50,9 +50,17 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	fmt.Printf("URL: http://%s:%s/api/v1\n", apiHost, apiPort)
 	fmt.Println()
 
-	configPath := config.GetConfigPath()
+	var configPath string
+	if cfgFile != "" {
+		configPath = cfgFile
+	} else if envPath := os.Getenv("GEGO_CONFIG_PATH"); envPath != "" {
+		configPath = envPath
+	} else {
+		configPath = config.GetConfigPath()
+	}
+
 	if !config.Exists(configPath) {
-		return fmt.Errorf("configuration file not found. Run 'gego init' to create one")
+		return fmt.Errorf("configuration file not found at %s. Run 'gego init' to create one", configPath)
 	}
 
 	cfg, err := config.Load(configPath)

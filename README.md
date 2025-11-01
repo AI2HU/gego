@@ -53,6 +53,8 @@ go install github.com/AI2HU/gego/cmd/gego@latest
 
 Gego can be easily deployed using Docker with automatic database setup and migrations.
 
+> 📘 **For detailed deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md)**
+
 #### Docker
 
 ```bash
@@ -234,6 +236,8 @@ curl http://localhost:8989/api/v1/stats
 ```
 
 ## Usage Examples
+
+> 📘 **For more detailed examples, see [EXAMPLES.md](docs/EXAMPLES.md)**
 
 ### View Statistics
 
