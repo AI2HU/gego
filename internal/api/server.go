@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -29,12 +30,19 @@ func NewServer(database db.Database, corsOrigin string) *Server {
 
 	router := gin.Default()
 
+	allowedOrigins := parseAllowedOrigins(corsOrigin)
+
 	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", corsOrigin)
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Max-Age", "86400")
+		origin := c.Request.Header.Get("Origin")
+		allowedOrigin := getAllowedOrigin(origin, allowedOrigins, corsOrigin)
+
+		if allowedOrigin != "" {
+			c.Header("Access-Control-Allow-Origin", allowedOrigin)
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Max-Age", "86400")
+		}
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -120,4 +128,38 @@ func (s *Server) parsePagination(c *gin.Context) (int, int) {
 	}
 
 	return page, limit
+}
+
+func parseAllowedOrigins(corsOrigin string) []string {
+	if corsOrigin == "" || corsOrigin == "*" {
+		return nil
+	}
+
+	origins := strings.Split(corsOrigin, ",")
+	allowed := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		trimmed := strings.TrimSpace(origin)
+		if trimmed != "" {
+			allowed = append(allowed, trimmed)
+		}
+	}
+	return allowed
+}
+
+func getAllowedOrigin(requestOrigin string, allowedOrigins []string, corsOrigin string) string {
+	if corsOrigin == "*" {
+		return "*"
+	}
+
+	if requestOrigin == "" {
+		return ""
+	}
+
+	for _, allowed := range allowedOrigins {
+		if requestOrigin == allowed {
+			return allowed
+		}
+	}
+
+	return ""
 }
