@@ -7,14 +7,17 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/AI2HU/gego/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
 var (
-	exclusionWords     map[string]bool
-	exclusionWordsOnce sync.Once
+	exclusionWords       map[string]bool
+	exclusionWordsOnce   sync.Once
+	exclusionWordsMu     sync.RWMutex
+	exclusionFileModTime time.Time
 )
 
 // ParseEnabledFilter parses the enabled query parameter and returns a pointer to bool or nil
@@ -35,23 +38,68 @@ func ParseEnabledFilter(c *gin.Context) *bool {
 }
 
 // getExclusionWords loads exclusion words from file or returns default words
+// It automatically reloads if the file has been modified since last load
 func getExclusionWords() map[string]bool {
 	exclusionWordsOnce.Do(func() {
-		exclusionWords = loadExclusionWordsFromFile()
+		exclusionWordsMu.Lock()
+		exclusionWords, exclusionFileModTime = loadExclusionWordsFromFileWithModTime()
+		exclusionWordsMu.Unlock()
 	})
+
+	exclusionFile := getExclusionFilePath()
+	fileInfo, err := os.Stat(exclusionFile)
+	if err == nil && !fileInfo.ModTime().IsZero() && fileInfo.ModTime().After(exclusionFileModTime) {
+		exclusionWordsMu.Lock()
+		exclusionWords, exclusionFileModTime = loadExclusionWordsFromFileWithModTime()
+		exclusionWordsMu.Unlock()
+	}
+
+	exclusionWordsMu.RLock()
+	defer exclusionWordsMu.RUnlock()
 	return exclusionWords
+}
+
+// ReloadExclusionWords reloads the exclusion words from file
+func ReloadExclusionWords() error {
+	exclusionWordsMu.Lock()
+	defer exclusionWordsMu.Unlock()
+	exclusionWords, exclusionFileModTime = loadExclusionWordsFromFileWithModTime()
+	return nil
+}
+
+// GetExclusionWordsList returns a list of all exclusion words (for debugging/inspection)
+func GetExclusionWordsList() []string {
+	words := getExclusionWords()
+	result := make([]string, 0, len(words))
+	for word := range words {
+		result = append(result, word)
+	}
+	return result
 }
 
 // loadExclusionWordsFromFile loads exclusion words from keywords_exclusion file
 // Returns empty map if file doesn't exist
 func loadExclusionWordsFromFile() map[string]bool {
+	words, _ := loadExclusionWordsFromFileWithModTime()
+	return words
+}
+
+// loadExclusionWordsFromFileWithModTime loads exclusion words and their modification time
+func loadExclusionWordsFromFileWithModTime() (map[string]bool, time.Time) {
 	exclusionFile := getExclusionFilePath()
 
 	words := make(map[string]bool)
+	var modTime time.Time
+
+	fileInfo, err := os.Stat(exclusionFile)
+	if err != nil {
+		return words, modTime
+	}
+	modTime = fileInfo.ModTime()
 
 	file, err := os.Open(exclusionFile)
 	if err != nil {
-		return words
+		return words, modTime
 	}
 	defer file.Close()
 
@@ -64,10 +112,10 @@ func loadExclusionWordsFromFile() map[string]bool {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return make(map[string]bool)
+		return make(map[string]bool), modTime
 	}
 
-	return words
+	return words, modTime
 }
 
 // getExclusionFilePath returns the path to the keywords_exclusion file
@@ -75,6 +123,11 @@ func getExclusionFilePath() string {
 	configPath := config.GetConfigPath()
 	configDir := filepath.Dir(configPath)
 	return filepath.Join(configDir, "keywords_exclusion")
+}
+
+// GetExclusionFilePath returns the path to the keywords_exclusion file (exported for CLI)
+func GetExclusionFilePath() string {
+	return getExclusionFilePath()
 }
 
 // ExtractCapitalizedWords extracts words that start with a capital letter

@@ -45,10 +45,19 @@ var statsResetCmd = &cobra.Command{
 	RunE:  runStatsReset,
 }
 
+var statsRefreshCmd = &cobra.Command{
+	Use:   "refresh",
+	Short: "Refresh exclusion words list and ensure stats are up to date",
+	Long:  `Reload the keywords_exclusion file and verify it's loaded correctly. This ensures that future stats calculations use the latest exclusion list.`,
+	Args:  cobra.NoArgs,
+	RunE:  runStatsRefresh,
+}
+
 func init() {
 	statsCmd.AddCommand(statsKeywordsCmd)
 	statsCmd.AddCommand(statsKeywordCmd)
 	statsCmd.AddCommand(statsResetCmd)
+	statsCmd.AddCommand(statsRefreshCmd)
 
 	statsCmd.PersistentFlags().IntVarP(&statsLimit, "limit", "l", 10, "Limit number of results")
 	statsKeywordCmd.Flags().StringVarP(&statsKeyword, "keyword", "k", "", "Keyword name")
@@ -249,6 +258,55 @@ func runStatsReset(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s✅ Successfully deleted %s responses!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
 	fmt.Printf("%s🎉 All statistics have been reset.%s\n", SuccessStyle, Reset)
 	fmt.Printf("%sYou can now run new prompts to generate fresh statistics.%s\n", InfoStyle, Reset)
+
+	return nil
+}
+
+func runStatsRefresh(cmd *cobra.Command, args []string) error {
+	fmt.Printf("%s🔄 Refresh Exclusion Words%s\n", FormatHeader(""), Reset)
+	fmt.Printf("%s===========================%s\n", DimStyle, Reset)
+	fmt.Println()
+
+	fmt.Printf("%sReloading exclusion words from keywords_exclusion file...%s\n", InfoStyle, Reset)
+
+	err := shared.ReloadExclusionWords()
+	if err != nil {
+		return fmt.Errorf("failed to reload exclusion words: %w", err)
+	}
+
+	exclusionWords := shared.GetExclusionWordsList()
+	exclusionFilePath := shared.GetExclusionFilePath()
+
+	fmt.Printf("%s✅ Exclusion words reloaded successfully!%s\n", SuccessStyle, Reset)
+	fmt.Println()
+	fmt.Printf("%sFile Location: %s%s\n", LabelStyle, FormatValue(exclusionFilePath), Reset)
+	fmt.Printf("%sTotal Words: %s%d%s\n", LabelStyle, CountStyle, len(exclusionWords), Reset)
+	fmt.Println()
+
+	if len(exclusionWords) == 0 {
+		fmt.Printf("%s⚠️  No exclusion words found. All capitalized words will be counted as keywords.%s\n", WarningStyle, Reset)
+		fmt.Printf("%sAdd words to %s to exclude them from keyword statistics.%s\n", DimStyle, exclusionFilePath, Reset)
+		return nil
+	}
+
+	fmt.Printf("%sExcluded Words:%s\n", SuccessStyle, Reset)
+	fmt.Printf("%s──────────────%s\n", DimStyle, Reset)
+
+	sort.Strings(exclusionWords)
+	for i, word := range exclusionWords {
+		if i < 50 {
+			fmt.Printf("  %s%s%s\n", CountStyle, word, Reset)
+		} else {
+			remaining := len(exclusionWords) - 50
+			fmt.Printf("  %s... and %d more word(s)%s\n", DimStyle, remaining, Reset)
+			break
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf("%s💡 Note: Stats are computed on-demand from responses.%s\n", InfoStyle, Reset)
+	fmt.Printf("%s   New stats queries will now use this updated exclusion list.%s\n", InfoStyle, Reset)
+	fmt.Printf("%s   Existing responses are not affected until they're re-processed.%s\n", DimStyle, Reset)
 
 	return nil
 }
