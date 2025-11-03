@@ -10,9 +10,10 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	SQLDatabase   DatabaseConfig `yaml:"sql_database"`          // SQLite for LLMs and Schedules
-	NoSQLDatabase DatabaseConfig `yaml:"nosql_database"`        // MongoDB for Prompts and Responses
-	CORSOrigin    string         `yaml:"cors_origin,omitempty"` // CORS origin for API server
+	SQLDatabase           DatabaseConfig `yaml:"sql_database"`                      // SQLite for LLMs and Schedules
+	NoSQLDatabase         DatabaseConfig `yaml:"nosql_database"`                    // MongoDB for Prompts and Responses
+	CORSOrigin            string         `yaml:"cors_origin,omitempty"`             // CORS origin for API server
+	KeywordsExclusionPath string         `yaml:"keywords_exclusion_path,omitempty"` // Path to keywords exclusion file
 }
 
 // DatabaseConfig represents database configuration
@@ -25,6 +26,8 @@ type DatabaseConfig struct {
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
+	configPath := GetConfigPath()
+	configDir := filepath.Dir(configPath)
 	return &Config{
 		SQLDatabase: DatabaseConfig{
 			Provider: "sqlite",
@@ -36,7 +39,8 @@ func DefaultConfig() *Config {
 			URI:      "mongodb://localhost:27017",
 			Database: "gego",
 		},
-		CORSOrigin: "*",
+		CORSOrigin:            "*",
+		KeywordsExclusionPath: filepath.Join(configDir, "keywords_exclusion"),
 	}
 }
 

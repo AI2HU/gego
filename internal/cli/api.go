@@ -14,6 +14,7 @@ import (
 	"github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 var (
@@ -59,6 +60,15 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if cfg.KeywordsExclusionPath != "" {
+		exclusionPath := cfg.KeywordsExclusionPath
+		if !filepath.IsAbs(exclusionPath) {
+			configDir := filepath.Dir(configPath)
+			exclusionPath = filepath.Join(configDir, exclusionPath)
+		}
+		shared.SetExclusionFilePath(exclusionPath)
 	}
 
 	selectedCORSOrigin := corsOrigin

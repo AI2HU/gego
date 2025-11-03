@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 var (
@@ -62,6 +64,15 @@ and compare performance across different LLM providers.`,
 		cfg, err = config.Load(cfgFile)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		if cfg.KeywordsExclusionPath != "" {
+			exclusionPath := cfg.KeywordsExclusionPath
+			if !filepath.IsAbs(exclusionPath) {
+				configDir := filepath.Dir(cfgFile)
+				exclusionPath = filepath.Join(configDir, exclusionPath)
+			}
+			shared.SetExclusionFilePath(exclusionPath)
 		}
 
 		sqlConfig := &models.Config{

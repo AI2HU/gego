@@ -18,6 +18,8 @@ var (
 	exclusionWordsOnce   sync.Once
 	exclusionWordsMu     sync.RWMutex
 	exclusionFileModTime time.Time
+	exclusionFilePath    string
+	exclusionFilePathMu  sync.RWMutex
 )
 
 // ParseEnabledFilter parses the enabled query parameter and returns a pointer to bool or nil
@@ -77,13 +79,6 @@ func GetExclusionWordsList() []string {
 	return result
 }
 
-// loadExclusionWordsFromFile loads exclusion words from keywords_exclusion file
-// Returns empty map if file doesn't exist
-func loadExclusionWordsFromFile() map[string]bool {
-	words, _ := loadExclusionWordsFromFileWithModTime()
-	return words
-}
-
 // loadExclusionWordsFromFileWithModTime loads exclusion words and their modification time
 func loadExclusionWordsFromFileWithModTime() (map[string]bool, time.Time) {
 	exclusionFile := getExclusionFilePath()
@@ -118,9 +113,29 @@ func loadExclusionWordsFromFileWithModTime() (map[string]bool, time.Time) {
 	return words, modTime
 }
 
+// SetExclusionFilePath sets the path to the keywords_exclusion file from config
+func SetExclusionFilePath(path string) {
+	exclusionFilePathMu.Lock()
+	defer exclusionFilePathMu.Unlock()
+	exclusionFilePath = path
+}
+
 // getExclusionFilePath returns the path to the keywords_exclusion file
 func getExclusionFilePath() string {
-	configPath := config.GetConfigPath()
+	exclusionFilePathMu.RLock()
+	path := exclusionFilePath
+	exclusionFilePathMu.RUnlock()
+
+	if path != "" {
+		return path
+	}
+
+	var configPath string
+	if envPath := os.Getenv("GEGO_CONFIG_PATH"); envPath != "" {
+		configPath = envPath
+	} else {
+		configPath = config.GetConfigPath()
+	}
 	configDir := filepath.Dir(configPath)
 	return filepath.Join(configDir, "keywords_exclusion")
 }
