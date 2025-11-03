@@ -1,10 +1,20 @@
 package shared
 
 import (
+	"bufio"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
+	"github.com/AI2HU/gego/internal/config"
 	"github.com/gin-gonic/gin"
+)
+
+var (
+	exclusionWords     map[string]bool
+	exclusionWordsOnce sync.Once
 )
 
 // ParseEnabledFilter parses the enabled query parameter and returns a pointer to bool or nil
@@ -24,6 +34,49 @@ func ParseEnabledFilter(c *gin.Context) *bool {
 	}
 }
 
+// getExclusionWords loads exclusion words from file or returns default words
+func getExclusionWords() map[string]bool {
+	exclusionWordsOnce.Do(func() {
+		exclusionWords = loadExclusionWordsFromFile()
+	})
+	return exclusionWords
+}
+
+// loadExclusionWordsFromFile loads exclusion words from keywords_exclusion file
+// Returns empty map if file doesn't exist
+func loadExclusionWordsFromFile() map[string]bool {
+	exclusionFile := getExclusionFilePath()
+
+	words := make(map[string]bool)
+
+	file, err := os.Open(exclusionFile)
+	if err != nil {
+		return words
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			words[line] = true
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return make(map[string]bool)
+	}
+
+	return words
+}
+
+// getExclusionFilePath returns the path to the keywords_exclusion file
+func getExclusionFilePath() string {
+	configPath := config.GetConfigPath()
+	configDir := filepath.Dir(configPath)
+	return filepath.Join(configDir, "keywords_exclusion")
+}
+
 // ExtractCapitalizedWords extracts words that start with a capital letter
 func ExtractCapitalizedWords(text string) []string {
 	re := regexp.MustCompile(`\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b`)
@@ -31,17 +84,7 @@ func ExtractCapitalizedWords(text string) []string {
 
 	// Filter common words that can be confused with brand names
 	var filtered []string
-	commonWords := map[string]bool{
-		"The": true, "A": true, "An": true, "And": true, "Or": true,
-		"But": true, "In": true, "On": true, "At": true, "To": true,
-		"For": true, "Of": true, "With": true, "By": true, "From": true,
-		"This": true, "That": true, "These": true, "Those": true,
-		"I": true, "You": true, "He": true, "She": true, "It": true,
-		"We": true, "They": true, "My": true, "Your": true, "His": true,
-		"Her": true, "Its": true, "Our": true, "Their": true,
-		"If": true, "While": true, "AI": true, "What": true, "CRM": true, "Here": true,
-		"URL": true,
-	}
+	commonWords := getExclusionWords()
 
 	for _, word := range matches {
 		if !commonWords[word] {

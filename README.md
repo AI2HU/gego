@@ -342,6 +342,55 @@ nosql:
 
 Note: Keywords are automatically extracted from LLM responses. No predefined list needed!
 
+### Keywords Exclusion
+
+Gego automatically filters out common words that shouldn't be counted as keywords (like "The", "And", "AI", etc.). You can customize this exclusion list by creating a `keywords_exclusion` file in your Gego configuration directory (`~/.gego/keywords_exclusion`).
+
+**File Format:**
+- One word per line
+- Lines starting with `#` are treated as comments
+- Empty lines are ignored
+- Case-sensitive matching (words must match exactly as they appear in the text)
+
+**Example `keywords_exclusion` file:**
+```
+# Common articles and pronouns
+The
+A
+An
+And
+Or
+
+# Pronouns
+I
+You
+He
+She
+It
+We
+They
+
+# Common acronyms
+AI
+CRM
+URL
+API
+
+# Add your own exclusions here
+YourBrand
+CommonWord
+```
+
+**Location:**
+- **Default**: `~/.gego/keywords_exclusion`
+- **Docker**: `/app/config/keywords_exclusion` (if mounted)
+- **Custom**: Same directory as your `config.yaml` file
+
+**Behavior:**
+- If the file doesn't exist, no words are excluded (all capitalized words are considered as keywords)
+- The exclusion list is loaded once at startup and cached for performance
+- Changes to the file require restarting the application to take effect
+
 ## Logging
 
 Gego includes a comprehensive logging system that allows you to control log levels and output destinations for better monitoring and debugging.
