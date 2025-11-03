@@ -38,18 +38,10 @@ The API runs on HTTP (no authentication required for now).`,
 func init() {
 	apiCmd.Flags().StringVarP(&apiPort, "port", "p", "8989", "Port to run the API server on")
 	apiCmd.Flags().StringVarP(&apiHost, "host", "H", "0.0.0.0", "Host to bind the API server to")
-	apiCmd.Flags().StringVarP(&corsOrigin, "cors-origin", "c", "*", "CORS origin to allow (use '*' for all origins)")
+	apiCmd.Flags().StringVarP(&corsOrigin, "cors-origin", "c", "", "CORS origin to allow (overrides config file, use '*' for all origins)")
 }
 
 func runAPI(cmd *cobra.Command, args []string) error {
-	fmt.Printf("🚀 Starting Gego API Server\n")
-	fmt.Printf("===========================\n")
-	fmt.Printf("Host: %s\n", apiHost)
-	fmt.Printf("Port: %s\n", apiPort)
-	fmt.Printf("CORS Origin: %s\n", corsOrigin)
-	fmt.Printf("URL: http://%s:%s/api/v1\n", apiHost, apiPort)
-	fmt.Println()
-
 	var configPath string
 	if cfgFile != "" {
 		configPath = cfgFile
@@ -67,6 +59,23 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
+
+	selectedCORSOrigin := corsOrigin
+	if selectedCORSOrigin == "" {
+		if cfg.CORSOrigin != "" {
+			selectedCORSOrigin = cfg.CORSOrigin
+		} else {
+			selectedCORSOrigin = "*"
+		}
+	}
+
+	fmt.Printf("🚀 Starting Gego API Server\n")
+	fmt.Printf("===========================\n")
+	fmt.Printf("Host: %s\n", apiHost)
+	fmt.Printf("Port: %s\n", apiPort)
+	fmt.Printf("CORS Origin: %s\n", selectedCORSOrigin)
+	fmt.Printf("URL: http://%s:%s/api/v1\n", apiHost, apiPort)
+	fmt.Println()
 
 	sqlConfig := &models.Config{
 		Provider: cfg.SQLDatabase.Provider,
@@ -99,7 +108,7 @@ func runAPI(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✅ Database connection successful!")
 
-	server := api.NewServer(database, corsOrigin)
+	server := api.NewServer(database, selectedCORSOrigin)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)

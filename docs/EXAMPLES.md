@@ -9,7 +9,7 @@ This document provides practical examples of using Gego for various use cases.
 ```bash
 # Initialize
 gego init
-
+main
 # Add OpenAI
 gego llm add
 # Name: OpenAI GPT-4

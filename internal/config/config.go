@@ -10,8 +10,9 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	SQLDatabase   DatabaseConfig `yaml:"sql_database"`   // SQLite for LLMs and Schedules
-	NoSQLDatabase DatabaseConfig `yaml:"nosql_database"` // MongoDB for Prompts and Responses
+	SQLDatabase   DatabaseConfig `yaml:"sql_database"`          // SQLite for LLMs and Schedules
+	NoSQLDatabase DatabaseConfig `yaml:"nosql_database"`        // MongoDB for Prompts and Responses
+	CORSOrigin    string         `yaml:"cors_origin,omitempty"` // CORS origin for API server
 }
 
 // DatabaseConfig represents database configuration
@@ -35,6 +36,7 @@ func DefaultConfig() *Config {
 			URI:      "mongodb://localhost:27017",
 			Database: "gego",
 		},
+		CORSOrigin: "*",
 	}
 }
 
