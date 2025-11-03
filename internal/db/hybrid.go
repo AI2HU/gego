@@ -177,6 +177,10 @@ func (h *HybridDB) ListResponses(ctx context.Context, filter shared.ResponseFilt
 	return h.nosqlDB.ListResponses(ctx, filter)
 }
 
+func (h *HybridDB) CountResponses(ctx context.Context, filter shared.ResponseFilter) (int64, error) {
+	return h.nosqlDB.CountResponses(ctx, filter)
+}
+
 func (h *HybridDB) DeleteAllResponses(ctx context.Context) (int, error) {
 	return h.nosqlDB.DeleteAllResponses(ctx)
 }

@@ -23,11 +23,7 @@ func NewStatsService(database db.Database) *StatsService {
 
 // GetTotalResponses returns the total number of responses
 func (s *StatsService) GetTotalResponses(ctx context.Context) (int64, error) {
-	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 1})
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(responses)), nil
+	return s.db.CountResponses(ctx, shared.ResponseFilter{})
 }
 
 // GetTotalPrompts returns the total number of prompts

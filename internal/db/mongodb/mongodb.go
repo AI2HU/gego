@@ -357,6 +357,40 @@ func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilte
 	return responses, nil
 }
 
+// CountResponses counts responses matching the filter without fetching all documents
+func (m *MongoDB) CountResponses(ctx context.Context, filter shared.ResponseFilter) (int64, error) {
+	query := bson.M{}
+
+	if filter.PromptID != "" {
+		query["prompt_id"] = filter.PromptID
+	}
+	if filter.LLMID != "" {
+		query["llm_id"] = filter.LLMID
+	}
+	if filter.ScheduleID != "" {
+		query["schedule_id"] = filter.ScheduleID
+	}
+	if filter.Keyword != "" {
+		query["response_text"] = bson.M{
+			"$regex":   filter.Keyword,
+			"$options": "i",
+		}
+	}
+	if filter.StartTime != nil || filter.EndTime != nil {
+		timeQuery := bson.M{}
+		if filter.StartTime != nil {
+			timeQuery["$gte"] = *filter.StartTime
+		}
+		if filter.EndTime != nil {
+			timeQuery["$lte"] = *filter.EndTime
+		}
+		query["created_at"] = timeQuery
+	}
+
+	count, err := m.database.Collection(collResponses).CountDocuments(ctx, query)
+	return count, err
+}
+
 // GetDatabase returns the underlying MongoDB database instance
 func (m *MongoDB) GetDatabase() *mongo.Database {
 	return m.database

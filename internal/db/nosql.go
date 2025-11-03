@@ -27,6 +27,7 @@ type NoSQLDatabase interface {
 	CreateResponse(ctx context.Context, response *models.Response) error
 	GetResponse(ctx context.Context, id string) (*models.Response, error)
 	ListResponses(ctx context.Context, filter shared.ResponseFilter) ([]*models.Response, error)
+	CountResponses(ctx context.Context, filter shared.ResponseFilter) (int64, error)
 	DeleteAllResponses(ctx context.Context) (int, error)
 
 	// Keyword search (on-demand, searches through response_text)
