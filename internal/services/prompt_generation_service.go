@@ -68,7 +68,8 @@ func (s *PromptGenerationService) GeneratePrompts(ctx context.Context, llmConfig
 	)
 
 	response, err := provider.Generate(ctx, prePrompt, llm.Config{
-		Model: llmConfig.Model,
+		Model:     llmConfig.Model,
+		MaxTokens: 1000,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate prompts: %w", err)

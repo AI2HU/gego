@@ -345,6 +345,7 @@ func (s *SchedulerService) executePromptWithLLM(ctx context.Context, scheduleID 
 	llmConfigStruct := llm.Config{
 		Model:       llmConfig.Model,
 		Temperature: temperature,
+		MaxTokens:   1000,
 	}
 
 	if llmConfig.Config != nil {
@@ -354,7 +355,7 @@ func (s *SchedulerService) executePromptWithLLM(ctx context.Context, scheduleID 
 			}
 		}
 		if maxTokensStr, ok := llmConfig.Config["max_tokens"]; ok {
-			if maxTokens, err := strconv.Atoi(maxTokensStr); err == nil {
+			if maxTokens, err := strconv.Atoi(maxTokensStr); err == nil && maxTokens >= 1 {
 				llmConfigStruct.MaxTokens = maxTokens
 			}
 		}

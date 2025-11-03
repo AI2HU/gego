@@ -59,6 +59,7 @@ func (s *ExecutionService) ExecutePromptWithLLM(ctx context.Context, prompt *mod
 		response, err := provider.Generate(ctx, prompt.Template, llm.Config{
 			Model:       llmConfig.Model,
 			Temperature: config.Temperature,
+			MaxTokens:   1000,
 		})
 
 		if err != nil {

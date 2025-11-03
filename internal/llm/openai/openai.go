@@ -65,6 +65,9 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config llm.Confi
 
 	temperature := config.Temperature
 	maxTokens := config.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = 1000
+	}
 
 	chatCompletion, err := p.client.Chat.Completions.New(
 		ctx,

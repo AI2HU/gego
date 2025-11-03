@@ -441,7 +441,8 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 	}
 
 	response, err := provider.Generate(ctx, prePrompt, llm.Config{
-		Model: selectedLLM.Model,
+		Model:     selectedLLM.Model,
+		MaxTokens: 500,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to generate prompts: %w", err)
