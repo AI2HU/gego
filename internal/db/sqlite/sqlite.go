@@ -79,6 +79,11 @@ func (s *SQLite) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
+// GetDB returns the underlying *sql.DB connection for migrations
+func (s *SQLite) GetDB() *sql.DB {
+	return s.db
+}
+
 func mapToJSON(m map[string]string) string {
 	if len(m) == 0 {
 		return "{}"

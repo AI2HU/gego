@@ -203,3 +203,10 @@ func (h *HybridDB) GetNoSQLDatabase() *mongodb.MongoDB {
 	}
 	return nil
 }
+
+func (h *HybridDB) GetSQLiteDatabase() *sqlite.SQLite {
+	if sqliteDB, ok := h.sqlDB.(*sqlite.SQLite); ok {
+		return sqliteDB
+	}
+	return nil
+}

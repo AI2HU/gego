@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -108,6 +109,12 @@ func runAPI(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✅ Database connection successful!")
 
+	fmt.Println("\n🔄 Running database migrations...")
+	if err := runAPIMigrations(ctx, database); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+	fmt.Println("✅ Database migrations completed successfully!")
+
 	server := api.NewServer(database, selectedCORSOrigin)
 
 	c := make(chan os.Signal, 1)
@@ -153,4 +160,32 @@ func runAPI(cmd *cobra.Command, args []string) error {
 
 	address := fmt.Sprintf("%s:%s", apiHost, apiPort)
 	return server.Run(address)
+}
+
+func runAPIMigrations(ctx context.Context, database db.Database) error {
+	hybridDB, ok := database.(*db.HybridDB)
+	if !ok {
+		return fmt.Errorf("database is not a HybridDB instance")
+	}
+
+	sqliteDB := hybridDB.GetSQLiteDatabase()
+	if sqliteDB == nil {
+		return fmt.Errorf("SQLite database not available")
+	}
+
+	migrationsDir := os.Getenv("GEGO_MIGRATIONS_DIR")
+	if migrationsDir == "" {
+		migrationsDir = "/migrations"
+		if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
+			workDir, _ := os.Getwd()
+			migrationsDir = filepath.Join(workDir, "internal", "db", "migrations")
+		}
+	}
+
+	sqlDB := sqliteDB.GetDB()
+	if sqlDB == nil {
+		return fmt.Errorf("database connection not available")
+	}
+
+	return db.RunMigrations(ctx, sqlDB, migrationsDir)
 }
