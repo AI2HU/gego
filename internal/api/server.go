@@ -73,21 +73,21 @@ func (s *Server) setupRoutes() {
 
 	api.GET("/llms", s.listLLMs)
 	api.GET("/llms/:id", s.getLLM)
-	api.POST("/llms", s.createLLM)
-	api.PUT("/llms/:id", s.updateLLM)
-	api.DELETE("/llms/:id", s.deleteLLM)
+	// api.POST("/llms", s.createLLM)
+	// api.PUT("/llms/:id", s.updateLLM)
+	// api.DELETE("/llms/:id", s.deleteLLM)
 
 	api.GET("/prompts", s.listPrompts)
 	api.GET("/prompts/:id", s.getPrompt)
-	api.POST("/prompts", s.createPrompt)
-	api.PUT("/prompts/:id", s.updatePrompt)
-	api.DELETE("/prompts/:id", s.deletePrompt)
+	// api.POST("/prompts", s.createPrompt)
+	// api.PUT("/prompts/:id", s.updatePrompt)
+	// api.DELETE("/prompts/:id", s.deletePrompt)
 
 	api.GET("/schedules", s.listSchedules)
 	api.GET("/schedules/:id", s.getSchedule)
-	api.POST("/schedules", s.createSchedule)
-	api.PUT("/schedules/:id", s.updateSchedule)
-	api.DELETE("/schedules/:id", s.deleteSchedule)
+	// api.POST("/schedules", s.createSchedule)
+	// api.PUT("/schedules/:id", s.updateSchedule)
+	// api.DELETE("/schedules/:id", s.deleteSchedule)
 
 	api.GET("/stats", s.getStats)
 
