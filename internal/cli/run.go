@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 // boolPtr returns a pointer to a boolean value
@@ -39,7 +42,7 @@ func runOnceMode(ctx context.Context) error {
 	promptService := services.NewPromptManagementService(database)
 	llmService := services.NewLLMService(database)
 
-	prompts, err := promptService.GetEnabledPrompts(ctx)
+	allPrompts, err := promptService.GetEnabledPrompts(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list prompts: %w", err)
 	}
@@ -49,7 +52,7 @@ func runOnceMode(ctx context.Context) error {
 		return fmt.Errorf("failed to list LLMs: %w", err)
 	}
 
-	if len(prompts) == 0 {
+	if len(allPrompts) == 0 {
 		return fmt.Errorf("no enabled prompts found")
 	}
 
@@ -57,14 +60,36 @@ func runOnceMode(ctx context.Context) error {
 		return fmt.Errorf("no enabled LLMs found")
 	}
 
-	fmt.Printf("%s🔄 Running all prompts with all LLMs%s\n", InfoStyle, Reset)
+	reader := bufio.NewReader(os.Stdin)
+	runNewOnly, err := promptRunMode(reader)
+	if err != nil {
+		return fmt.Errorf("failed to get run mode: %w", err)
+	}
+
+	var prompts []*models.Prompt
+	if runNewOnly {
+		prompts, err = filterNewPrompts(ctx, allPrompts)
+		if err != nil {
+			return fmt.Errorf("failed to filter new prompts: %w", err)
+		}
+		if len(prompts) == 0 {
+			return fmt.Errorf("no new prompts found (all prompts have been run)")
+		}
+	} else {
+		prompts = allPrompts
+	}
+
+	modeText := "all"
+	if runNewOnly {
+		modeText = "new"
+	}
+	fmt.Printf("%s🔄 Running %s prompts with all LLMs%s\n", InfoStyle, FormatValue(modeText), Reset)
 	fmt.Printf("%s====================================%s\n", DimStyle, Reset)
 	fmt.Printf("%sPrompts: %s%s\n", LabelStyle, FormatCount(len(prompts)), Reset)
 	fmt.Printf("%sLLMs: %s%s\n", LabelStyle, FormatCount(len(llms)), Reset)
 	fmt.Printf("%sTotal executions: %s%s\n", LabelStyle, FormatCount(len(prompts)*len(llms)), Reset)
 	fmt.Println()
 
-	reader := bufio.NewReader(os.Stdin)
 	temperature, err := promptTemperature(reader)
 	if err != nil {
 		return fmt.Errorf("failed to get temperature: %w", err)
@@ -106,4 +131,54 @@ func runOnceMode(ctx context.Context) error {
 
 	fmt.Printf("%s🎉 Completed all executions!%s\n", SuccessStyle, Reset)
 	return nil
+}
+
+// promptRunMode prompts the user to choose between running new prompts or all prompts
+func promptRunMode(reader *bufio.Reader) (bool, error) {
+	fmt.Printf("%s📋 Run Mode Selection%s\n", LabelStyle, Reset)
+	fmt.Printf("%sChoose which prompts to run:%s\n", DimStyle, Reset)
+	fmt.Printf("  %s• new: Run only prompts that haven't been run yet%s\n", DimStyle, Reset)
+	fmt.Printf("  %s• all: Run all prompts (including already run ones)%s\n", DimStyle, Reset)
+	fmt.Println()
+
+	result, err := promptWithRetry(reader, fmt.Sprintf("%sEnter run mode (new/all) [all]: %s", LabelStyle, Reset), func(input string) (string, error) {
+		if input == "" {
+			return "all", nil
+		}
+
+		lower := strings.ToLower(input)
+		if lower == "new" || lower == "all" {
+			return lower, nil
+		}
+
+		return "", fmt.Errorf("invalid input: %s (enter 'new' or 'all')", input)
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return result == "new", nil
+}
+
+// filterNewPrompts filters prompts to only include those that haven't been run yet
+func filterNewPrompts(ctx context.Context, prompts []*models.Prompt) ([]*models.Prompt, error) {
+	executionService := services.NewExecutionService(database, llmRegistry)
+	var newPrompts []*models.Prompt
+
+	for _, prompt := range prompts {
+		responses, err := executionService.ListResponses(ctx, shared.ResponseFilter{
+			PromptID: prompt.ID,
+			Limit:    1,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to check responses for prompt %s: %w", prompt.ID, err)
+		}
+
+		if len(responses) == 0 {
+			newPrompts = append(newPrompts, prompt)
+		}
+	}
+
+	return newPrompts, nil
 }
