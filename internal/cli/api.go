@@ -15,6 +15,7 @@ import (
 	appconfig "github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/services"
 	"github.com/AI2HU/gego/internal/shared"
 )
 
@@ -35,7 +36,13 @@ var apiCmd = &cobra.Command{
 - Search (POST endpoint for keyword search)
 
 Authentication uses JWT Bearer tokens. Set GEGO_JWT_SECRET (min 32 characters)
-before starting the server. Create users with: gego user create --username <name> --role admin`,
+before starting the server.
+
+On first start (no users in database), create the initial admin via:
+  GEGO_BOOTSTRAP_ADMIN_PASSWORD (required)
+  GEGO_BOOTSTRAP_ADMIN_USERNAME (optional, defaults to admin)
+
+Or create users manually: gego user create --username <name> --role admin`,
 	RunE: runAPI,
 }
 
@@ -126,6 +133,17 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 	fmt.Println("✅ Database migrations completed successfully!")
+
+	fmt.Println("\n🔐 Checking API users...")
+	bootstrappedUser, err := services.BootstrapAdminFromEnv(ctx, database)
+	if err != nil {
+		return err
+	}
+	if bootstrappedUser != nil {
+		fmt.Printf("✅ Bootstrapped admin user %q from environment\n", bootstrappedUser.Username)
+	} else {
+		fmt.Println("✅ API users ready")
+	}
 
 	authConfig, err := auth.NewConfig(cfg)
 	if err != nil {
