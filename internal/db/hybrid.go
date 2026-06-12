@@ -140,6 +140,22 @@ func (h *HybridDB) DeleteAllSchedules(ctx context.Context) (int, error) {
 	return h.sqlDB.DeleteAllSchedules(ctx)
 }
 
+func (h *HybridDB) CreateUser(ctx context.Context, user *models.User) error {
+	return h.sqlDB.CreateUser(ctx, user)
+}
+
+func (h *HybridDB) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+	return h.sqlDB.GetUserByUsername(ctx, username)
+}
+
+func (h *HybridDB) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	return h.sqlDB.GetUserByID(ctx, id)
+}
+
+func (h *HybridDB) ListUsers(ctx context.Context) ([]*models.User, error) {
+	return h.sqlDB.ListUsers(ctx)
+}
+
 // Prompt operations - Use NoSQL
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)

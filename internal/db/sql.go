@@ -28,4 +28,10 @@ type SQLDatabase interface {
 	UpdateSchedule(ctx context.Context, schedule *models.Schedule) error
 	DeleteSchedule(ctx context.Context, id string) error
 	DeleteAllSchedules(ctx context.Context) (int, error)
+
+	// User operations
+	CreateUser(ctx context.Context, user *models.User) error
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+	GetUserByID(ctx context.Context, id string) (*models.User, error)
+	ListUsers(ctx context.Context) ([]*models.User, error)
 }
