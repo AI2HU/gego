@@ -31,6 +31,7 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 ### Prerequisites
 
 - Go 1.21 or higher
+- Node.js 20.19+ or 22.12+ (for the web UI)
 - MongoDB (for analytics data)
 - API keys for LLM providers (OpenAI, Anthropic, etc.)
 
@@ -100,6 +101,43 @@ docker-compose down -v
 ```
 
 ## Quick Start
+
+### Run API + Dashboard (local dev)
+
+Fastest way to run the REST API and web UI together:
+
+```bash
+# 1. Initialize Gego (first time only)
+gego init
+
+# 2. Build the CLI and install UI dependencies
+make build
+make ui-install
+
+# 3. Set auth env vars (required for the API)
+export GEGO_JWT_SECRET="your-secret-at-least-32-characters-long"
+export GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password"  # min 8 characters
+# optional: export GEGO_BOOTSTRAP_ADMIN_USERNAME="admin"
+
+# 4. Start API + UI
+make dev
+```
+
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:5173 |
+| API | http://localhost:8989/api/v1 |
+
+Sign in at http://localhost:5173 with your bootstrap admin credentials (default username: `admin`, default dev password when using `make dev`: `admin1234`). The UI proxies `/api` to the API during development — no extra frontend config needed.
+
+To run services separately:
+
+```bash
+make dev-api   # API only (port 8989)
+make dev-ui    # UI only (port 5173)
+```
+
+See `gego-ui/.env.example` for optional UI environment variables.
 
 ### 1. Initialize Configuration
 
@@ -211,6 +249,8 @@ gego api --cors-origin "*"
 - `DELETE /api/v1/schedules/{id}` - Delete schedule
 - `GET /api/v1/stats` - Get statistics
 - `POST /api/v1/search` - Search responses
+- `POST /api/v1/auth/login` - Login (public)
+- `GET /api/v1/auth/me` - Current user profile
 
 **Example API Usage:**
 ```bash

@@ -1,9 +1,18 @@
-.PHONY: build run clean install test fmt vet
+.PHONY: build run clean install test fmt vet help deps build-all \
+	ui-install dev dev-api dev-ui
 
 # Build variables
 BINARY_NAME=gego
 BUILD_DIR=build
 MAIN_PATH=cmd/gego/main.go
+UI_DIR=gego-ui
+
+# Dev variables (override via environment or: make dev GEGO_JWT_SECRET=...)
+API_PORT ?= 8989
+UI_PORT ?= 5173
+GEGO_JWT_SECRET ?= change-me-to-a-secret-at-least-32-chars
+GEGO_BOOTSTRAP_ADMIN_PASSWORD ?= admin1234
+GEGO_BOOTSTRAP_ADMIN_USERNAME ?= admin
 
 # Build the application
 build:
@@ -65,6 +74,31 @@ build-all:
 	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
 	@echo "Multi-platform build complete"
 
+ui-install:
+	@echo "Installing UI dependencies..."
+	cd $(UI_DIR) && npm install
+
+dev-api: build
+	@echo "Starting API on http://localhost:$(API_PORT)/api/v1"
+	GEGO_JWT_SECRET=$(GEGO_JWT_SECRET) \
+	GEGO_BOOTSTRAP_ADMIN_PASSWORD=$(GEGO_BOOTSTRAP_ADMIN_PASSWORD) \
+	GEGO_BOOTSTRAP_ADMIN_USERNAME=$(GEGO_BOOTSTRAP_ADMIN_USERNAME) \
+	./$(BUILD_DIR)/$(BINARY_NAME) api --port $(API_PORT)
+
+dev-ui: ui-install
+	@echo "Starting UI on http://localhost:$(UI_PORT)"
+	cd $(UI_DIR) && npm run dev -- --port $(UI_PORT)
+
+dev: build ui-install
+	@echo "Starting API on http://localhost:$(API_PORT)/api/v1 and UI on http://localhost:$(UI_PORT)"
+	@trap 'kill 0' INT TERM EXIT; \
+	GEGO_JWT_SECRET=$(GEGO_JWT_SECRET) \
+	GEGO_BOOTSTRAP_ADMIN_PASSWORD=$(GEGO_BOOTSTRAP_ADMIN_PASSWORD) \
+	GEGO_BOOTSTRAP_ADMIN_USERNAME=$(GEGO_BOOTSTRAP_ADMIN_USERNAME) \
+	./$(BUILD_DIR)/$(BINARY_NAME) api --port $(API_PORT) & \
+	cd $(UI_DIR) && npm run dev -- --port $(UI_PORT) & \
+	wait
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -78,4 +112,8 @@ help:
 	@echo "  check      - Run fmt, vet, and test"
 	@echo "  deps       - Download and tidy dependencies"
 	@echo "  build-all  - Build for multiple platforms"
+	@echo "  ui-install - Install gego-ui npm dependencies"
+	@echo "  dev        - Start API and UI together"
+	@echo "  dev-api    - Start API only (port $(API_PORT))"
+	@echo "  dev-ui     - Start UI only (port $(UI_PORT))"
 	@echo "  help       - Show this help message"

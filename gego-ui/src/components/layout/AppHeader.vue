@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import NavLink from '@/components/ui/NavLink.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { appMeta, type NavItem } from '@/design/navigation'
-import { header, nav } from '@/design/classes'
+import { header, nav, typography } from '@/design/classes'
+import { useAuth } from '@/composables/useAuth'
+
+const router = useRouter()
+const { user, logout: signOut } = useAuth()
+
+const username = computed(() => user.value?.username ?? '')
 
 withDefaults(
   defineProps<{
@@ -33,6 +40,12 @@ const mobileMenuOpen = ref(false)
 
 const closeMobileMenu = () => {
   mobileMenuOpen.value = false
+}
+
+function logout() {
+  signOut()
+  closeMobileMenu()
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -62,6 +75,11 @@ const closeMobileMenu = () => {
             :connected="connected"
             :label="connectionLabel"
           />
+
+          <div v-if="username" class="hidden md:flex items-center space-x-3">
+            <span :class="typography.label">{{ username }}</span>
+            <AppButton variant="ghost" size="sm" @click="logout">Sign out</AppButton>
+          </div>
 
           <AppButton
             v-if="showRefresh"
@@ -98,8 +116,13 @@ const closeMobileMenu = () => {
         </nav>
 
         <div class="flex items-center justify-between pt-2 border-t border-gray-200/50">
-          <StatusBadge :connected="connected" :label="connectionLabel" compact />
-          <AppButton
+          <div class="flex flex-col space-y-2">
+            <StatusBadge :connected="connected" :label="connectionLabel" compact />
+            <span v-if="username" :class="typography.label">{{ username }}</span>
+          </div>
+          <div class="flex flex-col items-end space-y-2">
+            <AppButton variant="ghost" size="sm" @click="logout">Sign out</AppButton>
+            <AppButton
             v-if="showRefresh"
             size="sm"
             :loading="loading"
@@ -113,6 +136,7 @@ const closeMobileMenu = () => {
           >
             Refresh
           </AppButton>
+          </div>
         </div>
       </div>
     </div>
