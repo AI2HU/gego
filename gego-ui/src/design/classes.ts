@@ -1,15 +1,34 @@
 export const page = {
   root: 'min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100',
-  main: 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8',
+  shell: 'flex min-h-screen',
+  content: 'flex flex-1 flex-col min-w-0 w-full lg:ml-64',
+  main: 'flex-1 px-4 sm:px-6 lg:px-8 py-4 md:py-8',
 } as const
 
 export const header = {
-  bar: 'bg-white/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50',
-  inner: 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8',
-  row: 'flex justify-between items-center py-4 md:py-6',
+  bar: 'bg-white/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-30',
+  inner: 'px-4 sm:px-6 lg:px-8',
+  row: 'flex justify-between items-center py-3 md:py-4',
   logoBox: 'w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-slate-400 to-slate-500 rounded-lg flex items-center justify-center shadow-sm',
-  title: 'text-lg md:text-2xl font-semibold text-gray-800',
-  subtitle: 'hidden md:block text-sm text-gray-500',
+  title: 'text-lg md:text-xl font-semibold text-gray-800',
+  subtitle: 'hidden sm:block text-sm text-gray-500',
+} as const
+
+export const sidebar = {
+  panel:
+    'fixed top-0 left-0 z-50 flex h-full w-64 flex-col border-r border-gray-200/50 bg-white/95 backdrop-blur-md shadow-lg transition-transform duration-300 ease-in-out lg:translate-x-0',
+  panelOpen: 'translate-x-0',
+  panelClosed: '-translate-x-full',
+  backdrop: 'fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm lg:hidden',
+  brand: 'flex items-center gap-3 border-b border-gray-200/50 px-5 py-5',
+  brandLogo:
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 shadow-sm',
+  brandTitle: 'text-lg font-semibold text-gray-800 leading-tight',
+  brandSubtitle: 'text-xs text-gray-500 leading-snug',
+  nav: 'flex-1 overflow-y-auto custom-scrollbar px-3 py-4',
+  navList: 'flex flex-col gap-1',
+  footer: 'border-t border-gray-200/50 px-4 py-4 space-y-3',
+  footerActions: 'flex items-center justify-between gap-2',
 } as const
 
 export const nav = {
@@ -17,6 +36,10 @@ export const nav = {
   active: 'bg-slate-600 text-white hover:bg-slate-700',
   inactive: 'text-gray-700 hover:text-gray-900 hover:bg-gray-100',
   mobilePanel: 'md:hidden border-t border-gray-200/50 pt-4 pb-4 space-y-3',
+  sidebarLink:
+    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-200',
+  sidebarActive: 'bg-slate-600 text-white shadow-sm',
+  sidebarInactive: 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
 } as const
 
 export const card = {

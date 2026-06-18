@@ -2,6 +2,7 @@
 import { RouterView } from 'vue-router'
 
 import AppHeader from '@/components/layout/AppHeader.vue'
+import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { mainNavItems } from '@/design/navigation'
 import { page } from '@/design/classes'
 
@@ -27,17 +28,27 @@ defineEmits<{
 
 <template>
   <div :class="page.root">
-    <AppHeader
-      :nav-items="mainNavItems"
-      :connected="connected"
-      :connection-label="connectionLabel"
-      :loading="loading"
-      :show-refresh="showRefresh"
-      @refresh="$emit('refresh')"
-    />
+    <div :class="page.shell">
+      <AppSidebar
+        :nav-items="mainNavItems"
+        :connected="connected"
+        :connection-label="connectionLabel"
+        :loading="loading"
+        :show-refresh="showRefresh"
+        @refresh="$emit('refresh')"
+      />
 
-    <main :class="page.main">
-      <RouterView />
-    </main>
+      <div :class="page.content">
+        <AppHeader
+          :loading="loading"
+          :show-refresh="showRefresh"
+          @refresh="$emit('refresh')"
+        />
+
+        <main :class="page.main">
+          <RouterView />
+        </main>
+      </div>
+    </div>
   </div>
 </template>
