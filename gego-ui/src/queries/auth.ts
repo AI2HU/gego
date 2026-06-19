@@ -29,7 +29,7 @@ export function useLoginMutation() {
   return useMutation({
     mutationFn: (credentials: LoginRequest) => login(credentials),
     onSuccess: (response) => {
-      authStore.setSession(response.access_token, response.user)
+      authStore.setSession(response.access_token, response.user, response.expires_in)
       queryClient.setQueryData(authQueryKeys.profile, response.user)
     },
   })

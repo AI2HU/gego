@@ -11,10 +11,12 @@ import (
 const minSecretLength = 32
 
 type Config struct {
-	Issuer         string
-	Audience       string
-	AccessTokenTTL time.Duration
-	Secret         []byte
+	Issuer          string
+	Audience        string
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+	CookieSecure    bool
+	Secret          []byte
 }
 
 func NewConfig(cfg *appconfig.Config) (Config, error) {
@@ -37,15 +39,31 @@ func NewConfig(cfg *appconfig.Config) (Config, error) {
 		accessTokenTTL = parsed
 	}
 
+	refreshTokenTTL := 168 * time.Hour
+	if authCfg.RefreshTokenTTL != "" {
+		parsed, err := time.ParseDuration(authCfg.RefreshTokenTTL)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid auth.refresh_token_ttl: %w", err)
+		}
+		if parsed <= 0 {
+			return Config{}, fmt.Errorf("auth.refresh_token_ttl must be positive")
+		}
+		refreshTokenTTL = parsed
+	}
+
+	cookieSecure := os.Getenv("GEGO_COOKIE_SECURE") == "true"
+
 	secret := os.Getenv("GEGO_JWT_SECRET")
 	if len(secret) < minSecretLength {
 		return Config{}, fmt.Errorf("GEGO_JWT_SECRET must be set and at least %d characters", minSecretLength)
 	}
 
 	return Config{
-		Issuer:         authCfg.Issuer,
-		Audience:       authCfg.Audience,
-		AccessTokenTTL: accessTokenTTL,
-		Secret:         []byte(secret),
+		Issuer:          authCfg.Issuer,
+		Audience:        authCfg.Audience,
+		AccessTokenTTL:  accessTokenTTL,
+		RefreshTokenTTL: refreshTokenTTL,
+		CookieSecure:    cookieSecure,
+		Secret:          []byte(secret),
 	}, nil
 }

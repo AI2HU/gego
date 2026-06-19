@@ -156,6 +156,18 @@ func (h *HybridDB) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return h.sqlDB.ListUsers(ctx)
 }
 
+func (h *HybridDB) CreateSession(ctx context.Context, session *models.UserSession) error {
+	return h.sqlDB.CreateSession(ctx, session)
+}
+
+func (h *HybridDB) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*models.UserSession, error) {
+	return h.sqlDB.GetSessionByTokenHash(ctx, tokenHash)
+}
+
+func (h *HybridDB) RevokeSession(ctx context.Context, id string) error {
+	return h.sqlDB.RevokeSession(ctx, id)
+}
+
 // Prompt operations - Use NoSQL
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)

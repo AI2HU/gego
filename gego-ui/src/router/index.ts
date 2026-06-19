@@ -21,8 +21,22 @@ const router = createRouter({
         {
           path: '',
           name: 'dashboard',
-          component: () => import('@/views/PlaceholderView.vue'),
+          component: () => import('@/views/DashboardView.vue'),
           meta: { permissions: ['dashboard'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
+          path: 'admin/models',
+          name: 'models',
+          component: () => import('@/views/ModelsView.vue'),
+          meta: { permissions: ['models'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
+          path: 'admin/prompts',
+          name: 'prompts',
+          component: () => import('@/views/PromptsView.vue'),
+          meta: { permissions: ['prompts'] },
           beforeEnter: [permissionGuard],
         },
         {

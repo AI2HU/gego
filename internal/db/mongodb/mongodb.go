@@ -137,17 +137,10 @@ func (m *MongoDB) GetPrompt(ctx context.Context, id string) (*models.Prompt, err
 	prompt := &models.Prompt{
 		ID:        promptID,
 		Template:  getString(doc, "template"),
+		Tags:      getStringSlice(doc, "tags"),
 		Enabled:   getBool(doc, "enabled"),
 		CreatedAt: getTime(doc, "created_at"),
 		UpdatedAt: getTime(doc, "updated_at"),
-	}
-
-	if tags, ok := doc["tags"].([]interface{}); ok {
-		for _, t := range tags {
-			if str, ok := t.(string); ok {
-				prompt.Tags = append(prompt.Tags, str)
-			}
-		}
 	}
 
 	return prompt, nil
@@ -186,18 +179,10 @@ func (m *MongoDB) ListPrompts(ctx context.Context, enabled *bool) ([]*models.Pro
 		prompt := &models.Prompt{
 			ID:        promptID,
 			Template:  getString(doc, "template"),
+			Tags:      getStringSlice(doc, "tags"),
 			Enabled:   getBool(doc, "enabled"),
 			CreatedAt: getTime(doc, "created_at"),
 			UpdatedAt: getTime(doc, "updated_at"),
-		}
-
-		// Handle optional fields
-		if tags, ok := doc["tags"].([]interface{}); ok {
-			for _, t := range tags {
-				if str, ok := t.(string); ok {
-					prompt.Tags = append(prompt.Tags, str)
-				}
-			}
 		}
 
 		prompts = append(prompts, prompt)
@@ -463,6 +448,34 @@ func getBool(doc bson.M, key string) bool {
 		}
 	}
 	return false
+}
+
+func getStringSlice(doc bson.M, key string) []string {
+	val, ok := doc[key]
+	if !ok || val == nil {
+		return nil
+	}
+
+	switch values := val.(type) {
+	case []string:
+		return values
+	case primitive.A:
+		return interfaceSliceToStrings(values)
+	case []interface{}:
+		return interfaceSliceToStrings(values)
+	default:
+		return nil
+	}
+}
+
+func interfaceSliceToStrings(values []interface{}) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if str, ok := value.(string); ok {
+			result = append(result, str)
+		}
+	}
+	return result
 }
 
 func getTime(doc bson.M, key string) time.Time {

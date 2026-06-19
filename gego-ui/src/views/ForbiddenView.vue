@@ -14,8 +14,9 @@ function goBack() {
 }
 
 function logout() {
-  signOut()
-  router.push({ name: 'login' })
+  void signOut().finally(() => {
+    router.push({ name: 'login' })
+  })
 }
 </script>
 

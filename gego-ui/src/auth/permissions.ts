@@ -1,9 +1,9 @@
 import type { Role } from '@/types/auth'
 
-export type RoutePermission = 'dashboard'
+export type RoutePermission = 'dashboard' | 'models' | 'prompts'
 
 const roleRouteAccess: Record<Role, RoutePermission[]> = {
-  admin: ['dashboard'],
+  admin: ['dashboard', 'models', 'prompts'],
   member: ['dashboard'],
 }
 

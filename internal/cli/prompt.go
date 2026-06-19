@@ -12,13 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/AI2HU/gego/internal/config"
-	"github.com/AI2HU/gego/internal/llm"
-	"github.com/AI2HU/gego/internal/llm/anthropic"
-	"github.com/AI2HU/gego/internal/llm/google"
-	"github.com/AI2HU/gego/internal/llm/ollama"
-	"github.com/AI2HU/gego/internal/llm/openai"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/services"
 )
 
 var promptCmd = &cobra.Command{
@@ -425,56 +420,20 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 
 	fmt.Printf("\n%s🔍 Generating prompts...%s\n", InfoStyle, Reset)
 
-	prePrompt := llm.GenerateGEOPromptTemplate(userInput, existingPromptTemplates, languageCode, promptCount)
-
-	var provider llm.Provider
-	switch selectedLLM.Provider {
-	case "openai":
-		chatGPTSystemInstruction := config.GetSystemInstruction(cfg, config.ProviderChatGPT)
-		provider = openai.New(selectedLLM.APIKey, selectedLLM.BaseURL, chatGPTSystemInstruction)
-	case "anthropic":
-		provider = anthropic.New(selectedLLM.APIKey, selectedLLM.BaseURL)
-	case "ollama":
-		provider = ollama.New(selectedLLM.BaseURL)
-	case "google":
-		geminiSystemInstruction := config.GetSystemInstruction(cfg, config.ProviderGemini)
-		provider = google.New(selectedLLM.APIKey, selectedLLM.BaseURL, geminiSystemInstruction)
-	default:
-		return fmt.Errorf("unsupported LLM provider: %s", selectedLLM.Provider)
+	registry, err := services.NewLLMRegistryForConfig(selectedLLM, cfg)
+	if err != nil {
+		return err
 	}
 
-	response, err := provider.Generate(ctx, prePrompt, llm.Config{
-		Model:     selectedLLM.Model,
-		MaxTokens: 500,
+	genService := services.NewPromptGenerationService(registry)
+	generatedPrompts, err := genService.GeneratePrompts(ctx, selectedLLM, &services.GenerationConfig{
+		LanguageCode:    languageCode,
+		UserInput:       userInput,
+		PromptCount:     promptCount,
+		ExistingPrompts: existingPromptTemplates,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to generate prompts: %w", err)
-	}
-
-	if response.Error != "" {
-		return fmt.Errorf("LLM error: %s", response.Error)
-	}
-
-	promptLines := strings.Split(strings.TrimSpace(response.Text), "\n")
-	var generatedPrompts []string
-
-	for _, line := range promptLines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		if len(line) > 2 && (line[1] == '.' || line[1] == ')') && (line[0] >= '0' && line[0] <= '9') {
-			line = strings.TrimSpace(line[2:])
-		}
-
-		if line != "" {
-			generatedPrompts = append(generatedPrompts, line)
-		}
-	}
-
-	if len(generatedPrompts) == 0 {
-		return fmt.Errorf("no valid prompts were generated")
+		return err
 	}
 
 	fmt.Printf("\n%s✅ Generated %s prompts:%s\n", SuccessStyle, FormatCount(len(generatedPrompts)), Reset)
@@ -495,24 +454,13 @@ func runPromptGenerate(reader *bufio.Reader, ctx context.Context) error {
 	fmt.Printf("%sSelected all %s prompts.%s\n", SuccessStyle, FormatCount(len(generatedPrompts)), Reset)
 
 	fmt.Printf("\n%s💾 Saving all prompts...%s\n", InfoStyle, Reset)
-	savedCount := 0
-	for _, promptText := range generatedPrompts {
-		prompt := &models.Prompt{
-			ID:       uuid.New().String(),
-			Template: promptText,
-			Tags:     []string{"generated", "llm-created", fmt.Sprintf("lang-%s", languageCode)},
-			Enabled:  true,
-		}
-
-		if err := database.CreatePrompt(ctx, prompt); err != nil {
-			fmt.Printf("%s⚠️  Failed to save prompt: %s%s\n", ErrorStyle, FormatValue(err.Error()), Reset)
-			continue
-		}
-
-		savedCount++
+	promptService := services.NewPromptManagementService(database)
+	savedPrompts, err := promptService.SaveGeneratedPrompts(ctx, generatedPrompts, nil)
+	if err != nil {
+		return fmt.Errorf("failed to save prompts: %w", err)
 	}
 
-	fmt.Printf("\n%s🎉 Successfully saved %s prompt(s)!%s\n", SuccessStyle, FormatCount(savedCount), Reset)
+	fmt.Printf("\n%s🎉 Successfully saved %s prompt(s)!%s\n", SuccessStyle, FormatCount(len(savedPrompts)), Reset)
 	return nil
 }
 

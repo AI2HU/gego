@@ -13,6 +13,10 @@ export class ApiError extends Error {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
+type ApiRequestOptions = RequestInit & {
+  skipAuthRetry?: boolean
+}
+
 function authHeaders(): HeadersInit {
   const token = useAuthStore().accessToken
   if (!token) {
@@ -22,8 +26,14 @@ function authHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}` }
 }
 
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers = new Headers(options.headers)
+function shouldRetryAuth(path: string): boolean {
+  return !path.startsWith('/auth/login')
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { skipAuthRetry, ...fetchOptions } = options
+
+  const headers = new Headers(fetchOptions.headers)
   headers.set('Content-Type', 'application/json')
 
   for (const [key, value] of Object.entries(authHeaders())) {
@@ -31,9 +41,23 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   }
 
   const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
+    credentials: 'include',
   })
+
+  if (response.status === 401 && !skipAuthRetry && shouldRetryAuth(path)) {
+    const authStore = useAuthStore()
+
+    try {
+      await authStore.refreshSession()
+    } catch {
+      authStore.handleSessionExpired()
+      throw new ApiError(401, 'Session expired')
+    }
+
+    return apiRequest<T>(path, { ...options, skipAuthRetry: true })
+  }
 
   let body: ApiResponse<T> | null = null
   try {

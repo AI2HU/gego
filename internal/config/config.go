@@ -33,9 +33,10 @@ func (p LLMProvider) String() string {
 
 // AuthConfig represents JWT authentication settings.
 type AuthConfig struct {
-	Issuer         string `yaml:"issuer"`
-	Audience       string `yaml:"audience"`
-	AccessTokenTTL string `yaml:"access_token_ttl"`
+	Issuer          string `yaml:"issuer"`
+	Audience        string `yaml:"audience"`
+	AccessTokenTTL  string `yaml:"access_token_ttl"`
+	RefreshTokenTTL string `yaml:"refresh_token_ttl"`
 }
 
 // Config represents the application configuration
@@ -75,9 +76,10 @@ func DefaultConfig() *Config {
 		},
 		CORSOrigin: "*",
 		Auth: AuthConfig{
-			Issuer:         "gego-api",
-			Audience:       "gego-api",
-			AccessTokenTTL: "15m",
+			Issuer:          "gego-api",
+			Audience:        "gego-api",
+			AccessTokenTTL:  "15m",
+			RefreshTokenTTL: "168h",
 		},
 		KeywordsExclusionPath: filepath.Join(configDir, "keywords_exclusion"),
 		GeminiSystemInstruction:  "You are Gemini, a helpful, concise, and friendly assistant. Respond conversationally and safely, the way the Gemini chat experience behaves. Focus on clear, direct answers that follow user intent.",

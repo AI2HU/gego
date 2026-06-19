@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -12,7 +13,10 @@ import (
 	"github.com/AI2HU/gego/internal/models"
 )
 
-var ErrInvalidCredentials = errors.New("invalid credentials")
+var (
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidSession     = errors.New("invalid session")
+)
 
 type AuthService struct {
 	db     db.Database
@@ -26,7 +30,11 @@ func NewAuthService(database db.Database, config auth.Config) *AuthService {
 	}
 }
 
-func (s *AuthService) Login(ctx context.Context, username, password string) (*models.LoginResponse, error) {
+func (s *AuthService) Config() auth.Config {
+	return s.config
+}
+
+func (s *AuthService) Login(ctx context.Context, username, password string) (*models.AuthSessionResult, error) {
 	user, err := s.db.GetUserByUsername(ctx, username)
 	if err != nil {
 		return nil, ErrInvalidCredentials
@@ -36,17 +44,50 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*mo
 		return nil, ErrInvalidCredentials
 	}
 
-	token, expiresIn, err := auth.SignAccessToken(s.config, user)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create access token: %w", err)
+	return s.issueSession(ctx, user)
+}
+
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*models.AuthSessionResult, error) {
+	if refreshToken == "" {
+		return nil, ErrInvalidSession
 	}
 
-	return &models.LoginResponse{
-		AccessToken: token,
-		TokenType:   "Bearer",
-		ExpiresIn:   expiresIn,
-		User:        models.ToAuthUserResponse(user),
-	}, nil
+	session, err := s.db.GetSessionByTokenHash(ctx, auth.HashRefreshToken(refreshToken))
+	if err != nil {
+		return nil, ErrInvalidSession
+	}
+
+	if session.RevokedAt != nil || time.Now().After(session.ExpiresAt) {
+		return nil, ErrInvalidSession
+	}
+
+	user, err := s.db.GetUserByID(ctx, session.UserID)
+	if err != nil {
+		return nil, ErrInvalidSession
+	}
+
+	if err := s.db.RevokeSession(ctx, session.ID); err != nil {
+		return nil, fmt.Errorf("failed to rotate session: %w", err)
+	}
+
+	return s.issueSession(ctx, user)
+}
+
+func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+	if refreshToken == "" {
+		return nil
+	}
+
+	session, err := s.db.GetSessionByTokenHash(ctx, auth.HashRefreshToken(refreshToken))
+	if err != nil {
+		return nil
+	}
+
+	if err := s.db.RevokeSession(ctx, session.ID); err != nil {
+		return nil
+	}
+
+	return nil
 }
 
 func (s *AuthService) GetUserProfile(ctx context.Context, userID string) (*models.AuthUserResponse, error) {
@@ -91,4 +132,37 @@ func (s *AuthService) CreateUser(ctx context.Context, username, password string,
 
 func (s *AuthService) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return s.db.ListUsers(ctx)
+}
+
+func (s *AuthService) issueSession(ctx context.Context, user *models.User) (*models.AuthSessionResult, error) {
+	accessToken, expiresIn, err := auth.SignAccessToken(s.config, user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create access token: %w", err)
+	}
+
+	refreshToken, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+
+	session := &models.UserSession{
+		ID:        uuid.New().String(),
+		UserID:    user.ID,
+		TokenHash: auth.HashRefreshToken(refreshToken),
+		ExpiresAt: time.Now().Add(s.config.RefreshTokenTTL),
+	}
+
+	if err := s.db.CreateSession(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	return &models.AuthSessionResult{
+		LoginResponse: models.LoginResponse{
+			AccessToken: accessToken,
+			TokenType:   "Bearer",
+			ExpiresIn:   expiresIn,
+			User:        models.ToAuthUserResponse(user),
+		},
+		RefreshToken: refreshToken,
+	}, nil
 }

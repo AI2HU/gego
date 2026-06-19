@@ -6,37 +6,43 @@ import AppIcon from '@/components/icons/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import NavLink from '@/components/ui/NavLink.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { useSidebar } from '@/composables/useSidebar'
 import { useAuth } from '@/composables/useAuth'
-import { appMeta, type NavItem } from '@/design/navigation'
+import { useSidebar } from '@/composables/useSidebar'
+import { canAccessRoute } from '@/auth/permissions'
+import { appMeta, type NavSection } from '@/design/navigation'
 import { sidebar, typography } from '@/design/classes'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
-    navItems?: NavItem[]
+    navSections?: NavSection[]
     connected?: boolean
     connectionLabel?: string
-    loading?: boolean
-    showRefresh?: boolean
   }>(),
   {
-    navItems: () => [],
+    navSections: () => [],
     connected: true,
     connectionLabel: undefined,
-    loading: false,
-    showRefresh: true,
   },
 )
-
-const emit = defineEmits<{
-  refresh: []
-}>()
 
 const router = useRouter()
 const { user, logout: signOut } = useAuth()
 const { isVisible, isLgUp, close } = useSidebar()
 
 const username = computed(() => user.value?.username ?? '')
+const userRole = computed(() => user.value?.role ?? 'member')
+
+const visibleSections = computed(() =>
+  props.navSections
+    .filter((section) => !section.adminOnly || userRole.value === 'admin')
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.permission || canAccessRoute(userRole.value, item.permission),
+      ),
+    }))
+    .filter((section) => section.items.length > 0),
+)
 
 const panelClass = computed(() => [
   sidebar.panel,
@@ -50,16 +56,10 @@ function onNavigate() {
 }
 
 function logout() {
-  signOut()
-  close()
-  router.push({ name: 'login' })
-}
-
-function refresh() {
-  emit('refresh')
-  if (!isLgUp.value) {
+  void signOut().finally(() => {
     close()
-  }
+    router.push({ name: 'login' })
+  })
 }
 </script>
 
@@ -94,20 +94,23 @@ function refresh() {
       </div>
     </div>
 
-    <nav v-if="navItems.length" :class="sidebar.nav" aria-label="Menu">
-      <ul :class="sidebar.navList">
-        <li v-for="item in navItems" :key="item.to">
-          <NavLink
-            :to="item.to"
-            :icon="item.icon"
-            variant="sidebar"
-            exact
-            @click="onNavigate"
-          >
-            {{ item.label }}
-          </NavLink>
-        </li>
-      </ul>
+    <nav v-if="visibleSections.length" :class="sidebar.nav" aria-label="Menu">
+      <div v-for="(section, sectionIndex) in visibleSections" :key="sectionIndex">
+        <p v-if="section.label" :class="sidebar.sectionLabel">{{ section.label }}</p>
+        <ul :class="sidebar.navList">
+          <li v-for="item in section.items" :key="item.to">
+            <NavLink
+              :to="item.to"
+              :icon="item.icon"
+              variant="sidebar"
+              exact
+              @click="onNavigate"
+            >
+              {{ item.label }}
+            </NavLink>
+          </li>
+        </ul>
+      </div>
     </nav>
 
     <div v-else :class="sidebar.nav" />
@@ -121,18 +124,7 @@ function refresh() {
       </div>
 
       <div :class="sidebar.footerActions">
-        <AppButton
-          v-if="showRefresh"
-          variant="secondary"
-          size="sm"
-          class="flex-1"
-          :loading="loading"
-          icon="refresh"
-          @click="refresh"
-        >
-          Refresh
-        </AppButton>
-        <AppButton variant="ghost" size="sm" class="shrink-0" @click="logout">
+        <AppButton variant="ghost" size="sm" class="w-full" @click="logout">
           Sign out
         </AppButton>
       </div>

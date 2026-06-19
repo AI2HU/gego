@@ -20,6 +20,10 @@ export type AppIconName =
   | 'tag'
   | 'chart-line'
   | 'external-link'
+  | 'globe'
+  | 'plus'
+  | 'trash'
+  | 'settings'
 
 const props = withDefaults(
   defineProps<{
@@ -153,6 +157,32 @@ const sizeClass = computed(() => {
       <path d="M15 3h6v6" />
       <path d="M10 14 21 3" />
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </template>
+
+    <template v-else-if="name === 'globe'">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </template>
+
+    <template v-else-if="name === 'plus'">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </template>
+
+    <template v-else-if="name === 'trash'">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </template>
+
+    <template v-else-if="name === 'settings'">
+      <circle cx="12" cy="12" r="3" />
+      <path
+        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+      />
     </template>
   </svg>
 </template>

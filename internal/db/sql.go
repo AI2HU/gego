@@ -34,4 +34,9 @@ type SQLDatabase interface {
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 	GetUserByID(ctx context.Context, id string) (*models.User, error)
 	ListUsers(ctx context.Context) ([]*models.User, error)
+
+	// Session operations
+	CreateSession(ctx context.Context, session *models.UserSession) error
+	GetSessionByTokenHash(ctx context.Context, tokenHash string) (*models.UserSession, error)
+	RevokeSession(ctx context.Context, id string) error
 }

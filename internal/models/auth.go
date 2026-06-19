@@ -38,6 +38,21 @@ type LoginResponse struct {
 	User        AuthUserResponse `json:"user"`
 }
 
+type UserSession struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	TokenHash string     `json:"-"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+type AuthSessionResult struct {
+	LoginResponse
+	RefreshToken string `json:"-"`
+}
+
 type AuthUserResponse struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`

@@ -27,6 +27,8 @@ export const sidebar = {
   brandSubtitle: 'text-xs text-gray-500 leading-snug',
   nav: 'flex-1 overflow-y-auto custom-scrollbar px-3 py-4',
   navList: 'flex flex-col gap-1',
+  sectionLabel:
+    'px-3 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 first:pt-0',
   footer: 'border-t border-gray-200/50 px-4 py-4 space-y-3',
   footerActions: 'flex items-center justify-between gap-2',
 } as const

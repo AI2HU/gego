@@ -42,12 +42,16 @@ var RolePermissions = map[models.Role][]Permission{
 }
 
 var EndpointPolicies = []EndpointPolicy{
-	{Method: "GET", Path: "/llms", Permission: PermLLMsRead},
-	{Method: "GET", Path: "/llms/:id", Permission: PermLLMsRead},
-	{Method: "POST", Path: "/llms", Permission: PermLLMsWrite},
-	{Method: "PUT", Path: "/llms/:id", Permission: PermLLMsWrite},
-	{Method: "DELETE", Path: "/llms/:id", Permission: PermLLMsWrite},
+	{Method: "GET", Path: "/providers", Permission: PermLLMsRead},
+	{Method: "GET", Path: "/providers/:provider/api-keys", Permission: PermLLMsRead},
+	{Method: "POST", Path: "/providers/:provider/models", Permission: PermLLMsWrite},
+	{Method: "GET", Path: "/models", Permission: PermLLMsRead},
+	{Method: "GET", Path: "/models/:id", Permission: PermLLMsRead},
+	{Method: "POST", Path: "/models", Permission: PermLLMsWrite},
+	{Method: "PUT", Path: "/models/:id", Permission: PermLLMsWrite},
+	{Method: "DELETE", Path: "/models/:id", Permission: PermLLMsWrite},
 	{Method: "GET", Path: "/prompts", Permission: PermPromptsRead},
+	{Method: "POST", Path: "/prompts/generate", Permission: PermPromptsWrite},
 	{Method: "GET", Path: "/prompts/:id", Permission: PermPromptsRead},
 	{Method: "POST", Path: "/prompts", Permission: PermPromptsWrite},
 	{Method: "PUT", Path: "/prompts/:id", Permission: PermPromptsWrite},

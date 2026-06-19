@@ -8,10 +8,116 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/services"
 	"github.com/AI2HU/gego/internal/shared"
 )
 
-// listLLMs handles GET /api/v1/llms
+// listProviders handles GET /api/v1/providers
+func (s *Server) listProviders(c *gin.Context) {
+	providers := services.AllProviders()
+	responses := make([]models.ProviderResponse, len(providers))
+	for i, provider := range providers {
+		responses[i] = models.ProviderResponse{
+			ID:              provider.String(),
+			DisplayName:     provider.DisplayName(),
+			ConsoleURL:      provider.GetConsoleURL(),
+			RequiresAPIKey:  provider != services.Ollama,
+			RequiresBaseURL: provider == services.Ollama,
+		}
+	}
+	s.successResponse(c, responses)
+}
+
+// listProviderAPIKeys handles GET /api/v1/providers/:provider/api-keys
+func (s *Server) listProviderAPIKeys(c *gin.Context) {
+	provider := c.Param("provider")
+	if !s.isValidProvider(provider) {
+		s.errorResponse(c, http.StatusBadRequest, "Invalid provider")
+		return
+	}
+
+	keys, err := s.llmService.GetExistingAPIKeysForProvider(c.Request.Context(), provider)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to list API keys: "+err.Error())
+		return
+	}
+
+	responses := make([]models.ProviderAPIKeyResponse, len(keys))
+	for i, key := range keys {
+		responses[i] = models.ProviderAPIKeyResponse{
+			Index:  i,
+			Masked: s.maskAPIKey(key),
+		}
+	}
+	s.successResponse(c, responses)
+}
+
+// listProviderModels handles POST /api/v1/providers/:provider/models
+func (s *Server) listProviderModels(c *gin.Context) {
+	providerName := c.Param("provider")
+	if !s.isValidProvider(providerName) {
+		s.errorResponse(c, http.StatusBadRequest, "Invalid provider")
+		return
+	}
+
+	var req models.ListProviderModelsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	apiKey := req.APIKey
+	baseURL := req.BaseURL
+
+	if req.ExistingKeyIndex != nil {
+		keys, err := s.llmService.GetExistingAPIKeysForProvider(c.Request.Context(), providerName)
+		if err != nil {
+			s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve API key: "+err.Error())
+			return
+		}
+		idx := *req.ExistingKeyIndex
+		if idx < 0 || idx >= len(keys) {
+			s.errorResponse(c, http.StatusBadRequest, "Invalid existing_key_index")
+			return
+		}
+		apiKey = keys[idx]
+	}
+
+	provider, ok := s.llmRegistry.Get(providerName)
+	if !ok {
+		s.errorResponse(c, http.StatusBadRequest, "Provider not available: "+providerName)
+		return
+	}
+
+	providerEnum := services.FromString(providerName)
+	if providerEnum != services.Ollama && apiKey == "" {
+		s.errorResponse(c, http.StatusBadRequest, "API key is required for "+providerEnum.DisplayName())
+		return
+	}
+
+	if providerEnum == services.Ollama && baseURL == "" {
+		baseURL = "http://localhost:11434"
+	}
+
+	modelsList, err := provider.ListModels(c.Request.Context(), apiKey, baseURL)
+	if err != nil {
+		s.errorResponse(c, http.StatusBadGateway, "Failed to list models: "+err.Error())
+		return
+	}
+
+	responses := make([]models.ModelInfoResponse, len(modelsList))
+	for i, model := range modelsList {
+		responses[i] = models.ModelInfoResponse{
+			ID:          model.ID,
+			Name:        model.Name,
+			Description: model.Description,
+			UsedInChat:  model.UsedInChat,
+		}
+	}
+	s.successResponse(c, responses)
+}
+
+// listLLMs handles GET /api/v1/models
 func (s *Server) listLLMs(c *gin.Context) {
 	enabled := shared.ParseEnabledFilter(c)
 
@@ -40,7 +146,7 @@ func (s *Server) listLLMs(c *gin.Context) {
 	s.successResponse(c, responses)
 }
 
-// getLLM handles GET /api/v1/llms/:id
+// getLLM handles GET /api/v1/models/:id
 func (s *Server) getLLM(c *gin.Context) {
 	id := c.Param("id")
 
@@ -66,7 +172,7 @@ func (s *Server) getLLM(c *gin.Context) {
 	s.successResponse(c, response)
 }
 
-// createLLM handles POST /api/v1/llms
+// createLLM handles POST /api/v1/models
 func (s *Server) createLLM(c *gin.Context) {
 	var req models.CreateLLMRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -79,12 +185,27 @@ func (s *Server) createLLM(c *gin.Context) {
 		return
 	}
 
+	apiKey := req.APIKey
+	if req.ExistingKeyIndex != nil {
+		keys, err := s.llmService.GetExistingAPIKeysForProvider(c.Request.Context(), req.Provider)
+		if err != nil {
+			s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve API key: "+err.Error())
+			return
+		}
+		idx := *req.ExistingKeyIndex
+		if idx < 0 || idx >= len(keys) {
+			s.errorResponse(c, http.StatusBadRequest, "Invalid existing_key_index")
+			return
+		}
+		apiKey = keys[idx]
+	}
+
 	llm := &models.LLMConfig{
 		ID:       uuid.New().String(),
 		Name:     req.Name,
 		Provider: req.Provider,
 		Model:    req.Model,
-		APIKey:   req.APIKey,
+		APIKey:   apiKey,
 		BaseURL:  req.BaseURL,
 		Config:   req.Config,
 		Enabled:  req.Enabled,
@@ -115,7 +236,7 @@ func (s *Server) createLLM(c *gin.Context) {
 	})
 }
 
-// updateLLM handles PUT /api/v1/llms/:id
+// updateLLM handles PUT /api/v1/models/:id
 func (s *Server) updateLLM(c *gin.Context) {
 	id := c.Param("id")
 
@@ -178,7 +299,7 @@ func (s *Server) updateLLM(c *gin.Context) {
 	s.successResponse(c, response)
 }
 
-// deleteLLM handles DELETE /api/v1/llms/:id
+// deleteLLM handles DELETE /api/v1/models/:id
 func (s *Server) deleteLLM(c *gin.Context) {
 	id := c.Param("id")
 

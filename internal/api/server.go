@@ -8,7 +8,14 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/AI2HU/gego/internal/auth"
+	"github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
+	"github.com/AI2HU/gego/internal/llm"
+	"github.com/AI2HU/gego/internal/llm/anthropic"
+	"github.com/AI2HU/gego/internal/llm/google"
+	"github.com/AI2HU/gego/internal/llm/ollama"
+	"github.com/AI2HU/gego/internal/llm/openai"
+	"github.com/AI2HU/gego/internal/llm/perplexity"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
 )
@@ -23,6 +30,7 @@ type Server struct {
 	searchService   *services.SearchService
 	authService     *services.AuthService
 	authMiddleware  *auth.Middleware
+	llmRegistry     *llm.Registry
 	router          *gin.Engine
 	corsOrigin      string
 }
@@ -60,6 +68,13 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) 
 		return nil, err
 	}
 
+	llmRegistry := llm.NewRegistry()
+	llmRegistry.Register(openai.New("", "", config.GetSystemInstruction(nil, config.ProviderChatGPT)))
+	llmRegistry.Register(anthropic.New("", ""))
+	llmRegistry.Register(ollama.New(""))
+	llmRegistry.Register(google.New("", "", config.GetSystemInstruction(nil, config.ProviderGemini)))
+	llmRegistry.Register(perplexity.New("", ""))
+
 	server := &Server{
 		db:              database,
 		llmService:      services.NewLLMService(database),
@@ -69,6 +84,7 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) 
 		searchService:   services.NewSearchService(database),
 		authService:     services.NewAuthService(database, authConfig),
 		authMiddleware:  authMW,
+		llmRegistry:     llmRegistry,
 		router:          router,
 		corsOrigin:      corsOrigin,
 	}
@@ -83,17 +99,23 @@ func (s *Server) setupRoutes() {
 
 	api.GET("/health", s.healthCheck)
 	api.POST("/auth/login", s.login)
+	api.POST("/auth/refresh", s.refresh)
+	api.POST("/auth/logout", s.logout)
 
 	protected := api.Group("")
 	protected.Use(s.authMiddleware.Authenticate())
 
-	protected.GET("/llms", s.requirePerm(auth.PermLLMsRead), s.listLLMs)
-	protected.GET("/llms/:id", s.requirePerm(auth.PermLLMsRead), s.getLLM)
-	protected.POST("/llms", s.requirePerm(auth.PermLLMsWrite), s.createLLM)
-	protected.PUT("/llms/:id", s.requirePerm(auth.PermLLMsWrite), s.updateLLM)
-	protected.DELETE("/llms/:id", s.requirePerm(auth.PermLLMsWrite), s.deleteLLM)
+	protected.GET("/providers", s.requirePerm(auth.PermLLMsRead), s.listProviders)
+	protected.GET("/providers/:provider/api-keys", s.requirePerm(auth.PermLLMsRead), s.listProviderAPIKeys)
+	protected.POST("/providers/:provider/models", s.requirePerm(auth.PermLLMsWrite), s.listProviderModels)
+	protected.GET("/models", s.requirePerm(auth.PermLLMsRead), s.listLLMs)
+	protected.GET("/models/:id", s.requirePerm(auth.PermLLMsRead), s.getLLM)
+	protected.POST("/models", s.requirePerm(auth.PermLLMsWrite), s.createLLM)
+	protected.PUT("/models/:id", s.requirePerm(auth.PermLLMsWrite), s.updateLLM)
+	protected.DELETE("/models/:id", s.requirePerm(auth.PermLLMsWrite), s.deleteLLM)
 
 	protected.GET("/prompts", s.requirePerm(auth.PermPromptsRead), s.listPrompts)
+	protected.POST("/prompts/generate", s.requirePerm(auth.PermPromptsWrite), s.generatePrompts)
 	protected.GET("/prompts/:id", s.requirePerm(auth.PermPromptsRead), s.getPrompt)
 	protected.POST("/prompts", s.requirePerm(auth.PermPromptsWrite), s.createPrompt)
 	protected.PUT("/prompts/:id", s.requirePerm(auth.PermPromptsWrite), s.updatePrompt)
