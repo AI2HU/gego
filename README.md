@@ -1,38 +1,61 @@
 # Gego - GEO System for your brand, working with all LLMs
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/)
 
-Gego is an open-source GEO (Generative Engine Optimization) tracker that schedules prompts across multiple Large Language Models (LLMs) and automatically extracts keywords from their responses. It helps you understand which keywords (brands, products, concepts) appear most frequently, which prompts generate the most mentions.
+Gego is an open-source GEO (Generative Engine Optimization) tracker. It schedules prompts across multiple Large Language Models (LLMs), captures web-search citations from their responses, and surfaces keyword and domain analytics through a built-in dashboard and CLI.
 
 ## Features
 
-- 🤖 **Multi-LLM Support**: Works with OpenAI, Anthropic, Ollama, Google, Perplexity, and custom LLM providers
-- 📊 **Hybrid Database**: SQLite for configuration data (LLMs, Schedules) and MongoDB for analytics data (Prompts, Responses)
-- ⏰ **Flexible Scheduling**: Cron-based scheduler for automated prompt execution
-- 📈 **Comprehensive Analytics**: Track keyword mentions, compare prompts and LLMs, view trends
-- 💻 **User-Friendly CLI**: Interactive commands for all operations
-- 🔌 **Pluggable Architecture**: Easy to add new LLM providers and database backends
-- 🎯 **Automatic Keyword Extraction**: Intelligently extracts keywords from responses (no predefined list needed)
-- 📉 **Performance Metrics**: Monitor latency, token usage, and error rates
-- 🔄 **Retry Mechanism**: Automatic retry with 30-second delays for failed requests
-- 📝 **Configurable Logging**: DEBUG, INFO, WARNING, ERROR levels with file output support
-- **Personnas**: create your own personnas for more accurate metrics
+- **Multi-LLM support**: OpenAI, Anthropic, Ollama, Google, Perplexity (Sonar), and pluggable custom providers
+- **Built-in web dashboard** (`gego-ui`): Vue 3 dashboard for stats, search, models, prompts, scheduler, and error logs
+- **Citation tracking**: Extracts cited URLs and domains from provider web-search results (OpenAI, Anthropic, Google, Perplexity)
+- **Keyword analytics**: Automatic keyword extraction from responses with configurable exclusion lists
+- **Hybrid database**: SQLite for configuration and auth; MongoDB for prompts, responses, and analytics
+- **JWT authentication**: Role-based access (`admin`, `member`) with session refresh
+- **Flexible scheduling**: Cron-based scheduler for automated prompt execution
+- **Prompt generation**: AI-assisted prompt creation via the API
+- **Tag-based filtering**: Organize prompts with tags and filter dashboard/search stats
+- **Error logs**: Review failed scheduled LLM calls (rate limits, provider errors)
+- **CLI and REST API**: Full management from the terminal or HTTP
+- **Retry mechanism**: Automatic retry with delays for failed requests
+- **Configurable logging**: DEBUG, INFO, WARNING, ERROR levels with optional file output
+- **Docker-ready**: Single image bundles the API and pre-built UI
 
 ## Use Cases
 
-- **SEO/Marketing Research**: Track how brands and keywords are mentioned by AI assistants
-- **Competitive Analysis**: Compare keyword visibility across different LLMs
-- **Prompt Engineering**: Identify which prompts generate the most keyword mentions
-- **Trend Analysis**: Monitor changes in keyword mentions over time
+- **GEO / brand visibility**: Track how your brand and competitors appear in AI-generated answers
+- **Citation analysis**: See which domains and URLs LLMs cite most often for your prompts
+- **SEO and marketing research**: Monitor keyword mentions across AI assistants
+- **Competitive analysis**: Compare visibility across providers and models
+- **Prompt engineering**: Identify which prompts drive the most mentions and citations
+
+## Project Structure
+
+```
+gego/
+├── cmd/gego/           # CLI entrypoint
+├── gego-ui/            # Vue 3 + Vite dashboard (served by the API in production)
+├── internal/
+│   ├── api/            # Gin REST API and static UI serving
+│   ├── auth/           # JWT middleware, permissions, sessions
+│   ├── cli/            # Cobra commands
+│   ├── db/             # SQLite + MongoDB hybrid layer and migrations
+│   ├── llm/            # Provider implementations (openai, anthropic, google, …)
+│   ├── models/         # Domain and API types
+│   └── services/       # Business logic (scheduler, stats, search, auth, …)
+├── docs/               # Deployment and usage guides
+├── Dockerfile          # Production image (API + UI)
+└── Makefile            # build, dev, ui-* targets
+```
 
 ## Installation
 
 ### Prerequisites
 
-- Go 1.21 or higher
-- Node.js 20.19+ or 22.12+ (for the web UI)
-- MongoDB (for analytics data)
+- Go 1.25 or higher
+- Node.js 20.19+ or 22.12+ (for UI development)
+- MongoDB (analytics data)
 - API keys for LLM providers (OpenAI, Anthropic, etc.)
 
 ### Build from Source
@@ -40,560 +63,356 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker that schedul
 ```bash
 git clone https://github.com/AI2HU/gego.git
 cd gego
-go build -o gego cmd/gego/main.go
+make build
 ```
+
+The binary is written to `build/gego`.
 
 ### Install via Go
 
 ```bash
-# Install Gego directly from GitHub
 go install github.com/AI2HU/gego/cmd/gego@latest
 ```
 
-### Docker Installation
+### Docker
 
-Gego can be easily deployed using Docker with automatic database setup and migrations.
+The production image builds the UI and API into one container. The dashboard is served at the same port as the API.
 
-> 📘 **For detailed deployment instructions, see [DEPLOYMENT.md](docs/DEPLOYMENT.md)**
-
-#### Docker
+> For deployment details, see [DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ```bash
-# Build the Docker image
 docker build -t gego:latest .
 
-# Run with external MongoDB
 docker run -d \
   --name gego \
   -p 8989:8989 \
   -e MONGODB_URI=mongodb://your-mongodb-host:27017 \
+  -e GEGO_JWT_SECRET="your-secret-at-least-32-characters-long" \
+  -e GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password" \
   gego:latest
 ```
 
-#### Docker Environment Variables
+**Docker environment variables**
 
-- `GEGO_CONFIG_PATH`: Path to configuration file (default: `/app/config/config.yaml`)
-- `GEGO_DATA_PATH`: Path to SQLite data directory (default: `/app/data`)
-- `GEGO_LOG_PATH`: Path to log directory (default: `/app/logs`)
-
-#### Docker Volumes
-
-The Docker setup uses named volumes for persistent data:
-- `gego_data`: SQLite database and configuration
-- `gego_config`: Application configuration files
-- `gego_logs`: Application logs
-- `mongodb_data`: MongoDB data
-
-#### Health Checks
-
-Both containers include health checks:
-- **Gego**: Checks API health endpoint every 30 seconds
-- **MongoDB**: Checks database connectivity every 30 seconds
-
-#### Stopping the Services
-
-```bash
-# Stop all services
-docker-compose down
-
-# Stop and remove volumes (WARNING: This will delete all data)
-docker-compose down -v
-```
+| Variable | Description |
+|----------|-------------|
+| `GEGO_CONFIG_PATH` | Config file path (default: `/app/config/config.yaml`) |
+| `GEGO_DATA_PATH` | SQLite data directory (default: `/app/data`) |
+| `GEGO_LOG_PATH` | Log directory (default: `/app/logs`) |
+| `GEGO_JWT_SECRET` | JWT signing secret (min 32 characters, **required**) |
+| `GEGO_BOOTSTRAP_ADMIN_USERNAME` | First admin username (default: `admin`) |
+| `GEGO_BOOTSTRAP_ADMIN_PASSWORD` | First admin password (min 8 characters, **required** on first run) |
+| `GEGO_COOKIE_SECURE` | Set to `true` to mark auth cookies as Secure |
 
 ## Quick Start
 
-### Run API + Dashboard (local dev)
-
-Fastest way to run the REST API and web UI together:
+### Production-like local run (API + UI on one port)
 
 ```bash
 # 1. Initialize Gego (first time only)
-gego init
+./build/gego init
 
-# 2. Build the CLI and install UI dependencies
+# 2. Build CLI and UI
 make build
-make ui-install
+make ui-build
 
 # 3. Set auth env vars (required for the API)
 export GEGO_JWT_SECRET="your-secret-at-least-32-characters-long"
-export GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password"  # min 8 characters
-# optional: export GEGO_BOOTSTRAP_ADMIN_USERNAME="admin"
+export GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password"
 
-# 4. Start API + UI
+# 4. Start API with embedded UI
 make dev
 ```
 
 | Service | URL |
 |---------|-----|
-| Dashboard | http://localhost:5173 |
+| Dashboard | http://localhost:8989 |
 | API | http://localhost:8989/api/v1 |
 
-Sign in at http://localhost:5173 with your bootstrap admin credentials (default username: `admin`, default dev password when using `make dev`: `admin1234`). The UI proxies `/api` to the API during development — no extra frontend config needed.
+Sign in with your bootstrap admin credentials (default username: `admin`; default dev password when using `make dev`: `admin1234`).
 
-To run services separately:
+### Hot-reload development (separate UI dev server)
 
 ```bash
-make dev-api   # API only (port 8989)
-make dev-ui    # UI only (port 5173)
+make dev-api   # Terminal 1 — API on http://localhost:8989
+make ui-dev    # Terminal 2 — Vite on http://localhost:5173 (proxies /api to the API)
 ```
 
 See `gego-ui/.env.example` for optional UI environment variables.
 
-### 1. Initialize Configuration
+## Web Dashboard
+
+The dashboard lives in `gego-ui/` and is included in the repository.
+
+| Page | Path | Description |
+|------|------|-------------|
+| Dashboard | `/` | Keyword trends, provider distribution, top cited domains |
+| Search | `/search` | Full-text keyword search across stored responses |
+| Models | `/admin/models` | Manage LLM provider configurations |
+| Prompts | `/admin/prompts` | Create, tag, and filter prompt templates |
+| Scheduler | `/admin/scheduler` | Cron schedules and background scheduler control |
+| Logs | `/admin/logs` | Failed LLM executions from scheduled runs |
+
+Admin pages require the `admin` role. Members can access dashboard and search.
+
+## Authentication
+
+The API uses JWT access tokens with refresh-token rotation stored in SQLite.
+
+**Bootstrap the first admin** (when no users exist):
+
+```bash
+export GEGO_JWT_SECRET="your-secret-at-least-32-characters-long"
+export GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password"
+./build/gego api
+```
+
+Or create users manually:
+
+```bash
+./build/gego user create --username admin --password "your-password" --role admin
+./build/gego user list
+```
+
+**Roles**
+
+| Role | Access |
+|------|--------|
+| `admin` | Full read/write on models, prompts, schedules, stats, search, logs |
+| `member` | Read-only on models/prompts/schedules; dashboard, stats, and search |
+
+**Auth endpoints** (public unless noted)
+
+- `POST /api/v1/auth/login` — obtain tokens
+- `POST /api/v1/auth/refresh` — rotate access token
+- `POST /api/v1/auth/logout` — invalidate session
+- `GET /api/v1/auth/me` — current user (authenticated)
+
+All other `/api/v1/*` routes require a valid `Authorization: Bearer <token>` header.
+
+## CLI Workflow
+
+### 1. Initialize configuration
 
 ```bash
 gego init
 ```
 
-This interactive wizard will guide you through:
-- Database configuration
-- Connection testing
+Interactive setup for SQLite and MongoDB connections.
 
-Note: Gego automatically extracts keywords from responses - no predefined keyword list needed!
-
-### 2. Add LLM Providers
+### 2. Add LLM providers
 
 ```bash
 gego llm add
 ```
 
-Example providers:
-- OpenAI (GPT-4, GPT-3.5)
-- Anthropic (Claude)
-- Ollama (Local models)
-- Google (Gemini)
-- Perplexity (Sonar)
+Supported providers include OpenAI, Anthropic, Ollama, Google (Gemini), and Perplexity (Sonar).
 
-### 3. Create Prompts
+### 3. Create prompts
 
 ```bash
 gego prompt add
 ```
 
-Example prompts:
-- "What are the best streaming services for movies?"
-- "Which cloud providers offer the best value?"
-- "What are popular social media platforms?"
+Prompts support tags for filtering dashboard and search results.
 
-### 4. Set Up Schedules
+### 4. Set up schedules
 
 ```bash
 gego schedule add
 ```
 
-Create schedules to run prompts automatically using cron expressions.
+Cron expressions run selected prompts against selected models automatically.
 
-### 5. Run Prompts
+### 5. Run prompts
 
 ```bash
-# Run all prompts with all LLMs once
-gego run
-
-# Start scheduler for scheduled execution
-gego scheduler start
+gego run                  # Run all enabled prompts with all enabled LLMs once
+gego scheduler start      # Start the background scheduler
 ```
 
-**Run Command**: Executes all enabled prompts with all enabled LLMs immediately.
-
-**Scheduler Commands**: Manage scheduled execution of prompts.
-
-### 6. Start API Server
+### 6. Start the API server
 
 ```bash
-# Start API server on default port 8989
-gego api
-
-# Start API server on custom port
-gego api --port 3000
-
-# Start API server on custom host and port
-gego api --host 127.0.0.1 --port 5000
-
-# Start API server with custom CORS origin
+gego api                          # Default: 0.0.0.0:8989
+gego api --port 3000              # Custom port
 gego api --cors-origin "https://myapp.com"
-
-# Start API server allowing all origins (default)
-gego api --cors-origin "*"
 ```
 
-**API Server**: Provides REST API endpoints for managing LLMs, prompts, schedules, and retrieving statistics.
+When `gego-ui/dist` exists (or `/app/ui` in Docker), the API also serves the dashboard as static files.
 
-**Default Configuration:**
-- **Host**: `0.0.0.0` (all interfaces)
-- **Port**: `8989`
-- **CORS Origin**: `*` (all origins allowed)
-- **Base URL**: `http://localhost:8989/api/v1`
+## API Reference
 
-**CORS Support:**
-- **All HTTP Methods**: GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD
-- **Headers**: Content-Type, Authorization, X-Requested-With, Accept, Origin
-- **Credentials**: Supported
-- **Preflight**: Automatic OPTIONS handling
+Base URL: `http://localhost:8989/api/v1`
 
-**Available Endpoints:**
-- `GET /api/v1/health` - Health check
-- `GET /api/v1/llms` - List all LLMs
-- `POST /api/v1/llms` - Create new LLM
-- `GET /api/v1/llms/{id}` - Get LLM by ID
-- `PUT /api/v1/llms/{id}` - Update LLM
-- `DELETE /api/v1/llms/{id}` - Delete LLM
-- `GET /api/v1/prompts` - List all prompts
-- `POST /api/v1/prompts` - Create new prompt
-- `GET /api/v1/prompts/{id}` - Get prompt by ID
-- `PUT /api/v1/prompts/{id}` - Update prompt
-- `DELETE /api/v1/prompts/{id}` - Delete prompt
-- `GET /api/v1/schedules` - List all schedules
-- `POST /api/v1/schedules` - Create new schedule
-- `GET /api/v1/schedules/{id}` - Get schedule by ID
-- `PUT /api/v1/schedules/{id}` - Update schedule
-- `DELETE /api/v1/schedules/{id}` - Delete schedule
-- `GET /api/v1/stats` - Get statistics
-- `POST /api/v1/search` - Search responses
-- `POST /api/v1/auth/login` - Login (public)
-- `GET /api/v1/auth/me` - Current user profile
+### Health
 
-**Example API Usage:**
+- `GET /health` — health check (public)
+
+### Auth
+
+- `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
+- `GET /auth/me`
+
+### Models and providers
+
+- `GET /providers` — list supported LLM providers
+- `GET /providers/:provider/api-keys` — list stored API keys for a provider
+- `POST /providers/:provider/models` — list models available from a provider
+- `GET /models`, `GET /models/:id`, `POST /models`, `PUT /models/:id`, `DELETE /models/:id`
+
+### Prompts
+
+- `GET /prompts`, `GET /prompts/:id`, `POST /prompts`, `PUT /prompts/:id`, `DELETE /prompts/:id`
+- `POST /prompts/generate` — AI-assisted prompt generation
+
+### Schedules and scheduler
+
+- `GET /schedules`, `GET /schedules/:id`, `POST /schedules`, `PUT /schedules/:id`, `DELETE /schedules/:id`
+- `POST /schedules/:id/run` — run a schedule immediately
+- `GET /scheduler/status`, `POST /scheduler/start`, `POST /scheduler/stop`, `POST /scheduler/reload`
+
+### Analytics and search
+
+- `GET /stats` — dashboard stats (keywords, trends, provider breakdown)
+- `GET /stats/urls` — top cited URLs and domains
+- `GET /stats/query-urls` — URLs grouped by search query
+- `GET /stats/keyword-domains` — keyword × domain matrix
+- `POST /search` — keyword search across responses
+
+### Logs
+
+- `GET /logs/errors` — failed LLM calls from scheduled executions
+
+**Example**
+
 ```bash
-# Health check
 curl http://localhost:8989/api/v1/health
 
-# List all LLMs
-curl http://localhost:8989/api/v1/llms
-
-# Create a new LLM
-curl -X POST http://localhost:8989/api/v1/llms \
+curl -X POST http://localhost:8989/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "My GPT-4",
-    "provider": "openai",
-    "model": "gpt-4",
-    "api_key": "sk-...",
-    "enabled": true
-  }'
+  -d '{"username":"admin","password":"your-password"}'
 
-# Get statistics
-curl http://localhost:8989/api/v1/stats
+curl http://localhost:8989/api/v1/stats \
+  -H "Authorization: Bearer <access_token>"
 ```
+
+> More examples: [EXAMPLES.md](docs/EXAMPLES.md)
 
 ## Usage Examples
 
-> 📘 **For more detailed examples, see [EXAMPLES.md](docs/EXAMPLES.md)**
-
-### View Statistics
+### View statistics
 
 ```bash
-# Top keywords by mentions
 gego stats keywords --limit 20
-
-# Statistics for a specific keyword
 gego stats keyword Dior
 ```
 
-### Manage LLMs
+### Manage LLMs, prompts, schedules
 
 ```bash
-# List all LLMs
 gego llm list
-
-# Get LLM details
-gego llm get <id>
-
-# Enable/disable LLM
-gego llm enable <id>
-gego llm disable <id>
-
-# Delete LLM
-gego llm delete <id>
-```
-
-### Manage Prompts
-
-```bash
-# List all prompts
 gego prompt list
-
-# Get prompt details
-gego prompt get <id>
-
-# Enable/disable prompt
-gego prompt enable <id>
-gego prompt disable <id>
-
-# Delete prompt
-gego prompt delete <id>
-```
-
-### Manage Schedules
-
-```bash
-# List all schedules
 gego schedule list
-
-# Get schedule details
-gego schedule get <id>
-
-# Run schedule immediately
 gego schedule run <id>
-
-# Enable/disable schedule
-gego schedule enable <id>
-gego schedule disable <id>
-
-# Delete schedule
-gego schedule delete <id>
-```
-
-### Manage Scheduler
-
-```bash
-# Check scheduler status
 gego scheduler status
-
-# Start scheduler (asks which schedule to start)
-gego scheduler start
-
-# Stop scheduler (asks which schedule to stop)
-gego scheduler stop
-
-# Restart scheduler (asks which schedule to restart)
-gego scheduler restart
 ```
-
-**Interactive Schedule Selection**: All scheduler commands will show available schedules and ask you to select which one to manage, or choose "all" for all schedules.
 
 ## Configuration
 
 Configuration is stored in `~/.gego/config.yaml`:
 
 ```yaml
-sql:
+sql_database:
   provider: sqlite
   uri: ~/.gego/gego.db
+  database: gego
 
-nosql:
+nosql_database:
   provider: mongodb
   uri: mongodb://localhost:27017
   database: gego
+
+auth:
+  issuer: gego-api
+  audience: gego-api
+  access_token_ttl: 15m
+  refresh_token_ttl: 168h
 ```
 
-**Database Architecture:**
-- **SQLite**: Stores LLM configurations and schedules (lightweight, local)
-- **MongoDB**: Stores prompts and responses with analytics (scalable, indexed)
+**Database architecture**
 
-Note: Keywords are automatically extracted from LLM responses. No predefined list needed!
+| Store | Contents |
+|-------|----------|
+| SQLite | LLM configs, schedules, users, sessions |
+| MongoDB | Prompts, responses (including `search_urls` citations), analytics |
 
-### Keywords Exclusion
+### Keywords exclusion
 
-Gego automatically filters out common words that shouldn't be counted as keywords (like "The", "And", "AI", etc.). You can customize this exclusion list by creating a `keywords_exclusion` file in your Gego configuration directory (`~/.gego/keywords_exclusion`).
+Gego filters common words from keyword extraction. Customize the list in `~/.gego/keywords_exclusion` (one word per line; `#` for comments). Restart the application after changes.
 
-**File Format:**
-- One word per line
-- Lines starting with `#` are treated as comments
-- Empty lines are ignored
-- Case-sensitive matching (words must match exactly as they appear in the text)
+### System instructions
 
-**Example `keywords_exclusion` file:**
-```
-# Common articles and pronouns
-The
-A
-An
-And
-Or
+Optional provider-specific system prompts in `config.yaml`:
 
-# Pronouns
-I
-You
-He
-She
-It
-We
-They
+- `gemini_system_instruction`
+- `chatgpt_system_instruction`
+- `claude_system_instruction`
 
-# Common acronyms
-AI
-CRM
-URL
-API
+## Makefile Targets
 
-# Add your own exclusions here
-YourBrand
-CommonWord
-```
-
-**Location:**
-- **Default**: `~/.gego/keywords_exclusion`
-- **Docker**: `/app/config/keywords_exclusion` (if mounted)
-- **Custom**: Same directory as your `config.yaml` file
-
-**Behavior:**
-- If the file doesn't exist, no words are excluded (all capitalized words are considered as keywords)
-- The exclusion list is loaded once at startup and cached for performance
-- Changes to the file require restarting the application to take effect
+| Target | Description |
+|--------|-------------|
+| `make build` | Build the CLI to `build/gego` |
+| `make ui-install` | Install `gego-ui` npm dependencies |
+| `make ui-build` | Build the dashboard to `gego-ui/dist` |
+| `make ui-dev` | Vite dev server with hot reload (port 5173) |
+| `make dev` | Build UI + start API with embedded static UI (port 8989) |
+| `make dev-api` | Start API only (port 8989) |
+| `make test` | Run Go tests |
+| `make build-all` | Cross-platform binaries |
 
 ## Logging
 
-Gego includes a comprehensive logging system that allows you to control log levels and output destinations for better monitoring and debugging.
-
-### Log Levels
-
-- **DEBUG**: Detailed information for debugging (most verbose)
-- **INFO**: General information about application flow (default)
-- **WARNING**: Warning messages for potential issues
-- **ERROR**: Error messages for failures (least verbose)
-
-### Command Line Options
-
-#### `--log-level`
-Set the minimum log level to display:
+Control verbosity with `--log-level` (`DEBUG`, `INFO`, `WARNING`, `ERROR`) and optional `--log-file`:
 
 ```bash
-# Show only errors
-gego run --log-level ERROR
-
-# Show warnings and errors
-gego run --log-level WARNING
-
-# Show info, warnings, and errors (default)
-gego run --log-level INFO
-
-# Show all messages including debug
 gego run --log-level DEBUG
+gego api --log-level INFO --log-file /var/log/gego/app.log
 ```
 
-#### `--log-file`
-Specify a file to write logs to instead of stdout:
-
-```bash
-# Log to a file
-gego run --log-file /var/log/gego.log
-
-# Log to file with debug level
-gego run --log-level DEBUG --log-file /var/log/gego-debug.log
-```
-
-### Usage Examples
-
-#### Production Deployment
-```bash
-# Log only errors to a file for production
-gego run --log-level ERROR --log-file /var/log/gego/error.log
-```
-
-#### Development/Debugging
-```bash
-# Show all debug information on stdout
-gego run --log-level DEBUG
-```
-
-#### Monitoring
-```bash
-# Log info and above to a file for monitoring
-gego run --log-level INFO --log-file /var/log/gego/app.log
-```
-
-### Log Format
-
-Logs are formatted with timestamps and level prefixes:
-
-```
-[INFO] 2024-01-15 10:30:45 Logging initialized - Level: INFO
-[INFO] 2024-01-15 10:30:45 🚀 Starting Gego Scheduler
-[DEBUG] 2024-01-15 10:30:45 Getting prompt: prompt-123
-[INFO] 2024-01-15 10:30:45 Found 3 prompts and 2 enabled LLMs
-[WARNING] 2024-01-15 10:30:46 ❌ Attempt 1/3 failed: connection timeout
-[INFO] 2024-01-15 10:30:46 ⏳ Waiting 30s before retry attempt 2...
-[ERROR] 2024-01-15 10:30:47 💥 All 3 attempts failed. Last error: service unavailable
-```
-
-### Retry Mechanism
-
-Gego automatically retries failed prompt requests with the following behavior:
-
-- **Maximum Retries**: 3 attempts total
-- **Retry Delay**: 30 seconds between each attempt
-- **Automatic Recovery**: Handles temporary network issues and API rate limits
-- **Detailed Logging**: Comprehensive retry attempt tracking
-
-Example retry log:
-```
-[WARNING] ❌ Attempt 1/3 failed for prompt 'What are the best streaming services...' with LLM 'GPT-4': connection timeout
-[INFO] ⏳ Waiting 30s before retry attempt 2...
-[INFO] ✅ Prompt execution succeeded on attempt 2 after 1 previous failures
-```
-
-### Integration with System Logging
-
-For production deployments, you can integrate with system logging:
-
-```bash
-# Use systemd journal
-gego run --log-level INFO | systemd-cat -t gego
-
-# Use syslog
-gego run --log-level WARNING --log-file /dev/log
-```
-
-### Monitoring Commands
-
-```bash
-# Monitor retry attempts
-gego run --log-level DEBUG | grep "Attempt"
-
-# Monitor retry failures
-gego run --log-level WARNING | grep "❌"
-
-# Monitor successful retries
-gego run --log-level INFO | grep "✅"
-```
+Failed prompt executions are retried up to 3 times with a 30-second delay between attempts.
 
 ## Architecture
 
-### Hybrid Database Schema
-
-Gego uses a hybrid database architecture optimized for different data types:
-
-**SQLite (Configuration Data):**
-- `llms`: LLM provider configurations (id, name, provider, model, api_key, base_url, config, enabled, timestamps)
-- `schedules`: Execution schedules (id, name, prompt_ids, llm_ids, cron_expr, enabled, last_run, next_run, timestamps)
-
-**MongoDB (Analytics Data):**
-- `prompts`: Prompt templates (id, template, tags, enabled, timestamps)
-- `responses`: LLM responses with metadata (id, prompt_id, llm_id, response_text, tokens_used, latency_ms, timestamps)
-
-**Key Indexes:**
-- **SQLite**: `idx_llms_provider`, `idx_llms_enabled`, `idx_schedules_enabled`, `idx_schedules_next_run`
-- **MongoDB**: `(prompt_id, created_at)`, `(created_at)` for responses
-
-### Components
-
 ```
-┌─────────────────┐
-│   CLI (Cobra)   │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │  Core   │
-    └────┬────┘
-         │
-    ┌────┴─────────────────────┐
-    │                          │
-┌───┴───┐              ┌───────┴────────┐
-│Hybrid │              │   LLM Registry │
-│  DB   │              │                │
-└───┬───┘              └───────┬────────┘
-    │                          │
-┌───┴────┐            ┌────────┴─────────┐
-│SQLite  │            │ OpenAI│Anthropic │
-│MongoDB │            │ Ollama│Custom... │
-└────────┘            └──────────────────┘
-         │                    │
-         └─────┬──────────────┘
-               │
-        ┌──────┴────────┐
-        │   Scheduler   │
-        └───────────────┘
+┌──────────────┐     ┌─────────────────┐
+│  gego-ui     │     │   CLI (Cobra)   │
+│  (Vue 3)     │     └────────┬────────┘
+└──────┬───────┘              │
+       │                      │
+       └──────────┬───────────┘
+                  │
+           ┌──────┴──────┐
+           │  REST API   │
+           │   (Gin)     │
+           └──────┬──────┘
+                  │
+     ┌────────────┼────────────┐
+     │            │            │
+┌────┴────┐  ┌────┴────┐  ┌────┴─────────┐
+│ SQLite  │  │ MongoDB │  │ LLM Registry │
+│ users   │  │ prompts │  │ OpenAI       │
+│ llms    │  │ responses│ │ Anthropic    │
+│ schedules│ │ citations│ │ Google …     │
+└─────────┘  └─────────┘  └──────────────┘
+                  │
+           ┌──────┴──────┐
+           │  Scheduler  │
+           └─────────────┘
 ```
+
+LLM providers return `SearchURLs` alongside response text. Citations are stored on each response and aggregated for domain/URL stats.
 
 ## Adding Custom LLM Providers
 
@@ -602,70 +421,58 @@ Implement the `llm.Provider` interface:
 ```go
 type Provider interface {
     Name() string
-    Generate(ctx context.Context, prompt string, config map[string]interface{}) (*Response, error)
+    Generate(ctx context.Context, prompt string, config Config) (*Response, error)
     Validate(config map[string]string) error
+    ListModels(ctx context.Context, apiKey, baseURL string) ([]models.ModelInfo, error)
 }
 ```
 
-Register your provider in the registry:
-
-```go
-registry.Register(myProvider)
-```
-
-## Performance Optimization
-
-Gego uses several strategies for optimal performance:
-
-1. **Hybrid Database**: SQLite for fast configuration queries, MongoDB for scalable analytics
-2. **On-demand Statistics**: Keyword statistics are calculated dynamically from response data
-3. **Indexed Queries**: All common queries are backed by database indexes
-4. **Concurrent Execution**: Prompts are executed in parallel across LLMs
-5. **Caching**: Keyword extraction patterns are compiled once and reused
+Register your provider in the LLM registry (see `internal/services/llm_registry.go`).
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+3. Commit your changes
+4. Push to the branch
 5. Open a Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Roadmap
 
-- [ ] Persona embedding to simulate Chat version of models
-- [ ] System prompt to simulate Chat version of models for each model
-- [ ] Schedules / run time estimation until finish
-- [ ] Schedules cost forecast
-- [ ] Prompts batches to optimize costs
-- [ ] Prompts threading per provider for speed
+- [ ] Persona embedding to simulate chat-style model behavior
+- [ ] System prompts per model for chat simulation
+- [ ] Schedule run-time estimation and cost forecasting
+- [ ] Prompt batches to optimize costs
+- [ ] Provider-specific prompt threading for speed
 - [ ] Additional NoSQL database support (Cassandra, etc.)
-- [ ] Web dashboard for visualizations (another repo)
 - [ ] Export statistics to CSV/JSON
 - [ ] Webhook notifications
-- [ ] Custom keyword extraction rules and patterns
+- [ ] Custom keyword extraction rules
 - [ ] Time-series trend analysis
-- [ ] Docker support
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-- Built with [Cobra](https://github.com/spf13/cobra) for CLI
-- [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) for analytics database
-- [SQLite3](https://github.com/mattn/go-sqlite3) for configuration database
-- [Cron](https://github.com/robfig/cron) for scheduling
+- [Cobra](https://github.com/spf13/cobra) — CLI framework
+- [Gin](https://github.com/gin-gonic/gin) — HTTP API
+- [Vue](https://vuejs.org/) — dashboard UI
+- [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) — analytics database
+- [go-sqlite3](https://github.com/mattn/go-sqlite3) — configuration database
+- [robfig/cron](https://github.com/robfig/cron) — scheduling
 
 ## Support
 
-- 📧 Email: jonathan@blocs.fr
-- 🐛 Issues: [GitHub Issues](https://github.com/AI2HU/gego/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/AI2HU/gego/discussions)
+- Email: jonathan@blocs.fr
+- Issues: [GitHub Issues](https://github.com/AI2HU/gego/issues)
+- Discussions: [GitHub Discussions](https://github.com/AI2HU/gego/discussions)
 
 ---
 
-Made with ❤️ for the open-source community
+Made with care for the open-source community

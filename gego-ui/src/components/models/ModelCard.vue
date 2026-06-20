@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
 import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import AppButton from '@/components/ui/AppButton.vue'
-import { formatProviderName, getProviderStyle } from '@/lib/providers'
 import type { ModelResponse } from '@/types/model'
 
 const props = defineProps<{
@@ -17,8 +16,6 @@ const emit = defineEmits<{
 }>()
 
 const confirming = ref(false)
-
-const style = computed(() => getProviderStyle(props.model.provider))
 
 function requestDelete() {
   confirming.value = true
@@ -39,21 +36,12 @@ function confirmDelete() {
     class="group rounded-xl border border-gray-200/60 bg-white/80 backdrop-blur-sm shadow-sm transition-all duration-200 hover:shadow-md hover:border-gray-300/80"
   >
     <div class="p-5">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex items-start gap-3 min-w-0">
-          <ProviderLogo :provider="model.provider" size="lg" rounded="xl" />
-          <div class="min-w-0">
-            <h3 class="font-semibold text-gray-900 truncate">{{ model.name }}</h3>
-            <p class="text-sm text-gray-500 truncate mt-0.5">{{ model.model }}</p>
-          </div>
+      <div class="flex items-start gap-3 min-w-0">
+        <ProviderLogo :provider="model.provider" size="lg" rounded="xl" />
+        <div class="min-w-0">
+          <h3 class="font-semibold text-gray-900 truncate">{{ model.name }}</h3>
+          <p class="text-sm text-gray-500 truncate mt-0.5">{{ model.model }}</p>
         </div>
-
-        <span
-          class="shrink-0 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-          :class="style.badge"
-        >
-          {{ formatProviderName(model.provider) }}
-        </span>
       </div>
 
       <div class="mt-4 flex items-center justify-end gap-3">
