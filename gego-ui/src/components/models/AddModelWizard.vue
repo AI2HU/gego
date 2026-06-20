@@ -7,7 +7,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
-import { getProviderStyle } from '@/lib/providers'
+import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import {
   discoverProviderModels,
   useCreateModelMutation,
@@ -263,12 +263,7 @@ function closeWizard() {
               @click="selectProvider(provider)"
             >
               <div class="flex items-center gap-3">
-                <div
-                  class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br text-sm font-bold text-white shadow-sm"
-                  :class="getProviderStyle(provider.id).gradient"
-                >
-                  {{ getProviderStyle(provider.id).initial }}
-                </div>
+                <ProviderLogo :provider="provider.id" />
                 <div class="min-w-0">
                   <p class="font-medium text-gray-900 group-hover:text-slate-700">
                     {{ provider.display_name }}
@@ -282,12 +277,7 @@ function closeWizard() {
           <div v-else-if="step === 'credentials'" class="space-y-5">
             <AppCard :padding="true">
               <div class="flex items-center gap-3 mb-4">
-                <div
-                  class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br text-sm font-bold text-white"
-                  :class="getProviderStyle(selectedProvider!.id).gradient"
-                >
-                  {{ getProviderStyle(selectedProvider!.id).initial }}
-                </div>
+                <ProviderLogo :provider="selectedProvider!.id" />
                 <div>
                   <p class="font-medium text-gray-900">{{ selectedProvider!.display_name }}</p>
                   <a

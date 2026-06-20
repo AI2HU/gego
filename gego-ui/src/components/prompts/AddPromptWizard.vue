@@ -6,8 +6,9 @@ import AppAlert from '@/components/ui/AppAlert.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
+import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import { input } from '@/design/classes'
-import { formatProviderName, getProviderStyle } from '@/lib/providers'
+import { formatProviderName } from '@/lib/providers'
 import { useModelsQuery } from '@/queries/models'
 import { useCreatePromptMutation, useCreatePromptsMutation, useGeneratePromptsMutation } from '@/queries/prompts'
 
@@ -411,12 +412,7 @@ function closeWizard() {
                 @click="selectModel(model.id)"
               >
                 <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br text-sm font-bold text-white shadow-sm"
-                    :class="getProviderStyle(model.provider).gradient"
-                  >
-                    {{ getProviderStyle(model.provider).initial }}
-                  </div>
+                  <ProviderLogo :provider="model.provider" />
                   <div class="min-w-0">
                     <p class="font-medium text-gray-900 truncate">{{ model.name }}</p>
                     <p class="text-xs text-gray-500 truncate">

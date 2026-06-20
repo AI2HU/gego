@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
+import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import { formatProviderName, getProviderStyle } from '@/lib/providers'
 import type { ModelResponse } from '@/types/model'
@@ -40,12 +41,7 @@ function confirmDelete() {
     <div class="p-5">
       <div class="flex items-start justify-between gap-3">
         <div class="flex items-start gap-3 min-w-0">
-          <div
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm"
-            :class="style.gradient"
-          >
-            {{ style.initial }}
-          </div>
+          <ProviderLogo :provider="model.provider" size="lg" rounded="xl" />
           <div class="min-w-0">
             <h3 class="font-semibold text-gray-900 truncate">{{ model.name }}</h3>
             <p class="text-sm text-gray-500 truncate mt-0.5">{{ model.model }}</p>
