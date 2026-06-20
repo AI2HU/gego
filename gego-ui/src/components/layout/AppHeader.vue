@@ -1,10 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
 import AppIcon from '@/components/icons/AppIcon.vue'
 import { useSidebar } from '@/composables/useSidebar'
-import { appMeta } from '@/design/navigation'
+import { pageMeta } from '@/design/navigation'
 import { header } from '@/design/classes'
 
+const route = useRoute()
 const { toggle } = useSidebar()
+
+const page = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : ''
+  return pageMeta[name] ?? { title: 'Gego', description: '' }
+})
 </script>
 
 <template>
@@ -21,18 +30,9 @@ const { toggle } = useSidebar()
             <AppIcon name="menu" size="lg" />
           </button>
 
-          <div class="lg:hidden flex items-center gap-2 min-w-0">
-            <div :class="header.logoBox">
-              <AppIcon name="desktop" size="md" class="text-white" />
-            </div>
-            <div class="min-w-0">
-              <h1 :class="header.title">{{ appMeta.title }}</h1>
-            </div>
-          </div>
-
-          <div class="hidden lg:block min-w-0">
-            <h1 :class="header.title">{{ appMeta.title }}</h1>
-            <p :class="header.subtitle">{{ appMeta.subtitle }}</p>
+          <div class="min-w-0">
+            <h1 :class="header.title">{{ page.title }}</h1>
+            <p v-if="page.description" :class="header.subtitle">{{ page.description }}</p>
           </div>
         </div>
       </div>

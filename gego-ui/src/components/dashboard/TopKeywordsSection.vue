@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import type { ChartData, ChartOptions } from 'chart.js'
 
 import BarChart from '@/components/charts/BarChart.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import type { ChartData } from 'chart.js'
-import { card } from '@/design/classes'
+import { barChartOptions } from '@/design/chartTheme'
+import { searchRouteFor } from '@/lib/search-navigation'
 import type { KeywordCount } from '@/types/stats'
 
 const props = defineProps<{
@@ -14,8 +16,36 @@ const props = defineProps<{
   chartData: ChartData<'bar'>
 }>()
 
+const router = useRouter()
+
 const topKeywords = computed(() => props.keywords.slice(0, 10))
-const maxCount = computed(() => props.keywords[0]?.count ?? 1)
+
+function goToSearch(term: string) {
+  if (term.trim().length < 2) {
+    return
+  }
+  void router.push(searchRouteFor(term.trim()))
+}
+
+const chartOptions = computed<ChartOptions<'bar'>>(() => ({
+  ...barChartOptions,
+  onClick(_event, elements, chart) {
+    if (elements.length === 0) {
+      return
+    }
+    const index = elements[0]?.index
+    if (index == null) {
+      return
+    }
+    const label = chart.data.labels?.[index]
+    if (typeof label === 'string') {
+      goToSearch(label)
+    }
+  },
+}))
+
+const chipClass =
+  'inline-flex items-center gap-1 rounded-md border border-gray-200/60 bg-slate-50/80 px-2 py-0.5 text-xs text-gray-600 cursor-pointer transition-colors hover:border-gray-300/60 hover:bg-slate-100 hover:text-gray-800'
 </script>
 
 <template>
@@ -31,32 +61,22 @@ const maxCount = computed(() => props.keywords[0]?.count ?? 1)
     <div v-if="topKeywords.length" class="mb-6 h-64">
       <BarChart
         :data="chartData"
+        :options="chartOptions"
         aria-label="Top keyword mentions across all LLM responses"
       />
     </div>
 
-    <div v-if="topKeywords.length" class="space-y-3">
-      <div
-        v-for="(keyword, index) in topKeywords"
+    <div v-if="topKeywords.length" class="flex flex-wrap gap-1.5">
+      <RouterLink
+        v-for="keyword in topKeywords"
         :key="keyword.keyword"
-        :class="[card.inset, 'flex items-center hover:bg-slate-100 transition-colors duration-200 !p-3']"
+        :to="searchRouteFor(keyword.keyword)"
+        :class="chipClass"
+        :title="`${keyword.count.toLocaleString()} mentions · Search`"
       >
-        <div class="w-8 h-8 bg-slate-200 rounded-lg flex items-center justify-center text-sm font-semibold text-slate-700 mr-3 shrink-0">
-          {{ index + 1 }}
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex justify-between items-center mb-1 gap-2">
-            <span class="font-medium text-gray-800 truncate">{{ keyword.keyword }}</span>
-            <span class="text-sm text-gray-600 shrink-0">{{ keyword.count }} mentions</span>
-          </div>
-          <div class="w-full bg-gray-200 rounded-full h-2">
-            <div
-              class="bg-slate-500 h-2 rounded-full transition-all duration-500"
-              :style="{ width: `${(keyword.count / maxCount) * 100}%` }"
-            />
-          </div>
-        </div>
-      </div>
+        <span>{{ keyword.keyword }}</span>
+        <span class="text-[10px] text-gray-400">{{ keyword.count }}</span>
+      </RouterLink>
     </div>
 
     <EmptyState

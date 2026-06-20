@@ -26,6 +26,13 @@ const router = createRouter({
           beforeEnter: [permissionGuard],
         },
         {
+          path: 'search',
+          name: 'search',
+          component: () => import('@/views/SearchView.vue'),
+          meta: { permissions: ['search'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
           path: 'admin/models',
           name: 'models',
           component: () => import('@/views/ModelsView.vue'),

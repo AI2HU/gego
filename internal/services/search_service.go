@@ -23,13 +23,18 @@ func NewSearchService(database db.Database) *SearchService {
 }
 
 // SearchKeyword searches for a keyword and returns statistics
-func (s *SearchService) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error) {
-	return s.db.SearchKeyword(ctx, keyword, startTime, endTime)
+func (s *SearchService) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error) {
+	return s.db.SearchKeyword(ctx, keyword, startTime, endTime, promptIDs)
 }
 
 // ListResponses lists responses with filtering
 func (s *SearchService) ListResponses(ctx context.Context, filter shared.ResponseFilter) ([]*models.Response, error) {
 	return s.db.ListResponses(ctx, filter)
+}
+
+// CountResponses counts responses matching the filter
+func (s *SearchService) CountResponses(ctx context.Context, filter shared.ResponseFilter) (int64, error) {
+	return s.db.CountResponses(ctx, filter)
 }
 
 // SearchMatch represents a search match in a response

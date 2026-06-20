@@ -194,8 +194,9 @@ type StatsResponse struct {
 	TotalPrompts   int64             `json:"total_prompts"`
 	TotalLLMs      int64             `json:"total_llms"`
 	TotalSchedules int64             `json:"total_schedules"`
-	TopKeywords    []KeywordCount    `json:"top_keywords"`
-	PromptStats    []*PromptStats    `json:"prompt_stats"`
+	TopKeywords    []KeywordCount      `json:"top_keywords"`
+	BrandTrends    []BrandTrendSeries  `json:"brand_trends"`
+	PromptStats    []*PromptStats      `json:"prompt_stats"`
 	LLMStats       []*LLMStats       `json:"llm_stats"`
 	ResponseTrends []TimeSeriesPoint `json:"response_trends"`
 	LastUpdated    time.Time         `json:"last_updated"`
@@ -204,6 +205,7 @@ type StatsResponse struct {
 // SearchRequest represents the request to search responses
 type SearchRequest struct {
 	Keyword   string     `json:"keyword" binding:"required"`
+	Tags      []string   `json:"tags,omitempty"`
 	StartTime *time.Time `json:"start_time,omitempty"`
 	EndTime   *time.Time `json:"end_time,omitempty"`
 	Limit     int        `json:"limit,omitempty"`
@@ -211,14 +213,15 @@ type SearchRequest struct {
 
 // SearchResponse represents the response for search operations
 type SearchResponse struct {
-	Keyword       string         `json:"keyword"`
-	TotalMentions int            `json:"total_mentions"`
-	UniquePrompts int            `json:"unique_prompts"`
-	UniqueLLMs    int            `json:"unique_llms"`
-	ByPrompt      map[string]int `json:"by_prompt"`
-	ByLLM         map[string]int `json:"by_llm"`
-	ByProvider    map[string]int `json:"by_provider"`
-	FirstSeen     time.Time      `json:"first_seen"`
-	LastSeen      time.Time      `json:"last_seen"`
-	Responses     []*Response    `json:"responses,omitempty"`
+	Keyword         string         `json:"keyword"`
+	TotalResponses  int64          `json:"total_responses"`
+	TotalMentions   int            `json:"total_mentions"`
+	UniquePrompts   int            `json:"unique_prompts"`
+	UniqueLLMs      int            `json:"unique_llms"`
+	ByPrompt        map[string]int `json:"by_prompt"`
+	ByLLM           map[string]int `json:"by_llm"`
+	ByProvider      map[string]int `json:"by_provider"`
+	FirstSeen       time.Time      `json:"first_seen"`
+	LastSeen        time.Time      `json:"last_seen"`
+	Responses       []*Response    `json:"responses,omitempty"`
 }

@@ -139,15 +139,7 @@ async function handleRun(id: string) {
 
 <template>
   <div>
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Administration</p>
-        <h1 class="text-2xl md:text-3xl font-semibold text-gray-900 mt-1">Scheduler</h1>
-        <p class="text-sm text-gray-500 mt-1 max-w-xl">
-          Manage execution schedules and control the background scheduler that runs prompts on a cron.
-        </p>
-      </div>
-
+    <div class="flex justify-end mb-6">
       <AppButton class="shrink-0 self-start sm:self-auto" @click="openWizard">
         <span class="inline-flex items-center gap-2">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

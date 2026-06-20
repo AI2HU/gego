@@ -180,13 +180,22 @@ func (s *PromptManagementService) GetPromptsByTags(ctx context.Context, tags []s
 	}
 
 	var results []*models.Prompt
+	seen := make(map[string]bool)
 	for _, prompt := range prompts {
+		if seen[prompt.ID] {
+			continue
+		}
+
 		for _, searchTag := range tags {
 			for _, promptTag := range prompt.Tags {
 				if strings.EqualFold(promptTag, searchTag) {
 					results = append(results, prompt)
+					seen[prompt.ID] = true
 					break
 				}
+			}
+			if seen[prompt.ID] {
+				break
 			}
 		}
 	}

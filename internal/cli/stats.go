@@ -112,7 +112,7 @@ func runStatsKeywords(cmd *cobra.Command, args []string) error {
 func runStatsURL(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	urls, err := statsService.GetTopURLsByCitations(ctx, statsLimit)
+	urls, err := statsService.GetTopURLsByCitations(ctx, statsLimit, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get top URLs: %w", err)
 	}
@@ -167,7 +167,7 @@ func runStatsKeyword(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	keywordName := args[0]
 
-	stats, err := database.SearchKeyword(ctx, keywordName, nil, nil)
+	stats, err := database.SearchKeyword(ctx, keywordName, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get keyword stats: %w", err)
 	}

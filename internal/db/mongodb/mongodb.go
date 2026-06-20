@@ -345,6 +345,8 @@ func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilte
 
 	if filter.PromptID != "" {
 		query["prompt_id"] = filter.PromptID
+	} else if len(filter.PromptIDs) > 0 {
+		query["prompt_id"] = bson.M{"$in": filter.PromptIDs}
 	}
 	if filter.LLMID != "" {
 		query["llm_id"] = filter.LLMID
@@ -398,6 +400,8 @@ func (m *MongoDB) CountResponses(ctx context.Context, filter shared.ResponseFilt
 
 	if filter.PromptID != "" {
 		query["prompt_id"] = filter.PromptID
+	} else if len(filter.PromptIDs) > 0 {
+		query["prompt_id"] = bson.M{"$in": filter.PromptIDs}
 	}
 	if filter.LLMID != "" {
 		query["llm_id"] = filter.LLMID

@@ -1,10 +1,10 @@
 import type { Role } from '@/types/auth'
 
-export type RoutePermission = 'dashboard' | 'models' | 'prompts' | 'scheduler'
+export type RoutePermission = 'dashboard' | 'search' | 'models' | 'prompts' | 'scheduler'
 
 const roleRouteAccess: Record<Role, RoutePermission[]> = {
-  admin: ['dashboard', 'models', 'prompts', 'scheduler'],
-  member: ['dashboard'],
+  admin: ['dashboard', 'search', 'models', 'prompts', 'scheduler'],
+  member: ['dashboard', 'search'],
 }
 
 export function canAccessRoute(role: Role, permission: RoutePermission): boolean {

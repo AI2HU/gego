@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ChartData } from 'chart.js'
+import { useRouter } from 'vue-router'
+import type { ChartData, ChartOptions } from 'chart.js'
 
 import BarChart from '@/components/charts/BarChart.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import { card } from '@/design/classes'
+import { barChartOptions } from '@/design/chartTheme'
+import { searchRouteFor } from '@/lib/search-navigation'
 import type { DomainMentionStats } from '@/types/stats'
 
 const props = defineProps<{
@@ -14,7 +16,36 @@ const props = defineProps<{
   chartData: ChartData<'bar'>
 }>()
 
+const router = useRouter()
+
 const topDomains = computed(() => props.domains.slice(0, 10))
+
+function goToSearch(term: string) {
+  if (term.trim().length < 2) {
+    return
+  }
+  void router.push(searchRouteFor(term.trim()))
+}
+
+const chartOptions = computed<ChartOptions<'bar'>>(() => ({
+  ...barChartOptions,
+  onClick(_event, elements, chart) {
+    if (elements.length === 0) {
+      return
+    }
+    const index = elements[0]?.index
+    if (index == null) {
+      return
+    }
+    const label = chart.data.labels?.[index]
+    if (typeof label === 'string') {
+      goToSearch(label)
+    }
+  },
+}))
+
+const chipClass =
+  'inline-flex items-center gap-1 rounded-md border border-gray-200/60 bg-slate-50/80 px-2 py-0.5 text-xs text-gray-600 cursor-pointer transition-colors hover:border-gray-300/60 hover:bg-slate-100 hover:text-gray-800'
 </script>
 
 <template>
@@ -30,27 +61,22 @@ const topDomains = computed(() => props.domains.slice(0, 10))
     <div v-if="topDomains.length" class="mb-6 h-64">
       <BarChart
         :data="chartData"
+        :options="chartOptions"
         aria-label="Top cited domains across responses"
       />
     </div>
 
-    <div v-if="topDomains.length" class="space-y-3">
-      <div
+    <div v-if="topDomains.length" class="flex flex-wrap gap-1.5">
+      <RouterLink
         v-for="domain in topDomains"
         :key="domain.domain"
-        :class="[card.inset, 'flex items-center justify-between hover:bg-slate-100 transition-colors duration-200 !p-3']"
+        :to="searchRouteFor(domain.domain)"
+        :class="chipClass"
+        :title="`${domain.citations.toLocaleString()} citations, ${domain.unique_url_count} unique URL${domain.unique_url_count !== 1 ? 's' : ''} · Search`"
       >
-        <div class="min-w-0 pr-3">
-          <div class="text-sm font-medium text-gray-800 break-all">{{ domain.domain }}</div>
-          <div class="text-xs text-gray-500">
-            {{ domain.unique_url_count }} unique URL{{ domain.unique_url_count !== 1 ? 's' : '' }}
-          </div>
-        </div>
-        <div class="text-right shrink-0">
-          <div class="text-lg font-semibold text-slate-700">{{ domain.citations }}</div>
-          <div class="text-xs text-gray-500">citations</div>
-        </div>
-      </div>
+        <span>{{ domain.domain }}</span>
+        <span class="text-[10px] text-gray-400">{{ domain.citations }}</span>
+      </RouterLink>
     </div>
 
     <EmptyState

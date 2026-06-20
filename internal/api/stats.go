@@ -13,75 +13,30 @@ import (
 
 // getStats handles GET /api/v1/stats
 func (s *Server) getStats(c *gin.Context) {
-	totalResponses, err := s.statsService.GetTotalResponses(c.Request.Context())
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get total responses: "+err.Error())
-		return
-	}
-
-	totalPrompts, err := s.statsService.GetTotalPrompts(c.Request.Context())
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get total prompts: "+err.Error())
-		return
-	}
-
-	totalLLMs, err := s.statsService.GetTotalLLMs(c.Request.Context())
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get total LLMs: "+err.Error())
-		return
-	}
-
-	totalSchedules, err := s.statsService.GetTotalSchedules(c.Request.Context())
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get total schedules: "+err.Error())
-		return
-	}
-
 	limitStr := c.DefaultQuery("keyword_limit", "10")
 	keywordLimit, _ := strconv.Atoi(limitStr)
 	if keywordLimit <= 0 || keywordLimit > 100 {
 		keywordLimit = 10
 	}
 
-	topKeywords, err := s.statsService.GetTopKeywords(c.Request.Context(), keywordLimit, nil, nil)
+	tags := parseTagsFromQuery(c)
+	promptIDs, err := s.resolvePromptIDsByTags(c.Request.Context(), tags)
 	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get top keywords: "+err.Error())
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve prompt tags: "+err.Error())
 		return
 	}
 
-	promptStats, err := s.statsService.GetAllPromptStats(c.Request.Context())
+	stats, err := s.statsService.GetDashboardStats(c.Request.Context(), services.DashboardStatsOptions{
+		PromptIDs:    promptIDs,
+		TagFilter:    len(tags) > 0,
+		KeywordLimit: keywordLimit,
+	})
 	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get prompt stats: "+err.Error())
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to get stats: "+err.Error())
 		return
 	}
 
-	llmStats, err := s.statsService.GetAllLLMStats(c.Request.Context())
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get LLM stats: "+err.Error())
-		return
-	}
-
-	endTime := time.Now()
-	startTime := endTime.AddDate(0, 0, -30)
-	responseTrends, err := s.statsService.GetResponseTrends(c.Request.Context(), startTime, endTime)
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get response trends: "+err.Error())
-		return
-	}
-
-	response := models.StatsResponse{
-		TotalResponses: totalResponses,
-		TotalPrompts:   totalPrompts,
-		TotalLLMs:      totalLLMs,
-		TotalSchedules: totalSchedules,
-		TopKeywords:    topKeywords,
-		PromptStats:    promptStats,
-		LLMStats:       llmStats,
-		ResponseTrends: responseTrends,
-		LastUpdated:    time.Now(),
-	}
-
-	s.successResponse(c, response)
+	s.successResponse(c, stats)
 }
 
 type URLStatsResponse struct {
@@ -96,13 +51,28 @@ func (s *Server) getURLStats(c *gin.Context) {
 		limit = 20
 	}
 
-	topURLs, err := s.statsService.GetTopURLsByCitations(c.Request.Context(), limit)
+	tags := parseTagsFromQuery(c)
+	promptIDs, err := s.resolvePromptIDsByTags(c.Request.Context(), tags)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve prompt tags: "+err.Error())
+		return
+	}
+
+	if len(tags) > 0 && len(promptIDs) == 0 {
+		s.successResponse(c, URLStatsResponse{
+			TopURLs:    []*services.URLMentionStats{},
+			TopDomains: []*services.DomainMentionStats{},
+		})
+		return
+	}
+
+	topURLs, err := s.statsService.GetTopURLsByCitations(c.Request.Context(), limit, promptIDs)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to get top URLs: "+err.Error())
 		return
 	}
 
-	topDomains, err := s.statsService.GetTopDomainsByCitations(c.Request.Context(), limit)
+	topDomains, err := s.statsService.GetTopDomainsByCitations(c.Request.Context(), limit, promptIDs)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to get top domains: "+err.Error())
 		return

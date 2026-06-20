@@ -3,6 +3,16 @@ export interface KeywordCount {
   count: number
 }
 
+export interface TimeSeriesPoint {
+  timestamp: string
+  count: number
+}
+
+export interface BrandTrendSeries {
+  keyword: string
+  points: TimeSeriesPoint[]
+}
+
 export interface PromptStats {
   prompt_id: string
   total_responses: number
@@ -27,6 +37,7 @@ export interface StatsResponse {
   total_llms: number
   total_schedules: number
   top_keywords: KeywordCount[]
+  brand_trends: BrandTrendSeries[]
   prompt_stats: PromptStats[]
   llm_stats: LlmUsageStats[]
   last_updated: string

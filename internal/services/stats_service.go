@@ -65,13 +65,21 @@ func (s *StatsService) GetResponseTrends(ctx context.Context, startTime, endTime
 }
 
 // GetTopKeywords returns the top keywords by mention count
-func (s *StatsService) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error) {
+func (s *StatsService) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time, promptIDs []string) ([]models.KeywordCount, error) {
+	if len(promptIDs) > 0 {
+		responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{PromptIDs: promptIDs, Limit: 10000})
+		if err != nil {
+			return nil, err
+		}
+		return aggregateTopKeywordsFromResponses(responses, limit), nil
+	}
+
 	return s.db.GetTopKeywords(ctx, limit, startTime, endTime)
 }
 
 // SearchKeyword returns statistics for a specific keyword
-func (s *StatsService) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error) {
-	return s.db.SearchKeyword(ctx, keyword, startTime, endTime)
+func (s *StatsService) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error) {
+	return s.db.SearchKeyword(ctx, keyword, startTime, endTime, promptIDs)
 }
 
 // GetKeywordTrends returns keyword trends over time - placeholder for future implementation
@@ -244,8 +252,13 @@ type ProviderStats struct {
 }
 
 // GetTopURLsByCitations returns URLs ranked by how often they are cited
-func (s *StatsService) GetTopURLsByCitations(ctx context.Context, limit int) ([]*URLMentionStats, error) {
-	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 10000})
+func (s *StatsService) GetTopURLsByCitations(ctx context.Context, limit int, promptIDs []string) ([]*URLMentionStats, error) {
+	filter := shared.ResponseFilter{Limit: 10000}
+	if len(promptIDs) > 0 {
+		filter.PromptIDs = promptIDs
+	}
+
+	responses, err := s.db.ListResponses(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get responses: %w", err)
 	}
@@ -332,8 +345,13 @@ type KeywordDomainStats struct {
 	Domains []DomainCount `json:"domains"`
 }
 
-func (s *StatsService) GetTopDomainsByCitations(ctx context.Context, limit int) ([]*DomainMentionStats, error) {
-	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 10000})
+func (s *StatsService) GetTopDomainsByCitations(ctx context.Context, limit int, promptIDs []string) ([]*DomainMentionStats, error) {
+	filter := shared.ResponseFilter{Limit: 10000}
+	if len(promptIDs) > 0 {
+		filter.PromptIDs = promptIDs
+	}
+
+	responses, err := s.db.ListResponses(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get responses: %w", err)
 	}
@@ -683,4 +701,332 @@ type LLMMentionStats struct {
 // ResetAllStats resets all statistics by clearing all responses
 func (s *StatsService) ResetAllStats(ctx context.Context) (int, error) {
 	return s.db.DeleteAllResponses(ctx)
+}
+
+type DashboardStatsOptions struct {
+	PromptIDs    []string
+	TagFilter    bool
+	KeywordLimit int
+}
+
+func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStatsOptions) (*models.StatsResponse, error) {
+	if opts.TagFilter && len(opts.PromptIDs) == 0 {
+		return emptyDashboardStats(), nil
+	}
+
+	if !opts.TagFilter {
+		totalResponses, err := s.GetTotalResponses(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		totalPrompts, err := s.GetTotalPrompts(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		totalLLMs, err := s.GetTotalLLMs(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		totalSchedules, err := s.GetTotalSchedules(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		topKeywords, err := s.GetTopKeywords(ctx, opts.KeywordLimit, nil, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		promptStats, err := s.GetAllPromptStats(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		llmStats, err := s.GetAllLLMStats(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		endTime := time.Now()
+		startTime := endTime.AddDate(0, 0, -30)
+		responseTrends, err := s.GetResponseTrends(ctx, startTime, endTime)
+		if err != nil {
+			return nil, err
+		}
+
+		trendResponses, err := s.db.ListResponses(ctx, shared.ResponseFilter{
+			StartTime: &startTime,
+			Limit:     10000,
+		})
+		if err != nil {
+			return nil, err
+		}
+		trendKeywords := aggregateTopKeywordsFromResponses(trendResponses, 5)
+		brandTrends := aggregateBrandTrendsFromResponses(trendResponses, trendKeywords, 30, 5)
+
+		return &models.StatsResponse{
+			TotalResponses: totalResponses,
+			TotalPrompts:   totalPrompts,
+			TotalLLMs:      totalLLMs,
+			TotalSchedules: totalSchedules,
+			TopKeywords:    topKeywords,
+			BrandTrends:    brandTrends,
+			PromptStats:    promptStats,
+			LLMStats:       llmStats,
+			ResponseTrends: responseTrends,
+			LastUpdated:    time.Now(),
+		}, nil
+	}
+
+	filter := shared.ResponseFilter{PromptIDs: opts.PromptIDs}
+	totalResponses, err := s.db.CountResponses(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{PromptIDs: opts.PromptIDs, Limit: 10000})
+	if err != nil {
+		return nil, err
+	}
+
+	llmStats := aggregateLLMStatsFromResponses(responses)
+	promptStats := aggregatePromptStatsFromResponses(responses)
+	topKeywords := aggregateTopKeywordsFromResponses(responses, opts.KeywordLimit)
+
+	return &models.StatsResponse{
+		TotalResponses: totalResponses,
+		TotalPrompts:   int64(len(opts.PromptIDs)),
+		TotalLLMs:      int64(len(llmStats)),
+		TotalSchedules: 0,
+		TopKeywords:    topKeywords,
+		BrandTrends:    aggregateBrandTrendsFromResponses(responses, topKeywords, 30, 5),
+		PromptStats:    promptStats,
+		LLMStats:       llmStats,
+		ResponseTrends: []models.TimeSeriesPoint{},
+		LastUpdated:    time.Now(),
+	}, nil
+}
+
+func emptyDashboardStats() *models.StatsResponse {
+	return &models.StatsResponse{
+		TopKeywords:    []models.KeywordCount{},
+		BrandTrends:    []models.BrandTrendSeries{},
+		PromptStats:    []*models.PromptStats{},
+		LLMStats:       []*models.LLMStats{},
+		ResponseTrends: []models.TimeSeriesPoint{},
+		LastUpdated:    time.Now(),
+	}
+}
+
+func aggregateTopKeywordsFromResponses(responses []*models.Response, limit int) []models.KeywordCount {
+	wordCounts := make(map[string]int)
+	for _, response := range responses {
+		for _, word := range shared.ExtractCapitalizedWords(response.ResponseText) {
+			wordCounts[word]++
+		}
+	}
+
+	type kv struct {
+		keyword string
+		count   int
+	}
+
+	sorted := make([]kv, 0, len(wordCounts))
+	for keyword, count := range wordCounts {
+		sorted = append(sorted, kv{keyword: keyword, count: count})
+	}
+
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].count == sorted[j].count {
+			return sorted[i].keyword < sorted[j].keyword
+		}
+		return sorted[i].count > sorted[j].count
+	})
+
+	if limit <= 0 {
+		limit = 10
+	}
+	if len(sorted) > limit {
+		sorted = sorted[:limit]
+	}
+
+	results := make([]models.KeywordCount, 0, len(sorted))
+	for _, item := range sorted {
+		results = append(results, models.KeywordCount{
+			Keyword: item.keyword,
+			Count:   item.count,
+		})
+	}
+
+	return results
+}
+
+func truncateToDay(t time.Time) time.Time {
+	utc := t.UTC()
+	return time.Date(utc.Year(), utc.Month(), utc.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func aggregateBrandTrendsFromResponses(
+	responses []*models.Response,
+	topKeywords []models.KeywordCount,
+	days int,
+	seriesLimit int,
+) []models.BrandTrendSeries {
+	if days <= 0 {
+		days = 30
+	}
+	if seriesLimit <= 0 {
+		seriesLimit = 5
+	}
+	if len(topKeywords) == 0 {
+		return []models.BrandTrendSeries{}
+	}
+
+	if seriesLimit > len(topKeywords) {
+		seriesLimit = len(topKeywords)
+	}
+
+	tracked := make(map[string]bool, seriesLimit)
+	keywords := topKeywords[:seriesLimit]
+	for _, keyword := range keywords {
+		tracked[keyword.Keyword] = true
+	}
+
+	endDay := truncateToDay(time.Now())
+	startDay := endDay.AddDate(0, 0, -(days - 1))
+
+	buckets := make(map[string]map[string]int, seriesLimit)
+	for _, keyword := range keywords {
+		buckets[keyword.Keyword] = make(map[string]int)
+	}
+
+	for _, response := range responses {
+		day := truncateToDay(response.CreatedAt)
+		if day.Before(startDay) || day.After(endDay) {
+			continue
+		}
+
+		dayKey := day.Format("2006-01-02")
+		for _, word := range shared.ExtractCapitalizedWords(response.ResponseText) {
+			if tracked[word] {
+				buckets[word][dayKey]++
+			}
+		}
+	}
+
+	result := make([]models.BrandTrendSeries, 0, seriesLimit)
+	for _, keyword := range keywords {
+		points := make([]models.TimeSeriesPoint, 0, days)
+		for day := startDay; !day.After(endDay); day = day.AddDate(0, 0, 1) {
+			dayKey := day.Format("2006-01-02")
+			points = append(points, models.TimeSeriesPoint{
+				Timestamp: day,
+				Count:     buckets[keyword.Keyword][dayKey],
+			})
+		}
+
+		result = append(result, models.BrandTrendSeries{
+			Keyword: keyword.Keyword,
+			Points:  points,
+		})
+	}
+
+	return result
+}
+
+func aggregateLLMStatsFromResponses(responses []*models.Response) []*models.LLMStats {
+	type accumulator struct {
+		totalResponses int
+		totalTokens    int
+		promptCounts   map[string]int
+	}
+
+	statsByLLM := make(map[string]*accumulator)
+	for _, response := range responses {
+		if statsByLLM[response.LLMID] == nil {
+			statsByLLM[response.LLMID] = &accumulator{promptCounts: make(map[string]int)}
+		}
+
+		stats := statsByLLM[response.LLMID]
+		stats.totalResponses++
+		stats.totalTokens += response.TokensUsed
+		stats.promptCounts[response.PromptID]++
+	}
+
+	results := make([]*models.LLMStats, 0, len(statsByLLM))
+	now := time.Now()
+	for llmID, stats := range statsByLLM {
+		avgTokens := 0.0
+		if stats.totalResponses > 0 {
+			avgTokens = float64(stats.totalTokens) / float64(stats.totalResponses)
+		}
+
+		results = append(results, &models.LLMStats{
+			LLMID:          llmID,
+			TotalResponses: stats.totalResponses,
+			UniquePrompts:  len(stats.promptCounts),
+			PromptCounts:   stats.promptCounts,
+			AvgTokens:      avgTokens,
+			UpdatedAt:      now,
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].TotalResponses == results[j].TotalResponses {
+			return results[i].LLMID < results[j].LLMID
+		}
+		return results[i].TotalResponses > results[j].TotalResponses
+	})
+
+	return results
+}
+
+func aggregatePromptStatsFromResponses(responses []*models.Response) []*models.PromptStats {
+	type accumulator struct {
+		totalResponses int
+		totalTokens    int
+		llmCounts      map[string]int
+	}
+
+	statsByPrompt := make(map[string]*accumulator)
+	for _, response := range responses {
+		if statsByPrompt[response.PromptID] == nil {
+			statsByPrompt[response.PromptID] = &accumulator{llmCounts: make(map[string]int)}
+		}
+
+		stats := statsByPrompt[response.PromptID]
+		stats.totalResponses++
+		stats.totalTokens += response.TokensUsed
+		stats.llmCounts[response.LLMID]++
+	}
+
+	results := make([]*models.PromptStats, 0, len(statsByPrompt))
+	now := time.Now()
+	for promptID, stats := range statsByPrompt {
+		avgTokens := 0.0
+		if stats.totalResponses > 0 {
+			avgTokens = float64(stats.totalTokens) / float64(stats.totalResponses)
+		}
+
+		results = append(results, &models.PromptStats{
+			PromptID:       promptID,
+			TotalResponses: stats.totalResponses,
+			UniqueLLMs:     len(stats.llmCounts),
+			LLMCounts:      stats.llmCounts,
+			AvgTokens:      avgTokens,
+			UpdatedAt:      now,
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].TotalResponses == results[j].TotalResponses {
+			return results[i].PromptID < results[j].PromptID
+		}
+		return results[i].TotalResponses > results[j].TotalResponses
+	})
+
+	return results
 }

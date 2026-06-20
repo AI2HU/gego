@@ -213,8 +213,8 @@ func (h *HybridDB) DeleteAllResponses(ctx context.Context) (int, error) {
 	return h.nosqlDB.DeleteAllResponses(ctx)
 }
 
-func (h *HybridDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error) {
-	return h.nosqlDB.SearchKeyword(ctx, keyword, startTime, endTime)
+func (h *HybridDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error) {
+	return h.nosqlDB.SearchKeyword(ctx, keyword, startTime, endTime, promptIDs)
 }
 
 func (h *HybridDB) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error) {

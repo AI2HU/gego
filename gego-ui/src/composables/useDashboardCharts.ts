@@ -1,6 +1,7 @@
 import type { ChartData } from 'chart.js'
 import type { Ref } from 'vue'
 import { computed } from 'vue'
+import { format } from 'date-fns'
 
 import { chartColors } from '@/design/chartTheme'
 import type { ModelResponse, ProviderDistribution } from '@/types/model'
@@ -72,6 +73,7 @@ export function useDashboardCharts(
         {
           data: items.map((item) => item.count),
           backgroundColor: chartColors.primary,
+          hoverBackgroundColor: 'rgba(15, 23, 42, 0.9)',
           borderRadius: 6,
         },
       ],
@@ -111,9 +113,34 @@ export function useDashboardCharts(
         {
           data: items.map((item) => item.citations),
           backgroundColor: chartColors.blue,
+          hoverBackgroundColor: 'rgba(37, 99, 235, 0.9)',
           borderRadius: 6,
         },
       ],
+    }
+  })
+
+  const brandTrendsChartData = computed<ChartData<'line'>>(() => {
+    const series = stats.value?.brand_trends ?? []
+    if (!series.length || !series[0]?.points.length) {
+      return { labels: [], datasets: [] }
+    }
+
+    const labels = series[0].points.map((point) =>
+      format(new Date(point.timestamp), 'MMM d'),
+    )
+
+    return {
+      labels,
+      datasets: series.map((item, index) => ({
+        label: item.keyword,
+        data: item.points.map((point) => point.count),
+        borderColor: chartColors.line[index % chartColors.line.length],
+        backgroundColor: 'transparent',
+        tension: 0.3,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+      })),
     }
   })
 
@@ -122,5 +149,6 @@ export function useDashboardCharts(
     topKeywordsChartData,
     providerChartData,
     domainChartData,
+    brandTrendsChartData,
   }
 }

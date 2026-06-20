@@ -11,7 +11,7 @@ export const header = {
   row: 'flex justify-between items-center py-3 md:py-4',
   logoBox: 'w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-slate-400 to-slate-500 rounded-lg flex items-center justify-center shadow-sm',
   title: 'text-lg md:text-xl font-semibold text-gray-800',
-  subtitle: 'hidden sm:block text-sm text-gray-500',
+  subtitle: 'text-sm text-gray-500 mt-0.5',
 } as const
 
 export const sidebar = {
@@ -25,10 +25,10 @@ export const sidebar = {
     'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 shadow-sm',
   brandTitle: 'text-lg font-semibold text-gray-800 leading-tight',
   brandSubtitle: 'text-xs text-gray-500 leading-snug',
-  nav: 'flex-1 overflow-y-auto custom-scrollbar px-3 py-4',
-  navList: 'flex flex-col gap-1',
+  nav: 'flex flex-1 flex-col gap-5 overflow-y-auto custom-scrollbar px-3 py-5',
+  navList: 'flex flex-col gap-2',
   sectionLabel:
-    'px-3 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 first:pt-0',
+    'px-3 pt-5 pb-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 first:pt-0',
   footer: 'border-t border-gray-200/50 px-4 py-4 space-y-3',
   footerActions: 'flex items-center justify-between gap-2',
 } as const
@@ -39,7 +39,7 @@ export const nav = {
   inactive: 'text-gray-700 hover:text-gray-900 hover:bg-gray-100',
   mobilePanel: 'md:hidden border-t border-gray-200/50 pt-4 pb-4 space-y-3',
   sidebarLink:
-    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-200',
+    'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors duration-200',
   sidebarActive: 'bg-slate-600 text-white shadow-sm',
   sidebarInactive: 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
 } as const

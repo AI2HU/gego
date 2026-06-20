@@ -31,7 +31,7 @@ type NoSQLDatabase interface {
 	DeleteAllResponses(ctx context.Context) (int, error)
 
 	// Keyword search (on-demand, searches through response_text)
-	SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error)
+	SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error)
 	GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error)
 
 	// Statistics operations
