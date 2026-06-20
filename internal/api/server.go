@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -142,6 +144,50 @@ func (s *Server) setupRoutes() {
 
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
 	protected.GET("/auth/me", s.requirePerm(auth.PermAuthProfile), s.me)
+
+	s.setupStaticUI()
+}
+
+func (s *Server) setupStaticUI() {
+	uiDir := resolveUIPath()
+	if uiDir == "" {
+		return
+	}
+
+	s.router.Static("/assets", filepath.Join(uiDir, "assets"))
+	s.router.StaticFile("/favicon.ico", filepath.Join(uiDir, "favicon.ico"))
+	s.router.GET("/", func(c *gin.Context) {
+		c.File(filepath.Join(uiDir, "index.html"))
+	})
+
+	s.router.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(http.StatusNotFound, models.APIResponse{
+				Success: false,
+				Error:   "not found",
+			})
+			return
+		}
+		c.File(filepath.Join(uiDir, "index.html"))
+	})
+}
+
+var uiPathCandidates = []string{
+	"gego-ui/dist",
+	"/app/ui",
+}
+
+func resolveUIPath() string {
+	for _, candidate := range uiPathCandidates {
+		info, err := os.Stat(candidate)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(candidate, "index.html")); err == nil {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // Run starts the API server
