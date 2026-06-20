@@ -225,3 +225,18 @@ type SearchResponse struct {
 	LastSeen        time.Time      `json:"last_seen"`
 	Responses       []*Response    `json:"responses,omitempty"`
 }
+
+// ErrorLogResponse represents a failed LLM call stored in responses
+type ErrorLogResponse struct {
+	ID          string    `json:"id"`
+	PromptID    string    `json:"prompt_id"`
+	PromptText  string    `json:"prompt_text"`
+	LLMID       string    `json:"llm_id"`
+	LLMName     string    `json:"llm_name"`
+	LLMProvider string    `json:"llm_provider"`
+	LLMModel    string    `json:"llm_model"`
+	Error       string    `json:"error"`
+	ScheduleID  string    `json:"schedule_id,omitempty"`
+	Temperature float64   `json:"temperature,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+}

@@ -71,6 +71,7 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "GET", Path: "/stats/query-urls", Permission: PermStatsRead},
 	{Method: "GET", Path: "/stats/keyword-domains", Permission: PermStatsRead},
 	{Method: "POST", Path: "/search", Permission: PermSearchExecute},
+	{Method: "GET", Path: "/logs/errors", Permission: PermSchedulesRead},
 	{Method: "GET", Path: "/auth/me", Permission: PermAuthProfile},
 }
 

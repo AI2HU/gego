@@ -24,6 +24,7 @@ export type AppIconName =
   | 'plus'
   | 'trash'
   | 'settings'
+  | 'journal'
 
 const props = withDefaults(
   defineProps<{
@@ -183,6 +184,11 @@ const sizeClass = computed(() => {
       <path
         d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
       />
+    </template>
+
+    <template v-else-if="name === 'journal'">
+      <path d="M12 7v14" />
+      <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
     </template>
   </svg>
 </template>

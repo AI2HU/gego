@@ -11,6 +11,7 @@ type ResponseFilter struct {
 	LLMID      string
 	ScheduleID string
 	Keyword    string
+	ErrorsOnly bool
 	StartTime  *time.Time
 	EndTime    *time.Time
 	Limit      int

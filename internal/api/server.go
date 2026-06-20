@@ -143,6 +143,7 @@ func (s *Server) setupRoutes() {
 	protected.GET("/stats/keyword-domains", s.requirePerm(auth.PermStatsRead), s.getKeywordDomainMatrix)
 
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
+	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)
 	protected.GET("/auth/me", s.requirePerm(auth.PermAuthProfile), s.me)
 
 	s.setupStaticUI()

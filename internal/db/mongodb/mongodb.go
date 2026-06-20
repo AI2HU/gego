@@ -341,35 +341,7 @@ func (m *MongoDB) GetResponse(ctx context.Context, id string) (*models.Response,
 
 // ListResponses lists responses with filtering
 func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilter) ([]*models.Response, error) {
-	query := bson.M{}
-
-	if filter.PromptID != "" {
-		query["prompt_id"] = filter.PromptID
-	} else if len(filter.PromptIDs) > 0 {
-		query["prompt_id"] = bson.M{"$in": filter.PromptIDs}
-	}
-	if filter.LLMID != "" {
-		query["llm_id"] = filter.LLMID
-	}
-	if filter.ScheduleID != "" {
-		query["schedule_id"] = filter.ScheduleID
-	}
-	if filter.Keyword != "" {
-		query["response_text"] = bson.M{
-			"$regex":   filter.Keyword,
-			"$options": "i",
-		}
-	}
-	if filter.StartTime != nil || filter.EndTime != nil {
-		timeQuery := bson.M{}
-		if filter.StartTime != nil {
-			timeQuery["$gte"] = *filter.StartTime
-		}
-		if filter.EndTime != nil {
-			timeQuery["$lte"] = *filter.EndTime
-		}
-		query["created_at"] = timeQuery
-	}
+	query := buildResponseFilterQuery(filter)
 
 	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}})
 
@@ -396,6 +368,13 @@ func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilte
 
 // CountResponses counts responses matching the filter without fetching all documents
 func (m *MongoDB) CountResponses(ctx context.Context, filter shared.ResponseFilter) (int64, error) {
+	query := buildResponseFilterQuery(filter)
+
+	count, err := m.database.Collection(collResponses).CountDocuments(ctx, query)
+	return count, err
+}
+
+func buildResponseFilterQuery(filter shared.ResponseFilter) bson.M {
 	query := bson.M{}
 
 	if filter.PromptID != "" {
@@ -408,6 +387,9 @@ func (m *MongoDB) CountResponses(ctx context.Context, filter shared.ResponseFilt
 	}
 	if filter.ScheduleID != "" {
 		query["schedule_id"] = filter.ScheduleID
+	}
+	if filter.ErrorsOnly {
+		query["error"] = bson.M{"$exists": true, "$ne": ""}
 	}
 	if filter.Keyword != "" {
 		query["response_text"] = bson.M{
@@ -426,8 +408,7 @@ func (m *MongoDB) CountResponses(ctx context.Context, filter shared.ResponseFilt
 		query["created_at"] = timeQuery
 	}
 
-	count, err := m.database.Collection(collResponses).CountDocuments(ctx, query)
-	return count, err
+	return query
 }
 
 // GetDatabase returns the underlying MongoDB database instance
