@@ -11,9 +11,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/AI2HU/gego/internal/api"
-	"github.com/AI2HU/gego/internal/config"
+	"github.com/AI2HU/gego/internal/auth"
+	appconfig "github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/services"
 	"github.com/AI2HU/gego/internal/shared"
 )
 
@@ -33,7 +35,14 @@ var apiCmd = &cobra.Command{
 - Stats (Read-only)
 - Search (POST endpoint for keyword search)
 
-The API runs on HTTP (no authentication required for now).`,
+Authentication uses JWT Bearer tokens. Set GEGO_JWT_SECRET (min 32 characters)
+before starting the server.
+
+On first start (no users in database), create the initial admin via:
+  GEGO_BOOTSTRAP_ADMIN_PASSWORD (required)
+  GEGO_BOOTSTRAP_ADMIN_USERNAME (optional, defaults to admin)
+
+Or create users manually: gego user create --username <name> --role admin`,
 	RunE: runAPI,
 }
 
@@ -50,14 +59,14 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	} else if envPath := os.Getenv("GEGO_CONFIG_PATH"); envPath != "" {
 		configPath = envPath
 	} else {
-		configPath = config.GetConfigPath()
+		configPath = appconfig.GetConfigPath()
 	}
 
-	if !config.Exists(configPath) {
+	if !appconfig.Exists(configPath) {
 		return fmt.Errorf("configuration file not found at %s. Run 'gego init' to create one", configPath)
 	}
 
-	cfg, err := config.Load(configPath)
+	cfg, err := appconfig.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -120,12 +129,31 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	fmt.Println("✅ Database connection successful!")
 
 	fmt.Println("\n🔄 Running database migrations...")
-	if err := runAPIMigrations(ctx, database); err != nil {
+	if err := runDatabaseMigrations(ctx, database); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 	fmt.Println("✅ Database migrations completed successfully!")
 
-	server := api.NewServer(database, selectedCORSOrigin)
+	fmt.Println("\n🔐 Checking API users...")
+	bootstrappedUser, err := services.BootstrapAdminFromEnv(ctx, database)
+	if err != nil {
+		return err
+	}
+	if bootstrappedUser != nil {
+		fmt.Printf("✅ Bootstrapped admin user %q from environment\n", bootstrappedUser.Username)
+	} else {
+		fmt.Println("✅ API users ready")
+	}
+
+	authConfig, err := auth.NewConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	server, err := api.NewServer(database, selectedCORSOrigin, authConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create API server: %w", err)
+	}
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -140,12 +168,17 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	fmt.Println("🌐 API Server is running!")
 	fmt.Println()
 	fmt.Println("📚 Available Endpoints:")
-	fmt.Println("  LLMs:")
-	fmt.Println("    GET    /api/v1/llms              - List all LLMs")
-	fmt.Println("    GET    /api/v1/llms/:id          - Get specific LLM")
-	fmt.Println("    POST   /api/v1/llms              - Create new LLM")
-	fmt.Println("    PUT    /api/v1/llms/:id          - Update LLM")
-	fmt.Println("    DELETE /api/v1/llms/:id          - Delete LLM")
+	fmt.Println("  Models:")
+	fmt.Println("    GET    /api/v1/models              - List all models")
+	fmt.Println("    GET    /api/v1/models/:id          - Get specific model")
+	fmt.Println("    POST   /api/v1/models              - Create new model")
+	fmt.Println("    PUT    /api/v1/models/:id          - Update model")
+	fmt.Println("    DELETE /api/v1/models/:id          - Delete model")
+	fmt.Println()
+	fmt.Println("  Providers:")
+	fmt.Println("    GET    /api/v1/providers                      - List providers")
+	fmt.Println("    GET    /api/v1/providers/:provider/api-keys     - List masked API keys")
+	fmt.Println("    POST   /api/v1/providers/:provider/models     - Discover provider models")
 	fmt.Println()
 	fmt.Println("  Prompts:")
 	fmt.Println("    GET    /api/v1/prompts           - List all prompts")
@@ -164,38 +197,16 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	fmt.Println("  Stats & Search:")
 	fmt.Println("    GET    /api/v1/stats             - Get statistics")
 	fmt.Println("    POST   /api/v1/search            - Search keywords")
-	fmt.Println("    GET    /api/v1/health            - Health check")
+	fmt.Println()
+	fmt.Println("  Auth:")
+	fmt.Println("    POST   /api/v1/auth/login        - Login (public)")
+	fmt.Println("    POST   /api/v1/auth/refresh      - Refresh access token (public, cookie)")
+	fmt.Println("    POST   /api/v1/auth/logout         - Logout (public, cookie)")
+	fmt.Println("    GET    /api/v1/auth/me           - Current user profile")
+	fmt.Println("    GET    /api/v1/health            - Health check (public)")
 	fmt.Println()
 	fmt.Println("Press Ctrl+C to stop the server")
 
 	address := fmt.Sprintf("%s:%s", apiHost, apiPort)
 	return server.Run(address)
-}
-
-func runAPIMigrations(ctx context.Context, database db.Database) error {
-	hybridDB, ok := database.(*db.HybridDB)
-	if !ok {
-		return fmt.Errorf("database is not a HybridDB instance")
-	}
-
-	sqliteDB := hybridDB.GetSQLiteDatabase()
-	if sqliteDB == nil {
-		return fmt.Errorf("SQLite database not available")
-	}
-
-	migrationsDir := os.Getenv("GEGO_MIGRATIONS_DIR")
-	if migrationsDir == "" {
-		migrationsDir = "/migrations"
-		if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
-			workDir, _ := os.Getwd()
-			migrationsDir = filepath.Join(workDir, "internal", "db", "migrations")
-		}
-	}
-
-	sqlDB := sqliteDB.GetDB()
-	if sqlDB == nil {
-		return fmt.Errorf("database connection not available")
-	}
-
-	return db.RunMigrations(ctx, sqlDB, migrationsDir)
 }

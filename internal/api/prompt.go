@@ -1,8 +1,11 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -50,7 +53,7 @@ func (s *Server) listPrompts(c *gin.Context) {
 
 	totalPages := (total + limit - 1) / limit
 
-	c.JSON(http.StatusOK, models.PaginatedResponse{
+	s.successResponse(c, models.PaginatedResponse{
 		Data: responses,
 		Pagination: models.Pagination{
 			Page:       page,
@@ -83,29 +86,41 @@ func (s *Server) getPrompt(c *gin.Context) {
 	s.successResponse(c, response)
 }
 
-// createPrompt handles POST /api/v1/prompts
+// createPrompt handles POST /api/v1/prompts (single or bulk)
 func (s *Server) createPrompt(c *gin.Context) {
-	var req models.CreatePromptRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	body, err := c.GetRawData()
+	if err != nil {
 		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	if len(req.Template) > 10000 {
-		s.errorResponse(c, http.StatusBadRequest, "Template too long (max 10000 characters)")
+	var header struct {
+		Prompts json.RawMessage `json:"prompts"`
+	}
+	if err := json.Unmarshal(body, &header); err != nil {
+		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	if len(req.Tags) > 20 {
-		s.errorResponse(c, http.StatusBadRequest, "Too many tags (max 20)")
-		return
-	}
-
-	for i, tag := range req.Tags {
-		if len(tag) > 50 {
-			s.errorResponse(c, http.StatusBadRequest, "Tag "+strconv.Itoa(i+1)+" too long (max 50 characters)")
+	if header.Prompts != nil {
+		var req models.BulkCreatePromptsRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 			return
 		}
+		s.bulkCreatePrompts(c, req)
+		return
+	}
+
+	var req models.CreatePromptRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := validateCreatePromptRequest(&req); err != nil {
+		s.errorResponse(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	prompt := &models.Prompt{
@@ -120,7 +135,72 @@ func (s *Server) createPrompt(c *gin.Context) {
 		return
 	}
 
-	response := models.PromptResponse{
+	c.JSON(http.StatusCreated, models.APIResponse{
+		Success: true,
+		Data:    promptToResponse(prompt),
+		Message: "Prompt created successfully",
+	})
+}
+
+func (s *Server) bulkCreatePrompts(c *gin.Context, req models.BulkCreatePromptsRequest) {
+	templates := make([]string, 0, len(req.Prompts))
+	for _, item := range req.Prompts {
+		template := strings.TrimSpace(item.Template)
+		if template != "" {
+			templates = append(templates, template)
+		}
+	}
+
+	if len(templates) == 0 {
+		s.errorResponse(c, http.StatusBadRequest, "At least one prompt is required")
+		return
+	}
+
+	saved, err := s.promptService.SaveGeneratedPrompts(c.Request.Context(), templates, req.Tags)
+	if err != nil {
+		s.errorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	responses := make([]models.PromptResponse, len(saved))
+	for i, prompt := range saved {
+		responses[i] = promptToResponse(prompt)
+	}
+
+	c.JSON(http.StatusCreated, models.APIResponse{
+		Success: true,
+		Data: models.BulkCreatePromptsResponse{
+			Prompts:    responses,
+			SavedCount: len(responses),
+		},
+		Message: "Prompts created successfully",
+	})
+}
+
+func validateCreatePromptRequest(req *models.CreatePromptRequest) error {
+	if strings.TrimSpace(req.Template) == "" {
+		return fmt.Errorf("template is required")
+	}
+
+	if len(req.Template) > 10000 {
+		return fmt.Errorf("template too long (max 10000 characters)")
+	}
+
+	if len(req.Tags) > 20 {
+		return fmt.Errorf("too many tags (max 20)")
+	}
+
+	for i, tag := range req.Tags {
+		if len(tag) > 50 {
+			return fmt.Errorf("tag %s too long (max 50 characters)", strconv.Itoa(i+1))
+		}
+	}
+
+	return nil
+}
+
+func promptToResponse(prompt *models.Prompt) models.PromptResponse {
+	return models.PromptResponse{
 		ID:        prompt.ID,
 		Template:  prompt.Template,
 		Tags:      prompt.Tags,
@@ -128,12 +208,6 @@ func (s *Server) createPrompt(c *gin.Context) {
 		CreatedAt: prompt.CreatedAt,
 		UpdatedAt: prompt.UpdatedAt,
 	}
-
-	c.JSON(http.StatusCreated, models.APIResponse{
-		Success: true,
-		Data:    response,
-		Message: "Prompt created successfully",
-	})
 }
 
 // updatePrompt handles PUT /api/v1/prompts/:id

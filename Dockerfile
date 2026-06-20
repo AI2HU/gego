@@ -1,51 +1,48 @@
 # Production Dockerfile for Gego - GEO Tracker
-# Optimized for production deployment with minimal image size
+# Builds backend and gego-ui into a single image
 
-FROM golang:1.24-alpine AS builder
+# Stage 1: Build UI
+FROM node:22-alpine AS ui-builder
 
-# Install build dependencies
+WORKDIR /app/gego-ui
+
+COPY gego-ui/package.json gego-ui/package-lock.json ./
+RUN npm ci
+
+COPY gego-ui/ ./
+RUN npm run build-only
+
+# Stage 2: Build Go backend
+FROM golang:1.24-alpine AS go-builder
+
 RUN apk add --no-cache git ca-certificates tzdata sqlite-dev gcc musl-dev
 
-# Set working directory
 WORKDIR /app
 
-# Copy go mod files
 COPY go.mod go.sum ./
-
-# Download dependencies
 RUN go mod download
 
-# Copy source code
 COPY . .
 
-# Build the application with optimizations
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o gego ./cmd/gego/main.go
 
-# Stage 2: Minimal runtime
+# Stage 3: Minimal runtime
 FROM alpine:latest
 
-# Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata
 
-# Copy binary
-COPY --from=builder /app/gego /usr/local/bin/gego
+COPY --from=go-builder /app/gego /usr/local/bin/gego
+COPY --from=go-builder /app/internal/db/migrations /migrations
+COPY --from=ui-builder /app/gego-ui/dist /app/ui
 
-# Copy migration files
-COPY --from=builder /app/internal/db/migrations /migrations
-
-# Create directories
 RUN mkdir -p /app/data /app/config /app/logs
 
-# Set environment variables
 ENV GEGO_CONFIG_PATH=/app/config/config.yaml
 ENV GEGO_DATA_PATH=/app/data
 ENV GEGO_LOG_PATH=/app/logs
 
-# Create default configuration
 RUN echo 'sql_database:\n  provider: sqlite\n  uri: /app/data/gego.db\n  database: gego\n\nnosql_database:\n  provider: mongodb\n  uri: mongodb://mongodb:27017\n  database: gego' > /app/config/config.yaml
 
-# Expose port
 EXPOSE 8989
 
-# Default command
 CMD ["/usr/local/bin/gego", "api", "--host", "0.0.0.0", "--port", "8989"]

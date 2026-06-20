@@ -28,13 +28,14 @@ type Pagination struct {
 
 // CreateLLMRequest represents the request to create a new LLM
 type CreateLLMRequest struct {
-	Name     string            `json:"name" binding:"required"`
-	Provider string            `json:"provider" binding:"required"`
-	Model    string            `json:"model" binding:"required"`
-	APIKey   string            `json:"api_key,omitempty"`
-	BaseURL  string            `json:"base_url,omitempty"`
-	Config   map[string]string `json:"config,omitempty"`
-	Enabled  bool              `json:"enabled"`
+	Name               string            `json:"name" binding:"required"`
+	Provider           string            `json:"provider" binding:"required"`
+	Model              string            `json:"model" binding:"required"`
+	APIKey             string            `json:"api_key,omitempty"`
+	ExistingKeyIndex   *int              `json:"existing_key_index,omitempty"`
+	BaseURL            string            `json:"base_url,omitempty"`
+	Config             map[string]string `json:"config,omitempty"`
+	Enabled            bool              `json:"enabled"`
 }
 
 // UpdateLLMRequest represents the request to update an existing LLM
@@ -46,6 +47,36 @@ type UpdateLLMRequest struct {
 	BaseURL  string            `json:"base_url,omitempty"`
 	Config   map[string]string `json:"config,omitempty"`
 	Enabled  *bool             `json:"enabled,omitempty"`
+}
+
+// ProviderResponse represents an available LLM provider
+type ProviderResponse struct {
+	ID              string `json:"id"`
+	DisplayName     string `json:"display_name"`
+	ConsoleURL      string `json:"console_url,omitempty"`
+	RequiresAPIKey  bool   `json:"requires_api_key"`
+	RequiresBaseURL bool   `json:"requires_base_url"`
+}
+
+// ProviderAPIKeyResponse represents a masked existing API key
+type ProviderAPIKeyResponse struct {
+	Index  int    `json:"index"`
+	Masked string `json:"masked"`
+}
+
+// ListProviderModelsRequest represents credentials for listing provider models
+type ListProviderModelsRequest struct {
+	APIKey             string `json:"api_key,omitempty"`
+	ExistingKeyIndex   *int   `json:"existing_key_index,omitempty"`
+	BaseURL            string `json:"base_url,omitempty"`
+}
+
+// ModelInfoResponse represents an available model from a provider
+type ModelInfoResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	UsedInChat  bool   `json:"used_in_chat,omitempty"`
 }
 
 // LLMResponse represents the response for LLM operations
@@ -86,6 +117,36 @@ type PromptResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// GeneratePromptsRequest represents the request to generate prompts using an LLM
+type GeneratePromptsRequest struct {
+	LLMID        string `json:"llm_id" binding:"required"`
+	LanguageCode string `json:"language_code" binding:"required"`
+	UserInput    string `json:"user_input" binding:"required"`
+	PromptCount  int    `json:"prompt_count"`
+}
+
+// GeneratePromptsResponse represents generated prompt templates
+type GeneratePromptsResponse struct {
+	Prompts []string `json:"prompts"`
+}
+
+// BulkCreatePromptsRequest represents a bulk prompt create request
+type BulkCreatePromptsRequest struct {
+	Prompts []BulkCreatePromptItem `json:"prompts" binding:"required,min=1,dive"`
+	Tags    []string               `json:"tags,omitempty"`
+}
+
+// BulkCreatePromptItem represents one prompt in a bulk create request
+type BulkCreatePromptItem struct {
+	Template string `json:"template" binding:"required"`
+}
+
+// BulkCreatePromptsResponse represents saved prompts from a bulk create
+type BulkCreatePromptsResponse struct {
+	Prompts    []PromptResponse `json:"prompts"`
+	SavedCount int              `json:"saved_count"`
+}
+
 // CreateScheduleRequest represents the request to create a new schedule
 type CreateScheduleRequest struct {
 	Name        string   `json:"name" binding:"required"`
@@ -104,6 +165,12 @@ type UpdateScheduleRequest struct {
 	CronExpr    string   `json:"cron_expr,omitempty"`
 	Temperature *float64 `json:"temperature,omitempty"`
 	Enabled     *bool    `json:"enabled,omitempty"`
+}
+
+// SchedulerStatusResponse represents the current scheduler state
+type SchedulerStatusResponse struct {
+	Running         bool `json:"running"`
+	EnabledSchedules int  `json:"enabled_schedules"`
 }
 
 // ScheduleResponse represents the response for schedule operations
@@ -127,8 +194,9 @@ type StatsResponse struct {
 	TotalPrompts   int64             `json:"total_prompts"`
 	TotalLLMs      int64             `json:"total_llms"`
 	TotalSchedules int64             `json:"total_schedules"`
-	TopKeywords    []KeywordCount    `json:"top_keywords"`
-	PromptStats    []*PromptStats    `json:"prompt_stats"`
+	TopKeywords    []KeywordCount      `json:"top_keywords"`
+	BrandTrends    []BrandTrendSeries  `json:"brand_trends"`
+	PromptStats    []*PromptStats      `json:"prompt_stats"`
 	LLMStats       []*LLMStats       `json:"llm_stats"`
 	ResponseTrends []TimeSeriesPoint `json:"response_trends"`
 	LastUpdated    time.Time         `json:"last_updated"`
@@ -137,6 +205,7 @@ type StatsResponse struct {
 // SearchRequest represents the request to search responses
 type SearchRequest struct {
 	Keyword   string     `json:"keyword" binding:"required"`
+	Tags      []string   `json:"tags,omitempty"`
 	StartTime *time.Time `json:"start_time,omitempty"`
 	EndTime   *time.Time `json:"end_time,omitempty"`
 	Limit     int        `json:"limit,omitempty"`
@@ -144,14 +213,15 @@ type SearchRequest struct {
 
 // SearchResponse represents the response for search operations
 type SearchResponse struct {
-	Keyword       string         `json:"keyword"`
-	TotalMentions int            `json:"total_mentions"`
-	UniquePrompts int            `json:"unique_prompts"`
-	UniqueLLMs    int            `json:"unique_llms"`
-	ByPrompt      map[string]int `json:"by_prompt"`
-	ByLLM         map[string]int `json:"by_llm"`
-	ByProvider    map[string]int `json:"by_provider"`
-	FirstSeen     time.Time      `json:"first_seen"`
-	LastSeen      time.Time      `json:"last_seen"`
-	Responses     []*Response    `json:"responses,omitempty"`
+	Keyword         string         `json:"keyword"`
+	TotalResponses  int64          `json:"total_responses"`
+	TotalMentions   int            `json:"total_mentions"`
+	UniquePrompts   int            `json:"unique_prompts"`
+	UniqueLLMs      int            `json:"unique_llms"`
+	ByPrompt        map[string]int `json:"by_prompt"`
+	ByLLM           map[string]int `json:"by_llm"`
+	ByProvider      map[string]int `json:"by_provider"`
+	FirstSeen       time.Time      `json:"first_seen"`
+	LastSeen        time.Time      `json:"last_seen"`
+	Responses       []*Response    `json:"responses,omitempty"`
 }

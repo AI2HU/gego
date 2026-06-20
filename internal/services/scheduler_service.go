@@ -129,18 +129,15 @@ func (s *SchedulerService) Stop() {
 // GetStatus returns the current status of the scheduler
 func (s *SchedulerService) GetStatus(ctx context.Context) (bool, int, error) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if !s.running {
-		return false, 0, nil
-	}
+	running := s.running
+	s.mu.RUnlock()
 
 	schedules, err := s.db.ListSchedules(ctx, boolPtr(true))
 	if err != nil {
-		return s.running, 0, fmt.Errorf("failed to get schedule count: %w", err)
+		return running, 0, fmt.Errorf("failed to get schedule count: %w", err)
 	}
 
-	return s.running, len(schedules), nil
+	return running, len(schedules), nil
 }
 
 // ExecuteNow executes a schedule immediately

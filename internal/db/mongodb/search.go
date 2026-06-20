@@ -12,12 +12,16 @@ import (
 )
 
 // SearchKeyword searches for a keyword in all responses and calculates stats on-the-fly
-func (m *MongoDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error) {
+func (m *MongoDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error) {
 	pattern := regexp.QuoteMeta(keyword)
 	regex := bson.M{"$regex": pattern, "$options": "i"}
 
 	query := bson.M{
 		"response_text": regex,
+	}
+
+	if len(promptIDs) > 0 {
+		query["prompt_id"] = bson.M{"$in": promptIDs}
 	}
 
 	if startTime != nil || endTime != nil {

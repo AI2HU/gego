@@ -140,6 +140,34 @@ func (h *HybridDB) DeleteAllSchedules(ctx context.Context) (int, error) {
 	return h.sqlDB.DeleteAllSchedules(ctx)
 }
 
+func (h *HybridDB) CreateUser(ctx context.Context, user *models.User) error {
+	return h.sqlDB.CreateUser(ctx, user)
+}
+
+func (h *HybridDB) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+	return h.sqlDB.GetUserByUsername(ctx, username)
+}
+
+func (h *HybridDB) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	return h.sqlDB.GetUserByID(ctx, id)
+}
+
+func (h *HybridDB) ListUsers(ctx context.Context) ([]*models.User, error) {
+	return h.sqlDB.ListUsers(ctx)
+}
+
+func (h *HybridDB) CreateSession(ctx context.Context, session *models.UserSession) error {
+	return h.sqlDB.CreateSession(ctx, session)
+}
+
+func (h *HybridDB) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*models.UserSession, error) {
+	return h.sqlDB.GetSessionByTokenHash(ctx, tokenHash)
+}
+
+func (h *HybridDB) RevokeSession(ctx context.Context, id string) error {
+	return h.sqlDB.RevokeSession(ctx, id)
+}
+
 // Prompt operations - Use NoSQL
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)
@@ -185,8 +213,8 @@ func (h *HybridDB) DeleteAllResponses(ctx context.Context) (int, error) {
 	return h.nosqlDB.DeleteAllResponses(ctx)
 }
 
-func (h *HybridDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time) (*models.KeywordStats, error) {
-	return h.nosqlDB.SearchKeyword(ctx, keyword, startTime, endTime)
+func (h *HybridDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error) {
+	return h.nosqlDB.SearchKeyword(ctx, keyword, startTime, endTime, promptIDs)
 }
 
 func (h *HybridDB) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time) ([]models.KeywordCount, error) {

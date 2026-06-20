@@ -31,11 +31,20 @@ func (p LLMProvider) String() string {
 	}
 }
 
+// AuthConfig represents JWT authentication settings.
+type AuthConfig struct {
+	Issuer          string `yaml:"issuer"`
+	Audience        string `yaml:"audience"`
+	AccessTokenTTL  string `yaml:"access_token_ttl"`
+	RefreshTokenTTL string `yaml:"refresh_token_ttl"`
+}
+
 // Config represents the application configuration
 type Config struct {
 	SQLDatabase              DatabaseConfig `yaml:"sql_database"`                         // SQLite for LLMs and Schedules
 	NoSQLDatabase            DatabaseConfig `yaml:"nosql_database"`                       // MongoDB for Prompts and Responses
 	CORSOrigin               string         `yaml:"cors_origin,omitempty"`                // CORS origin for API server
+	Auth                     AuthConfig     `yaml:"auth,omitempty"`                       // JWT authentication settings
 	KeywordsExclusionPath    string         `yaml:"keywords_exclusion_path,omitempty"`    // Path to keywords exclusion file
 	GeminiSystemInstruction  string         `yaml:"gemini_system_instruction,omitempty"`  // System instruction for Gemini models
 	ChatGPTSystemInstruction string         `yaml:"chatgpt_system_instruction,omitempty"` // System instruction for ChatGPT models
@@ -65,8 +74,14 @@ func DefaultConfig() *Config {
 			URI:      "mongodb://localhost:27017",
 			Database: "gego",
 		},
-		CORSOrigin:               "*",
-		KeywordsExclusionPath:    filepath.Join(configDir, "keywords_exclusion"),
+		CORSOrigin: "*",
+		Auth: AuthConfig{
+			Issuer:          "gego-api",
+			Audience:        "gego-api",
+			AccessTokenTTL:  "15m",
+			RefreshTokenTTL: "168h",
+		},
+		KeywordsExclusionPath: filepath.Join(configDir, "keywords_exclusion"),
 		GeminiSystemInstruction:  "You are Gemini, a helpful, concise, and friendly assistant. Respond conversationally and safely, the way the Gemini chat experience behaves. Focus on clear, direct answers that follow user intent.",
 		ChatGPTSystemInstruction: "You are ChatGPT, a large language model trained by OpenAI. Follow the user's instructions carefully. Respond using markdown when appropriate.",
 		ClaudeSystemInstruction:  "You are a helpful, harmless, and honest assistant.",

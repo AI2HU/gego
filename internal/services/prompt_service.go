@@ -3,7 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
@@ -36,6 +39,55 @@ func (s *PromptManagementService) CreatePrompt(ctx context.Context, prompt *mode
 		return err
 	}
 	return s.db.CreatePrompt(ctx, prompt)
+}
+
+// SaveGeneratedPrompts saves selected generated prompt templates with the "generated" tag.
+func (s *PromptManagementService) SaveGeneratedPrompts(
+	ctx context.Context,
+	templates []string,
+	extraTags []string,
+) ([]*models.Prompt, error) {
+	if len(templates) == 0 {
+		return nil, fmt.Errorf("at least one prompt is required")
+	}
+
+	tags := BuildGeneratedTags(extraTags)
+	if err := s.validatePromptTagsForSave(tags); err != nil {
+		return nil, err
+	}
+
+	saved := make([]*models.Prompt, 0, len(templates))
+	for i, template := range templates {
+		template = strings.TrimSpace(template)
+		if err := ValidateGeneratedPrompt(template); err != nil {
+			return nil, fmt.Errorf("prompt %d: %w", i+1, err)
+		}
+
+		prompt := CreatePromptFromGenerated(template, extraTags)
+		prompt.ID = uuid.New().String()
+
+		if err := s.CreatePrompt(ctx, prompt); err != nil {
+			return nil, fmt.Errorf("failed to save prompt %d: %w", i+1, err)
+		}
+
+		saved = append(saved, prompt)
+	}
+
+	return saved, nil
+}
+
+func (s *PromptManagementService) validatePromptTagsForSave(tags []string) error {
+	if len(tags) > 20 {
+		return fmt.Errorf("too many tags (max 20)")
+	}
+
+	for i, tag := range tags {
+		if len(tag) > 50 {
+			return fmt.Errorf("tag %s too long (max 50 characters)", strconv.Itoa(i+1))
+		}
+	}
+
+	return s.ValidatePromptTags(tags)
 }
 
 // UpdatePrompt updates an existing prompt
@@ -128,13 +180,22 @@ func (s *PromptManagementService) GetPromptsByTags(ctx context.Context, tags []s
 	}
 
 	var results []*models.Prompt
+	seen := make(map[string]bool)
 	for _, prompt := range prompts {
+		if seen[prompt.ID] {
+			continue
+		}
+
 		for _, searchTag := range tags {
 			for _, promptTag := range prompt.Tags {
 				if strings.EqualFold(promptTag, searchTag) {
 					results = append(results, prompt)
+					seen[prompt.ID] = true
 					break
 				}
+			}
+			if seen[prompt.ID] {
+				break
 			}
 		}
 	}

@@ -30,7 +30,32 @@ func (s *Server) search(c *gin.Context) {
 		req.Limit = 100
 	}
 
-	keywordStats, err := s.searchService.SearchKeyword(c.Request.Context(), req.Keyword, req.StartTime, req.EndTime)
+	promptIDs, err := s.resolvePromptIDsByTags(c.Request.Context(), req.Tags)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve prompt tags: "+err.Error())
+		return
+	}
+	if len(req.Tags) > 0 && len(promptIDs) == 0 {
+		s.successResponse(c, models.SearchResponse{
+			Keyword: req.Keyword,
+		})
+		return
+	}
+
+	countFilter := shared.ResponseFilter{
+		Keyword:   req.Keyword,
+		PromptIDs: promptIDs,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+	}
+
+	totalResponses, err := s.searchService.CountResponses(c.Request.Context(), countFilter)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to count responses: "+err.Error())
+		return
+	}
+
+	keywordStats, err := s.searchService.SearchKeyword(c.Request.Context(), req.Keyword, req.StartTime, req.EndTime, promptIDs)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to search keyword: "+err.Error())
 		return
@@ -38,6 +63,7 @@ func (s *Server) search(c *gin.Context) {
 
 	filter := shared.ResponseFilter{
 		Keyword:   req.Keyword,
+		PromptIDs: promptIDs,
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
 		Limit:     req.Limit,
@@ -50,8 +76,9 @@ func (s *Server) search(c *gin.Context) {
 	}
 
 	response := models.SearchResponse{
-		Keyword:       keywordStats.Keyword,
-		TotalMentions: keywordStats.TotalMentions,
+		Keyword:        keywordStats.Keyword,
+		TotalResponses: totalResponses,
+		TotalMentions:  keywordStats.TotalMentions,
 		UniquePrompts: keywordStats.UniquePrompts,
 		UniqueLLMs:    keywordStats.UniqueLLMs,
 		ByPrompt:      keywordStats.ByPrompt,

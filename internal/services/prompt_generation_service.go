@@ -146,11 +146,30 @@ func GetSupportedLanguages() []string {
 	}
 }
 
+const generatedTag = "generated"
+
+// BuildGeneratedTags returns tags for generated prompts, always including "generated".
+func BuildGeneratedTags(extraTags []string) []string {
+	tags := []string{generatedTag}
+	seen := map[string]bool{generatedTag: true}
+
+	for _, tag := range extraTags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		tags = append(tags, tag)
+	}
+
+	return tags
+}
+
 // CreatePromptFromGenerated creates a prompt model from generated text
-func CreatePromptFromGenerated(template string, languageCode string) *models.Prompt {
+func CreatePromptFromGenerated(template string, extraTags []string) *models.Prompt {
 	return &models.Prompt{
 		Template: template,
-		Tags:     []string{"generated", "llm-created", fmt.Sprintf("lang-%s", languageCode)},
+		Tags:     BuildGeneratedTags(extraTags),
 		Enabled:  true,
 	}
 }

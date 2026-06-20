@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/AI2HU/gego/internal/llm"
@@ -74,9 +75,12 @@ func (p *Provider) Generate(ctx context.Context, prompt string, config llm.Confi
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
-		"temperature": temperature,
-		"max_tokens":  maxTokens,
-		"tools":       tools,
+		"max_tokens": maxTokens,
+		"tools":      tools,
+	}
+
+	if modelSupportsSamplingParameters(model) && temperature > 0 {
+		requestBody["temperature"] = temperature
 	}
 
 	jsonBody, err := json.Marshal(requestBody)
@@ -330,6 +334,14 @@ func (p *Provider) ListModels(ctx context.Context, apiKey, baseURL string) ([]mo
 	}
 
 	return append(popularModels, modelList...), nil
+}
+
+func modelSupportsSamplingParameters(model string) bool {
+	lower := strings.ToLower(model)
+	if strings.Contains(lower, "opus-4-7") || strings.Contains(lower, "opus-4-8") {
+		return false
+	}
+	return true
 }
 
 func resolveRedirectURL(ctx context.Context, url string) string {
