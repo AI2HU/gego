@@ -1,5 +1,37 @@
 import type { PromptResponse } from '@/types/prompt'
-import type { SearchMatch, SearchResponseItem } from '@/types/search'
+import type { SearchMatch, SearchResponseItem, SearchURL } from '@/types/search'
+
+const CITATION_MARKER_REGEX = /\[(\d+)\]/g
+
+export function sortSearchUrls(urls: SearchURL[]): SearchURL[] {
+  return [...urls].sort((a, b) => a.citation_index - b.citation_index)
+}
+
+export function linkCitationMarkers(text: string, sources: SearchURL[]): string {
+  if (sources.length === 0) {
+    return text
+  }
+
+  const byIndex = new Map<number, SearchURL>()
+  for (const source of sources) {
+    byIndex.set(source.citation_index, source)
+  }
+
+  return text.replace(CITATION_MARKER_REGEX, (match, rawIndex: string) => {
+    const index = Number.parseInt(rawIndex, 10)
+    if (!Number.isFinite(index) || index < 1) {
+      return match
+    }
+
+    const source = byIndex.get(index - 1) ?? sources[index - 1]
+    if (!source?.url) {
+      return match
+    }
+
+    const label = source.title?.trim() || `[${index}]`
+    return `[${label}](${source.url})`
+  })
+}
 
 function tagsMatch(selectedTag: string, promptTag: string): boolean {
   return selectedTag.toLowerCase() === promptTag.toLowerCase()
@@ -58,6 +90,7 @@ export function findSearchMatches(
         promptName: promptNames.get(response.prompt_id) ?? 'Unknown Prompt',
         promptTags: promptTags.get(response.prompt_id) ?? [],
         responseText: text,
+        searchUrls: sortSearchUrls(response.search_urls ?? []),
         llmName: response.llm_name,
         llmProvider: response.llm_provider,
         temperature: response.temperature ?? 0,

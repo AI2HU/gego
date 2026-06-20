@@ -1,12 +1,33 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import AppIcon from '@/components/icons/AppIcon.vue'
 import ResponseMarkdown from '@/components/search/ResponseMarkdown.vue'
 import { card } from '@/design/classes'
+import { linkCitationMarkers } from '@/lib/search-matches'
 import type { SearchMatch } from '@/types/search'
 
-defineProps<{
+const props = defineProps<{
   match: SearchMatch
   caseSensitive?: boolean
 }>()
+
+const responseText = computed(() =>
+  linkCitationMarkers(props.match.responseText, props.match.searchUrls),
+)
+
+function sourceLabel(index: number, url: string, title?: string): string {
+  const trimmedTitle = title?.trim()
+  if (trimmedTitle) {
+    return trimmedTitle
+  }
+
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString(undefined, {
@@ -62,11 +83,42 @@ function formatTemperature(value: number): string {
         <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700 mb-2">Response</p>
         <div :class="card.inset">
           <ResponseMarkdown
-            :text="match.responseText"
+            :text="responseText"
             :keyword="match.keyword"
             :case-sensitive="caseSensitive"
           />
         </div>
+      </div>
+
+      <div v-if="match.searchUrls.length > 0">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Sources</p>
+        <ul :class="[card.inset, 'space-y-2']">
+          <li
+            v-for="(source, index) in match.searchUrls"
+            :key="`${source.url}-${source.citation_index}`"
+            class="flex items-start gap-2 text-sm"
+          >
+            <span
+              class="mt-0.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded bg-slate-200 px-1 text-[10px] font-semibold text-slate-700"
+            >
+              {{ index + 1 }}
+            </span>
+            <a
+              :href="source.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="min-w-0 text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900 hover:decoration-slate-500"
+              :title="source.url"
+            >
+              {{ sourceLabel(index, source.url, source.title) }}
+            </a>
+            <AppIcon
+              name="external-link"
+              class="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400"
+              aria-hidden="true"
+            />
+          </li>
+        </ul>
       </div>
     </div>
   </article>

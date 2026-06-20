@@ -6,6 +6,13 @@ export interface SearchRequest {
   limit?: number
 }
 
+export interface SearchURL {
+  search_query?: string
+  url: string
+  title?: string
+  citation_index: number
+}
+
 export interface SearchResponseItem {
   id: string
   prompt_id: string
@@ -15,6 +22,7 @@ export interface SearchResponseItem {
   llm_provider: string
   llm_model: string
   response_text: string
+  search_urls?: SearchURL[]
   temperature?: number
   created_at: string
 }
@@ -39,6 +47,7 @@ export interface SearchMatch {
   promptName: string
   promptTags: string[]
   responseText: string
+  searchUrls: SearchURL[]
   llmName: string
   llmProvider: string
   temperature: number
