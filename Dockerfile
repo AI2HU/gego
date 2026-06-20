@@ -13,7 +13,7 @@ COPY gego-ui/ ./
 RUN npm run build-only
 
 # Stage 2: Build Go backend
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.25-alpine AS go-builder
 
 RUN apk add --no-cache git ca-certificates tzdata sqlite-dev gcc musl-dev
 
