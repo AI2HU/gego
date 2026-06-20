@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import NavLink from '@/components/ui/NavLink.vue'
-import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useSidebar } from '@/composables/useSidebar'
 import { canAccessRoute } from '@/auth/permissions'
@@ -15,13 +14,9 @@ import { sidebar, typography } from '@/design/classes'
 const props = withDefaults(
   defineProps<{
     navSections?: NavSection[]
-    connected?: boolean
-    connectionLabel?: string
   }>(),
   {
     navSections: () => [],
-    connected: true,
-    connectionLabel: undefined,
   },
 )
 
@@ -116,8 +111,6 @@ function logout() {
     <div v-else :class="sidebar.nav" />
 
     <div :class="sidebar.footer">
-      <StatusBadge :connected="connected" :label="connectionLabel" compact />
-
       <div v-if="username" class="min-w-0">
         <p :class="typography.overline">Signed in as</p>
         <p class="truncate text-sm font-medium text-gray-800">{{ username }}</p>

@@ -56,24 +56,7 @@ function confirmDelete() {
         </span>
       </div>
 
-      <div class="mt-4 flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <span
-            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-            :class="
-              model.enabled
-                ? 'bg-green-50 text-green-700 border border-green-200/60'
-                : 'bg-gray-100 text-gray-600 border border-gray-200/60'
-            "
-          >
-            <span
-              class="h-1.5 w-1.5 rounded-full"
-              :class="model.enabled ? 'bg-green-500' : 'bg-gray-400'"
-            />
-            {{ model.enabled ? 'Enabled' : 'Disabled' }}
-          </span>
-        </div>
-
+      <div class="mt-4 flex items-center justify-end gap-3">
         <div v-if="!confirming">
           <AppButton
             variant="ghost"
