@@ -25,8 +25,9 @@ type Server struct {
 	db              db.Database
 	llmService      *services.LLMService
 	promptService   *services.PromptManagementService
-	scheduleService *services.ScheduleService
-	statsService    *services.StatsService
+	scheduleService  *services.ScheduleService
+	schedulerService *services.SchedulerService
+	statsService     *services.StatsService
 	searchService   *services.SearchService
 	authService     *services.AuthService
 	authMiddleware  *auth.Middleware
@@ -79,8 +80,9 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) 
 		db:              database,
 		llmService:      services.NewLLMService(database),
 		promptService:   services.NewPromptManagementService(database),
-		scheduleService: services.NewScheduleService(database),
-		statsService:    services.NewStatsService(database),
+		scheduleService:  services.NewScheduleService(database),
+		schedulerService: services.NewSchedulerService(database, llmRegistry),
+		statsService:     services.NewStatsService(database),
 		searchService:   services.NewSearchService(database),
 		authService:     services.NewAuthService(database, authConfig),
 		authMiddleware:  authMW,
@@ -126,6 +128,12 @@ func (s *Server) setupRoutes() {
 	protected.POST("/schedules", s.requirePerm(auth.PermSchedulesWrite), s.createSchedule)
 	protected.PUT("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), s.updateSchedule)
 	protected.DELETE("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), s.deleteSchedule)
+	protected.POST("/schedules/:id/run", s.requirePerm(auth.PermSchedulesWrite), s.runSchedule)
+
+	protected.GET("/scheduler/status", s.requirePerm(auth.PermSchedulesRead), s.getSchedulerStatus)
+	protected.POST("/scheduler/start", s.requirePerm(auth.PermSchedulesWrite), s.startScheduler)
+	protected.POST("/scheduler/stop", s.requirePerm(auth.PermSchedulesWrite), s.stopScheduler)
+	protected.POST("/scheduler/reload", s.requirePerm(auth.PermSchedulesWrite), s.reloadScheduler)
 
 	protected.GET("/stats", s.requirePerm(auth.PermStatsRead), s.getStats)
 	protected.GET("/stats/urls", s.requirePerm(auth.PermStatsRead), s.getURLStats)

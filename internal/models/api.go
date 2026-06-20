@@ -167,6 +167,12 @@ type UpdateScheduleRequest struct {
 	Enabled     *bool    `json:"enabled,omitempty"`
 }
 
+// SchedulerStatusResponse represents the current scheduler state
+type SchedulerStatusResponse struct {
+	Running         bool `json:"running"`
+	EnabledSchedules int  `json:"enabled_schedules"`
+}
+
 // ScheduleResponse represents the response for schedule operations
 type ScheduleResponse struct {
 	ID          string     `json:"id"`

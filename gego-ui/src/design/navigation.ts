@@ -24,6 +24,7 @@ export const navSections: NavSection[] = [
     items: [
       { to: '/admin/models', label: 'Models', icon: 'server', permission: 'models' },
       { to: '/admin/prompts', label: 'Prompts', icon: 'comment', permission: 'prompts' },
+      { to: '/admin/scheduler', label: 'Scheduler', icon: 'clock', permission: 'scheduler' },
     ],
   },
 ]

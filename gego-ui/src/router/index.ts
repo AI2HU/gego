@@ -40,6 +40,13 @@ const router = createRouter({
           beforeEnter: [permissionGuard],
         },
         {
+          path: 'admin/scheduler',
+          name: 'scheduler',
+          component: () => import('@/views/SchedulerView.vue'),
+          meta: { permissions: ['scheduler'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
           path: 'forbidden',
           name: 'forbidden',
           component: () => import('@/views/ForbiddenView.vue'),

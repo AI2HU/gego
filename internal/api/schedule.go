@@ -56,7 +56,7 @@ func (s *Server) listSchedules(c *gin.Context) {
 
 	totalPages := (total + limit - 1) / limit
 
-	c.JSON(http.StatusOK, models.PaginatedResponse{
+	s.successResponse(c, models.PaginatedResponse{
 		Data: responses,
 		Pagination: models.Pagination{
 			Page:       page,
@@ -102,8 +102,8 @@ func (s *Server) createSchedule(c *gin.Context) {
 		return
 	}
 
-	if req.Temperature < 0.0 || req.Temperature > 1.0 {
-		s.errorResponse(c, http.StatusBadRequest, "Temperature must be between 0.0 and 1.0")
+	if req.Temperature != -1.0 && (req.Temperature < 0.0 || req.Temperature > 1.0) {
+		s.errorResponse(c, http.StatusBadRequest, "Temperature must be between 0.0 and 1.0, or -1.0 for random")
 		return
 	}
 
@@ -215,8 +215,8 @@ func (s *Server) updateSchedule(c *gin.Context) {
 		schedule.CronExpr = req.CronExpr
 	}
 	if req.Temperature != nil {
-		if *req.Temperature < 0.0 || *req.Temperature > 1.0 {
-			s.errorResponse(c, http.StatusBadRequest, "Temperature must be between 0.0 and 1.0")
+		if *req.Temperature != -1.0 && (*req.Temperature < 0.0 || *req.Temperature > 1.0) {
+			s.errorResponse(c, http.StatusBadRequest, "Temperature must be between 0.0 and 1.0, or -1.0 for random")
 			return
 		}
 		schedule.Temperature = *req.Temperature
