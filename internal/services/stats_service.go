@@ -764,8 +764,7 @@ func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStat
 		if err != nil {
 			return nil, err
 		}
-		trendKeywords := aggregateTopKeywordsFromResponses(trendResponses, 5)
-		brandTrends := aggregateBrandTrendsFromResponses(trendResponses, trendKeywords, 30, 5)
+		brandTrends := aggregateBrandTrendsFromResponses(trendResponses, topKeywords, 30, opts.KeywordLimit)
 
 		return &models.StatsResponse{
 			TotalResponses: totalResponses,
@@ -802,7 +801,7 @@ func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStat
 		TotalLLMs:      int64(len(llmStats)),
 		TotalSchedules: 0,
 		TopKeywords:    topKeywords,
-		BrandTrends:    aggregateBrandTrendsFromResponses(responses, topKeywords, 30, 5),
+		BrandTrends:    aggregateBrandTrendsFromResponses(responses, topKeywords, 30, opts.KeywordLimit),
 		PromptStats:    promptStats,
 		LLMStats:       llmStats,
 		ResponseTrends: []models.TimeSeriesPoint{},
@@ -879,7 +878,7 @@ func aggregateBrandTrendsFromResponses(
 		days = 30
 	}
 	if seriesLimit <= 0 {
-		seriesLimit = 5
+		seriesLimit = 10
 	}
 	if len(topKeywords) == 0 {
 		return []models.BrandTrendSeries{}

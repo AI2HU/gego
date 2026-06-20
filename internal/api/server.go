@@ -155,6 +155,12 @@ func (s *Server) setupStaticUI() {
 		return
 	}
 
+	absDir, err := filepath.Abs(uiDir)
+	if err != nil {
+		return
+	}
+	uiDir = absDir
+
 	s.router.Static("/assets", filepath.Join(uiDir, "assets"))
 	s.router.StaticFile("/favicon.ico", filepath.Join(uiDir, "favicon.ico"))
 	s.router.GET("/", func(c *gin.Context) {
@@ -169,8 +175,35 @@ func (s *Server) setupStaticUI() {
 			})
 			return
 		}
+		if serveUIStaticFile(c, uiDir) {
+			return
+		}
 		c.File(filepath.Join(uiDir, "index.html"))
 	})
+}
+
+func serveUIStaticFile(c *gin.Context, uiDir string) bool {
+	rel := strings.TrimPrefix(filepath.Clean(c.Request.URL.Path), string(os.PathSeparator))
+	if rel == "" || rel == "." {
+		return false
+	}
+
+	filePath := filepath.Join(uiDir, filepath.FromSlash(rel))
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+	if absFile != uiDir && !strings.HasPrefix(absFile, uiDir+string(os.PathSeparator)) {
+		return false
+	}
+
+	info, err := os.Stat(absFile)
+	if err != nil || info.IsDir() {
+		return false
+	}
+
+	c.File(absFile)
+	return true
 }
 
 var uiPathCandidates = []string{
