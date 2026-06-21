@@ -40,6 +40,16 @@ export interface CreateModelRequest {
   enabled?: boolean
 }
 
+export interface UpdateModelRequest {
+  api_key?: string
+  base_url?: string
+}
+
+export interface TestModelAccessResponse {
+  success: boolean
+  message: string
+}
+
 export interface ListProviderModelsRequest {
   api_key?: string
   existing_key_index?: number

@@ -6,6 +6,8 @@ import type {
   ModelResponse,
   ProviderApiKey,
   ProviderInfo,
+  TestModelAccessResponse,
+  UpdateModelRequest,
 } from '@/types/model'
 
 export function fetchModels(): Promise<ModelResponse[]> {
@@ -39,4 +41,15 @@ export function createModel(payload: CreateModelRequest): Promise<ModelResponse>
 
 export function deleteModel(id: string): Promise<void> {
   return apiRequest<void>(`/models/${id}`, { method: 'DELETE' })
+}
+
+export function updateModel(id: string, payload: UpdateModelRequest): Promise<ModelResponse> {
+  return apiRequest<ModelResponse>(`/models/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function testModelAccess(id: string): Promise<TestModelAccessResponse> {
+  return apiRequest<TestModelAccessResponse>(`/models/${id}/test`, { method: 'POST' })
 }

@@ -116,6 +116,7 @@ func (s *Server) setupRoutes() {
 	protected.GET("/models/:id", s.requirePerm(auth.PermLLMsRead), s.getLLM)
 	protected.POST("/models", s.requirePerm(auth.PermLLMsWrite), s.createLLM)
 	protected.PUT("/models/:id", s.requirePerm(auth.PermLLMsWrite), s.updateLLM)
+	protected.POST("/models/:id/test", s.requirePerm(auth.PermLLMsRead), s.testLLM)
 	protected.DELETE("/models/:id", s.requirePerm(auth.PermLLMsWrite), s.deleteLLM)
 
 	protected.GET("/prompts", s.requirePerm(auth.PermPromptsRead), s.listPrompts)

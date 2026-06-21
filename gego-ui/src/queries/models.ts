@@ -8,9 +8,11 @@ import {
   fetchProviderApiKeys,
   fetchProviderModels,
   fetchProviders,
+  testModelAccess,
+  updateModel,
 } from '@/api/models'
 import { dashboardQueryKeys } from '@/queries/dashboard'
-import type { CreateModelRequest, ListProviderModelsRequest } from '@/types/model'
+import type { CreateModelRequest, ListProviderModelsRequest, UpdateModelRequest } from '@/types/model'
 
 export const modelsQueryKeys = {
   all: ['models'] as const,
@@ -79,6 +81,25 @@ export function useDeleteModelMutation() {
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.llms })
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.stats })
     },
+  })
+}
+
+export function useUpdateModelMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateModelRequest }) =>
+      updateModel(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all })
+      void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.llms })
+    },
+  })
+}
+
+export function useTestModelAccessMutation() {
+  return useMutation({
+    mutationFn: (id: string) => testModelAccess(id),
   })
 }
 

@@ -49,6 +49,7 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "GET", Path: "/models/:id", Permission: PermLLMsRead},
 	{Method: "POST", Path: "/models", Permission: PermLLMsWrite},
 	{Method: "PUT", Path: "/models/:id", Permission: PermLLMsWrite},
+	{Method: "POST", Path: "/models/:id/test", Permission: PermLLMsRead},
 	{Method: "DELETE", Path: "/models/:id", Permission: PermLLMsWrite},
 	{Method: "GET", Path: "/prompts", Permission: PermPromptsRead},
 	{Method: "POST", Path: "/prompts/generate", Permission: PermPromptsWrite},

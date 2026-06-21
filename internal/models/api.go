@@ -79,6 +79,12 @@ type ModelInfoResponse struct {
 	UsedInChat  bool   `json:"used_in_chat,omitempty"`
 }
 
+// TestLLMResponse represents the result of testing model access
+type TestLLMResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // LLMResponse represents the response for LLM operations
 type LLMResponse struct {
 	ID        string            `json:"id"`

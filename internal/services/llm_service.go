@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/AI2HU/gego/internal/db"
 	"github.com/AI2HU/gego/internal/models"
@@ -106,15 +107,15 @@ func (p Provider) GetConsoleURL() string {
 	}
 }
 
-// MaskAPIKey masks the API key for display (shows first 4 and last 4 characters)
+// MaskAPIKey masks the API key for display (shows only the last 4 characters)
 func MaskAPIKey(apiKey string) string {
 	if apiKey == "" {
-		return "(not set)"
+		return ""
 	}
-	if len(apiKey) <= 8 {
-		return "***"
+	if len(apiKey) <= 4 {
+		return "****"
 	}
-	return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
+	return strings.Repeat("•", 8) + apiKey[len(apiKey)-4:]
 }
 
 // GetExistingAPIKeysForProvider returns existing API keys for a given provider

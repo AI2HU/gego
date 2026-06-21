@@ -46,7 +46,7 @@ func (s *Server) listProviderAPIKeys(c *gin.Context) {
 	for i, key := range keys {
 		responses[i] = models.ProviderAPIKeyResponse{
 			Index:  i,
-			Masked: s.maskAPIKey(key),
+			Masked: services.MaskAPIKey(key),
 		}
 	}
 	s.successResponse(c, responses)
@@ -134,7 +134,7 @@ func (s *Server) listLLMs(c *gin.Context) {
 			Name:      llm.Name,
 			Provider:  llm.Provider,
 			Model:     llm.Model,
-			APIKey:    s.maskAPIKey(llm.APIKey),
+			APIKey:    services.MaskAPIKey(llm.APIKey),
 			BaseURL:   llm.BaseURL,
 			Config:    llm.Config,
 			Enabled:   llm.Enabled,
@@ -161,7 +161,7 @@ func (s *Server) getLLM(c *gin.Context) {
 		Name:      llm.Name,
 		Provider:  llm.Provider,
 		Model:     llm.Model,
-		APIKey:    s.maskAPIKey(llm.APIKey),
+		APIKey:    services.MaskAPIKey(llm.APIKey),
 		BaseURL:   llm.BaseURL,
 		Config:    llm.Config,
 		Enabled:   llm.Enabled,
@@ -221,7 +221,7 @@ func (s *Server) createLLM(c *gin.Context) {
 		Name:      llm.Name,
 		Provider:  llm.Provider,
 		Model:     llm.Model,
-		APIKey:    s.maskAPIKey(llm.APIKey),
+		APIKey:    services.MaskAPIKey(llm.APIKey),
 		BaseURL:   llm.BaseURL,
 		Config:    llm.Config,
 		Enabled:   llm.Enabled,
@@ -288,7 +288,7 @@ func (s *Server) updateLLM(c *gin.Context) {
 		Name:      llm.Name,
 		Provider:  llm.Provider,
 		Model:     llm.Model,
-		APIKey:    s.maskAPIKey(llm.APIKey),
+		APIKey:    services.MaskAPIKey(llm.APIKey),
 		BaseURL:   llm.BaseURL,
 		Config:    llm.Config,
 		Enabled:   llm.Enabled,
@@ -297,6 +297,41 @@ func (s *Server) updateLLM(c *gin.Context) {
 	}
 
 	s.successResponse(c, response)
+}
+
+// testLLM handles POST /api/v1/models/:id/test
+func (s *Server) testLLM(c *gin.Context) {
+	id := c.Param("id")
+
+	llm, err := s.llmService.GetLLM(c.Request.Context(), id)
+	if err != nil {
+		s.errorResponse(c, http.StatusNotFound, "LLM not found: "+err.Error())
+		return
+	}
+
+	provider, ok := s.llmRegistry.Get(llm.Provider)
+	if !ok {
+		s.errorResponse(c, http.StatusBadRequest, "Provider not available: "+llm.Provider)
+		return
+	}
+
+	baseURL := llm.BaseURL
+	if services.FromString(llm.Provider) == services.Ollama && baseURL == "" {
+		baseURL = "http://localhost:11434"
+	}
+
+	if _, err := provider.ListModels(c.Request.Context(), llm.APIKey, baseURL); err != nil {
+		s.successResponse(c, models.TestLLMResponse{
+			Success: false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	s.successResponse(c, models.TestLLMResponse{
+		Success: true,
+		Message: "Connection successful",
+	})
 }
 
 // deleteLLM handles DELETE /api/v1/models/:id
@@ -318,14 +353,4 @@ func (s *Server) deleteLLM(c *gin.Context) {
 func (s *Server) isValidProvider(provider string) bool {
 	validProviders := []string{"openai", "anthropic", "ollama", "google", "perplexity"}
 	return slices.Contains(validProviders, provider)
-}
-
-func (s *Server) maskAPIKey(apiKey string) string {
-	if apiKey == "" {
-		return ""
-	}
-	if len(apiKey) <= 8 {
-		return "***"
-	}
-	return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
 }

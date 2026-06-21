@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import EditModelDialog from '@/components/models/EditModelDialog.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import { useTestModelAccessMutation } from '@/queries/models'
 import type { ModelResponse } from '@/types/model'
 
 const props = defineProps<{
@@ -13,9 +15,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   delete: [id: string]
+  updated: []
 }>()
 
 const confirming = ref(false)
+const showEditDialog = ref(false)
+const testStatus = ref<'idle' | 'success' | 'error'>('idle')
+const testMessage = ref<string | null>(null)
+
+const testMutation = useTestModelAccessMutation()
 
 function requestDelete() {
   confirming.value = true
@@ -29,6 +37,39 @@ function confirmDelete() {
   emit('delete', props.model.id)
   confirming.value = false
 }
+
+function openEditDialog() {
+  showEditDialog.value = true
+}
+
+function closeEditDialog() {
+  showEditDialog.value = false
+}
+
+function onUpdated() {
+  testStatus.value = 'idle'
+  testMessage.value = null
+  emit('updated')
+}
+
+async function testAccess() {
+  testStatus.value = 'idle'
+  testMessage.value = null
+
+  try {
+    const result = await testMutation.mutateAsync(props.model.id)
+    if (result.success) {
+      testStatus.value = 'success'
+      testMessage.value = result.message
+    } else {
+      testStatus.value = 'error'
+      testMessage.value = result.message
+    }
+  } catch (error) {
+    testStatus.value = 'error'
+    testMessage.value = error instanceof Error ? error.message : 'Connection test failed'
+  }
+}
 </script>
 
 <template>
@@ -38,13 +79,55 @@ function confirmDelete() {
     <div class="p-5">
       <div class="flex items-start gap-3 min-w-0">
         <ProviderLogo :provider="model.provider" size="lg" rounded="xl" />
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <h3 class="font-semibold text-gray-900 truncate">{{ model.name }}</h3>
           <p class="text-sm text-gray-500 truncate mt-0.5">{{ model.model }}</p>
+          <p
+            v-if="model.api_key"
+            class="text-xs text-gray-400 font-mono mt-2 truncate"
+            :title="model.api_key"
+          >
+            Key {{ model.api_key }}
+          </p>
+          <p
+            v-else-if="model.base_url"
+            class="text-xs text-gray-400 font-mono mt-2 truncate"
+            :title="model.base_url"
+          >
+            {{ model.base_url }}
+          </p>
         </div>
       </div>
 
-      <div class="mt-4 flex items-center justify-end gap-3">
+      <p
+        v-if="testMessage"
+        class="mt-3 text-xs rounded-lg px-2.5 py-1.5"
+        :class="
+          testStatus === 'success'
+            ? 'bg-green-50 text-green-700 border border-green-200/60'
+            : 'bg-red-50 text-red-700 border border-red-200/60'
+        "
+      >
+        {{ testMessage }}
+      </p>
+
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <AppButton
+            variant="secondary"
+            size="sm"
+            :loading="testMutation.isPending.value"
+            @click="testAccess"
+          >
+            <AppIcon v-if="testStatus === 'success' && !testMutation.isPending.value" name="check" size="sm" />
+            Test access
+          </AppButton>
+          <AppButton variant="ghost" size="sm" @click="openEditDialog">
+            <AppIcon name="settings" size="sm" />
+            {{ model.provider === 'ollama' ? 'Edit URL' : 'Update key' }}
+          </AppButton>
+        </div>
+
         <div v-if="!confirming">
           <AppButton
             variant="ghost"
@@ -69,5 +152,12 @@ function confirmDelete() {
         </div>
       </div>
     </div>
+
+    <EditModelDialog
+      v-if="showEditDialog"
+      :model="model"
+      @close="closeEditDialog"
+      @updated="onUpdated"
+    />
   </article>
 </template>
