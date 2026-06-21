@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import EditModelDialog from '@/components/models/EditModelDialog.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import AppButton from '@/components/ui/AppButton.vue'
-import { useTestModelAccessMutation } from '@/queries/models'
+import { useProvidersQuery, useTestModelAccessMutation } from '@/queries/models'
 import type { ModelResponse } from '@/types/model'
 
 const props = defineProps<{
@@ -24,6 +24,11 @@ const testStatus = ref<'idle' | 'success' | 'error'>('idle')
 const testMessage = ref<string | null>(null)
 
 const testMutation = useTestModelAccessMutation()
+const providersQuery = useProvidersQuery()
+
+const consoleUrl = computed(
+  () => providersQuery.data.value?.find((provider) => provider.id === props.model.provider)?.console_url,
+)
 
 function requestDelete() {
   confirming.value = true
@@ -96,6 +101,16 @@ async function testAccess() {
           >
             {{ model.base_url }}
           </p>
+          <a
+            v-if="consoleUrl"
+            :href="consoleUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800 mt-2"
+          >
+            Provider console
+            <AppIcon name="external-link" size="sm" />
+          </a>
         </div>
       </div>
 
