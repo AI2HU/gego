@@ -30,7 +30,7 @@ var (
 	cfg          *config.Config
 	database     db.Database
 	llmRegistry  *llm.Registry
-	sched        *services.SchedulerService
+	runtime      *services.Runtime
 	statsService *services.StatsService
 )
 
@@ -48,7 +48,7 @@ and compare performance across different LLM providers.`,
 			return fmt.Errorf("failed to initialize logging: %w", err)
 		}
 
-		if cmd.Name() == "init" || cmd.Name() == "api" {
+		if cmd.Name() == "init" {
 			return nil
 		}
 
@@ -56,23 +56,29 @@ and compare performance across different LLM providers.`,
 			cfgFile = config.GetConfigPath()
 		}
 
-		if !config.Exists(cfgFile) {
+		if cmd.Name() != "api" && !config.Exists(cfgFile) {
 			return fmt.Errorf("configuration file not found. Run 'gego init' to create one")
 		}
 
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
+		if cmd.Name() != "api" {
+			var err error
+			cfg, err = config.Load(cfgFile)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			if cfg.KeywordsExclusionPath != "" {
+				exclusionPath := cfg.KeywordsExclusionPath
+				if !filepath.IsAbs(exclusionPath) {
+					configDir := filepath.Dir(cfgFile)
+					exclusionPath = filepath.Join(configDir, exclusionPath)
+				}
+				shared.SetExclusionFilePath(exclusionPath)
+			}
 		}
 
-		if cfg.KeywordsExclusionPath != "" {
-			exclusionPath := cfg.KeywordsExclusionPath
-			if !filepath.IsAbs(exclusionPath) {
-				configDir := filepath.Dir(cfgFile)
-				exclusionPath = filepath.Join(configDir, exclusionPath)
-			}
-			shared.SetExclusionFilePath(exclusionPath)
+		if cmd.Name() == "api" {
+			return nil
 		}
 
 		sqlConfig := &models.Config{
@@ -89,6 +95,7 @@ and compare performance across different LLM providers.`,
 			Options:  cfg.NoSQLDatabase.Options,
 		}
 
+		var err error
 		database, err = db.New(sqlConfig, nosqlConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create hybrid database: %w", err)
@@ -107,11 +114,19 @@ and compare performance across different LLM providers.`,
 		llmRegistry.Register(google.New("", "", config.GetSystemInstruction(cfg, config.ProviderGemini)))
 		llmRegistry.Register(perplexity.New("", ""))
 
-		sched = services.NewSchedulerService(database, llmRegistry)
+		if requiresRuntime(cmd) {
+			runtime, err = services.NewRuntime(database, llmRegistry)
+			if err != nil {
+				return err
+			}
+		}
 
 		return nil
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		if runtime != nil {
+			_ = runtime.Close()
+		}
 		if database != nil {
 			return database.Disconnect(context.Background())
 		}
@@ -137,6 +152,7 @@ func init() {
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(scheduleCmd)
 	rootCmd.AddCommand(schedulerCmd)
+	rootCmd.AddCommand(workerCmd)
 	rootCmd.AddCommand(statsCmd)
 	rootCmd.AddCommand(searchCmd)
 	rootCmd.AddCommand(runCmd)
@@ -174,6 +190,30 @@ func initializeLLMProviders(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func requiresRuntime(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	switch cmd.Name() {
+	case "init", "api":
+		return false
+	case "run":
+		if cmd.Parent() != nil && cmd.Parent().Name() == "gego" {
+			return false
+		}
+		if cmd.Parent() != nil && cmd.Parent().Name() == "schedule" {
+			return true
+		}
+	}
+	if cmd.Parent() != nil && cmd.Parent().Name() == "scheduler" {
+		return true
+	}
+	if cmd.Parent() != nil && cmd.Parent().Name() == "worker" {
+		return false
+	}
+	return false
 }
 
 // initializeLogging sets up the logging system based on command line flags

@@ -120,7 +120,7 @@ func runOnceMode(ctx context.Context) error {
 			fmt.Printf("%s🤖 Using LLM: %s (%s)%s\n", InfoStyle, FormatValue(llm.Name), FormatSecondary(llm.Provider), Reset)
 			fmt.Printf("%s🌡️  Using temperature: %s%s\n", InfoStyle, FormatValue(fmt.Sprintf("%.1f", currentTemperature)), Reset)
 
-			executionService := services.NewExecutionService(database, llmRegistry)
+			executionService := services.NewExecutionService(database, llmRegistry, nil)
 			config := &services.ExecutionConfig{
 				Temperature: currentTemperature,
 				MaxRetries:  3,
@@ -177,7 +177,7 @@ func promptRunMode(reader *bufio.Reader) (bool, error) {
 
 // filterNewPrompts filters prompts to only include those that haven't been run yet
 func filterNewPrompts(ctx context.Context, prompts []*models.Prompt) ([]*models.Prompt, error) {
-	executionService := services.NewExecutionService(database, llmRegistry)
+	executionService := services.NewExecutionService(database, llmRegistry, nil)
 	var newPrompts []*models.Prompt
 
 	for _, prompt := range prompts {

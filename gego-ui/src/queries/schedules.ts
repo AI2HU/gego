@@ -1,3 +1,4 @@
+import { computed, type Ref } from 'vue'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 
 import {
@@ -7,6 +8,7 @@ import {
   runSchedule,
   updateSchedule,
 } from '@/api/schedules'
+import { fetchScheduleRun, fetchScheduleRuns } from '@/api/scheduleRuns'
 import { fetchSchedulerStatus, reloadScheduler, startScheduler, stopScheduler } from '@/api/scheduler'
 import { dashboardQueryKeys } from '@/queries/dashboard'
 import type { CreateScheduleRequest, UpdateScheduleRequest } from '@/types/schedule'
@@ -15,6 +17,8 @@ export const schedulesQueryKeys = {
   all: ['schedules'] as const,
   list: ['schedules', 'list'] as const,
   status: ['scheduler', 'status'] as const,
+  runsList: (limit: number) => ['schedule-runs', 'list', limit] as const,
+  run: (id: string) => ['schedule-runs', id] as const,
 }
 
 export function schedulesListQueryOptions() {
@@ -31,6 +35,17 @@ export function schedulerStatusQueryOptions() {
     queryFn: fetchSchedulerStatus,
     refetchInterval: 10_000,
     staleTime: 5_000,
+    retry: false,
+  })
+}
+
+export function scheduleRunsListQueryOptions(limit = 100) {
+  return queryOptions({
+    queryKey: schedulesQueryKeys.runsList(limit),
+    queryFn: () => fetchScheduleRuns(undefined, undefined, limit),
+    refetchInterval: 10_000,
+    staleTime: 5_000,
+    retry: false,
   })
 }
 
@@ -40,6 +55,10 @@ export function useSchedulesQuery() {
 
 export function useSchedulerStatusQuery() {
   return useQuery(schedulerStatusQueryOptions())
+}
+
+export function useScheduleRunsListQuery(limit = 100) {
+  return useQuery(scheduleRunsListQueryOptions(limit))
 }
 
 export function useCreateScheduleMutation() {
@@ -88,7 +107,22 @@ export function useRunScheduleMutation() {
     mutationFn: (id: string) => runSchedule(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: schedulesQueryKeys.all })
+      void queryClient.invalidateQueries({ queryKey: schedulesQueryKeys.status })
+      void queryClient.invalidateQueries({ queryKey: ['schedule-runs', 'list'] })
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.stats })
+    },
+  })
+}
+
+export function useScheduleRunQuery(runId: Ref<string | null>) {
+  return useQuery({
+    queryKey: computed(() => schedulesQueryKeys.run(runId.value ?? '')),
+    queryFn: () => fetchScheduleRun(runId.value!),
+    enabled: computed(() => !!runId.value),
+    refetchInterval: (query) => {
+      const status = query.state.data?.run.status
+      if (status === 'pending' || status === 'running') return 2000
+      return false
     },
   })
 }

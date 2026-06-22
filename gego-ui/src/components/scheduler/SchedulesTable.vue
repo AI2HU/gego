@@ -3,20 +3,26 @@ import { ref } from 'vue'
 
 import AppButton from '@/components/ui/AppButton.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import type { ScheduleResponse } from '@/types/schedule'
-import { getCronHint, getCronLabel } from '@/types/schedule'
+import type { ScheduleResponse, ScheduleRunResponse } from '@/types/schedule'
+import { formatRunStatus, getCronHint, getCronLabel } from '@/types/schedule'
 
-defineProps<{
-  schedules: ScheduleResponse[]
-  deletingId?: string | null
-  togglingId?: string | null
-  runningId?: string | null
-}>()
+withDefaults(
+  defineProps<{
+    schedules: ScheduleResponse[]
+    latestRuns?: Record<string, ScheduleRunResponse | undefined>
+    canRun?: boolean
+    deletingId?: string | null
+    togglingId?: string | null
+    runningId?: string | null
+  }>(),
+  { canRun: false },
+)
 
 const emit = defineEmits<{
   delete: [id: string]
   toggleEnabled: [id: string, enabled: boolean]
   run: [id: string]
+  viewRun: [runId: string]
 }>()
 
 const confirmingDeleteId = ref<string | null>(null)
@@ -35,6 +41,15 @@ function formatDate(value?: string): string {
 function formatTemperature(value: number): string {
   if (value === -1) return 'Random'
   return value.toFixed(1)
+}
+
+function runTimestamp(run?: ScheduleRunResponse): string | undefined {
+  if (!run) return undefined
+  return run.finished_at ?? run.started_at ?? run.created_at
+}
+
+function isActiveRun(status?: string): boolean {
+  return status === 'pending' || status === 'running'
 }
 
 function requestDelete(id: string) {
@@ -63,6 +78,7 @@ function confirmDelete(id: string) {
             <th class="px-4 py-3">Models</th>
             <th class="px-4 py-3">Temp</th>
             <th class="px-4 py-3">Last run</th>
+            <th class="px-4 py-3">Run status</th>
             <th class="px-4 py-3">Status</th>
             <th class="w-52 px-4 py-3 text-right">Actions</th>
           </tr>
@@ -89,7 +105,30 @@ function confirmDelete(id: string) {
             <td class="px-4 py-3 text-gray-700">{{ schedule.prompt_ids.length }}</td>
             <td class="px-4 py-3 text-gray-700">{{ schedule.llm_ids.length }}</td>
             <td class="px-4 py-3 text-gray-700">{{ formatTemperature(schedule.temperature) }}</td>
-            <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ formatDate(schedule.last_run) }}</td>
+            <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+              {{ formatDate(runTimestamp(latestRuns?.[schedule.id]) ?? schedule.last_run) }}
+            </td>
+            <td class="px-4 py-3">
+              <button
+                v-if="latestRuns?.[schedule.id]"
+                type="button"
+                class="inline-flex items-center gap-1.5 text-left hover:opacity-80"
+                @click="emit('viewRun', latestRuns[schedule.id]!.id)"
+              >
+                <StatusBadge
+                  :connected="latestRuns[schedule.id]!.status === 'completed'"
+                  :label="formatRunStatus(latestRuns[schedule.id]!.status)"
+                  compact
+                />
+                <span
+                  v-if="isActiveRun(latestRuns[schedule.id]!.status)"
+                  class="text-xs text-gray-400"
+                >
+                  {{ latestRuns[schedule.id]!.completed_jobs }}/{{ latestRuns[schedule.id]!.total_jobs }}
+                </span>
+              </button>
+              <span v-else class="text-gray-400">—</span>
+            </td>
             <td class="px-4 py-3">
               <StatusBadge
                 :connected="schedule.enabled"
@@ -99,14 +138,20 @@ function confirmDelete(id: string) {
             </td>
             <td class="px-4 py-3">
               <div class="flex items-center justify-end gap-1.5">
-                <AppButton
-                  variant="ghost"
-                  size="sm"
-                  :loading="runningId === schedule.id"
-                  @click="emit('run', schedule.id)"
+                <span
+                  class="inline-flex"
+                  :title="canRun ? undefined : 'No worker is started. Run: gego worker start'"
                 >
-                  Run
-                </AppButton>
+                  <AppButton
+                    variant="ghost"
+                    size="sm"
+                    :disabled="!canRun"
+                    :loading="runningId === schedule.id"
+                    @click="emit('run', schedule.id)"
+                  >
+                    Run
+                  </AppButton>
+                </span>
                 <AppButton
                   variant="ghost"
                   size="sm"

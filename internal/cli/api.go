@@ -161,7 +161,8 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	go func() {
 		<-c
 		fmt.Println("\n🛑 Shutting down API server...")
-		database.Disconnect(ctx)
+		_ = server.Close()
+		_ = database.Disconnect(ctx)
 		os.Exit(0)
 	}()
 

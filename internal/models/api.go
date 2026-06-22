@@ -175,8 +175,58 @@ type UpdateScheduleRequest struct {
 
 // SchedulerStatusResponse represents the current scheduler state
 type SchedulerStatusResponse struct {
-	Running         bool `json:"running"`
+	Running          bool `json:"running"`
 	EnabledSchedules int  `json:"enabled_schedules"`
+	IsLeader         bool `json:"is_leader"`
+	PendingJobs      int  `json:"pending_jobs"`
+	ActiveRuns       int  `json:"active_runs"`
+	ActiveWorkers    int  `json:"active_workers"`
+}
+
+type ScheduleRunEnqueueResponse struct {
+	RunID string `json:"run_id"`
+}
+
+type ScheduleRunResponse struct {
+	ID            string     `json:"id"`
+	ScheduleID    string     `json:"schedule_id"`
+	Trigger       string     `json:"trigger"`
+	Status        string     `json:"status"`
+	TotalJobs     int        `json:"total_jobs"`
+	CompletedJobs int        `json:"completed_jobs"`
+	FailedJobs    int        `json:"failed_jobs"`
+	CreatedAt     time.Time  `json:"created_at"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`
+}
+
+type ScheduleJobResponse struct {
+	ID          string     `json:"id"`
+	RunID       string     `json:"run_id"`
+	ScheduleID  string     `json:"schedule_id"`
+	PromptID    string     `json:"prompt_id"`
+	LLMID       string     `json:"llm_id"`
+	Provider    string     `json:"provider"`
+	Temperature float64    `json:"temperature"`
+	Status      string     `json:"status"`
+	Attempts    int        `json:"attempts"`
+	MaxAttempts int        `json:"max_attempts"`
+	WorkerID    string     `json:"worker_id,omitempty"`
+	ResponseID  string     `json:"response_id,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ClaimedAt   *time.Time `json:"claimed_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
+type ScheduleRunListResponse struct {
+	Data       []ScheduleRunResponse `json:"data"`
+	NextCursor string                `json:"next_cursor,omitempty"`
+}
+
+type ScheduleRunDetailResponse struct {
+	Run  ScheduleRunResponse  `json:"run"`
+	Jobs []ScheduleJobResponse `json:"jobs"`
 }
 
 // ScheduleResponse represents the response for schedule operations
@@ -189,7 +239,6 @@ type ScheduleResponse struct {
 	Temperature float64    `json:"temperature"`
 	Enabled     bool       `json:"enabled"`
 	LastRun     *time.Time `json:"last_run,omitempty"`
-	NextRun     *time.Time `json:"next_run,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }

@@ -8,6 +8,8 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+
+	"github.com/AI2HU/gego/internal/models"
 )
 
 var schedulerCmd = &cobra.Command{
@@ -33,6 +35,10 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s================%s\n", DimStyle, Reset)
 	fmt.Println()
 
+	if runtime == nil {
+		return fmt.Errorf("scheduler runtime not initialized (is etcd running?)")
+	}
+
 	if err := initializeLLMProviders(ctx); err != nil {
 		return fmt.Errorf("failed to initialize LLM providers: %w", err)
 	}
@@ -55,13 +61,17 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	if err := sched.Start(ctx); err != nil {
+	listFn := func(ctx context.Context) ([]*models.Schedule, error) {
+		return runtime.ListEnabledSchedules(ctx, database)
+	}
+
+	if err := runtime.Scheduler.Start(ctx, listFn); err != nil {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
 
 	fmt.Printf("%s✅ All schedules started successfully%s\n", SuccessStyle, Reset)
 	fmt.Printf("%s📅 Running %s schedule(s)%s\n", InfoStyle, FormatCount(len(schedules)), Reset)
-	fmt.Printf("%s🔄 Scheduler is now monitoring schedules%s\n", InfoStyle, Reset)
+	fmt.Printf("%s🔄 Scheduler enqueues jobs to etcd — start workers with: %s%s\n", InfoStyle, FormatSecondary("gego worker start"), Reset)
 	fmt.Printf("%s📝 Press Ctrl+C to stop the scheduler%s\n", InfoStyle, Reset)
 	fmt.Println()
 
@@ -70,7 +80,7 @@ func runSchedulerStart(cmd *cobra.Command, args []string) error {
 
 	<-c
 	fmt.Printf("\n%s⏹️  Stopping scheduler...%s\n", InfoStyle, Reset)
-	sched.Stop()
+	runtime.Scheduler.Stop()
 	fmt.Printf("%s✅ Scheduler stopped%s\n", SuccessStyle, Reset)
 
 	return nil

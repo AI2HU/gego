@@ -227,11 +227,28 @@ Cron expressions run selected prompts against selected models automatically.
 ### 5. Run prompts
 
 ```bash
-gego run                  # Run all enabled prompts with all enabled LLMs once
-gego scheduler start      # Start the background scheduler
+gego run                  # Run all enabled prompts with all enabled LLMs once (direct execution)
 ```
 
-### 6. Start the API server
+### 6. Start etcd, workers, and scheduler
+
+Schedule execution uses **etcd** for the job queue and **worker processes** for LLM calls.
+
+```bash
+make etcd-dev             # Terminal 1: local etcd on :2379
+make dev-worker           # Terminal 2: job worker
+gego scheduler start      # Terminal 3: cron enqueuer (requires etcd)
+```
+
+Or run everything with Docker:
+
+```bash
+make dev-up               # etcd + api + worker
+```
+
+Required env: `GEGO_ETCD_ENDPOINTS` (default `127.0.0.1:2379`).
+
+### 7. Start the API server
 
 ```bash
 gego api                          # Default: 0.0.0.0:8989
@@ -269,8 +286,10 @@ Base URL: `http://localhost:8989/api/v1`
 ### Schedules and scheduler
 
 - `GET /schedules`, `GET /schedules/:id`, `POST /schedules`, `PUT /schedules/:id`, `DELETE /schedules/:id`
-- `POST /schedules/:id/run` — run a schedule immediately
-- `GET /scheduler/status`, `POST /scheduler/start`, `POST /scheduler/stop`, `POST /scheduler/reload`
+- `POST /schedules/:id/run` — enqueue a schedule run (`202`, returns `run_id`)
+- `GET /schedule-runs`, `GET /schedule-runs/:id`, `GET /schedule-runs/:id/jobs`
+- `POST /schedule-runs/:id/cancel`, `POST /schedule-runs/:id/jobs/:job_id/retry`
+- `GET /scheduler/status`, `GET /scheduler/health`, `POST /scheduler/start`, `POST /scheduler/stop`, `POST /scheduler/reload`
 
 ### Analytics and search
 

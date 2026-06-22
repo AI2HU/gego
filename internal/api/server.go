@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/AI2HU/gego/internal/auth"
 	"github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
+	"github.com/AI2HU/gego/internal/jobs"
 	"github.com/AI2HU/gego/internal/llm"
 	"github.com/AI2HU/gego/internal/llm/anthropic"
 	"github.com/AI2HU/gego/internal/llm/google"
@@ -24,18 +26,21 @@ import (
 
 // Server represents the API server
 type Server struct {
-	db              db.Database
-	llmService      *services.LLMService
-	promptService   *services.PromptManagementService
+	db               db.Database
+	llmService       *services.LLMService
+	promptService    *services.PromptManagementService
 	scheduleService  *services.ScheduleService
 	schedulerService *services.SchedulerService
+	enqueueService   *services.RunEnqueueService
+	jobStore         jobs.Store
 	statsService     *services.StatsService
-	searchService   *services.SearchService
-	authService     *services.AuthService
-	authMiddleware  *auth.Middleware
-	llmRegistry     *llm.Registry
-	router          *gin.Engine
-	corsOrigin      string
+	searchService    *services.SearchService
+	authService      *services.AuthService
+	authMiddleware   *auth.Middleware
+	llmRegistry      *llm.Registry
+	runtime          *services.Runtime
+	router           *gin.Engine
+	corsOrigin       string
 }
 
 // NewServer creates a new API server
@@ -78,19 +83,27 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) 
 	llmRegistry.Register(google.New("", "", config.GetSystemInstruction(nil, config.ProviderGemini)))
 	llmRegistry.Register(perplexity.New("", ""))
 
+	runtime, err := services.NewRuntime(database, llmRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize worker runtime: %w", err)
+	}
+
 	server := &Server{
-		db:              database,
-		llmService:      services.NewLLMService(database),
-		promptService:   services.NewPromptManagementService(database),
+		db:               database,
+		llmService:       services.NewLLMService(database),
+		promptService:    services.NewPromptManagementService(database),
 		scheduleService:  services.NewScheduleService(database),
-		schedulerService: services.NewSchedulerService(database, llmRegistry),
+		schedulerService: runtime.Scheduler,
+		enqueueService:   runtime.Enqueue,
+		jobStore:         runtime.Store,
 		statsService:     services.NewStatsService(database),
-		searchService:   services.NewSearchService(database),
-		authService:     services.NewAuthService(database, authConfig),
-		authMiddleware:  authMW,
-		llmRegistry:     llmRegistry,
-		router:          router,
-		corsOrigin:      corsOrigin,
+		searchService:    services.NewSearchService(database),
+		authService:      services.NewAuthService(database, authConfig),
+		authMiddleware:   authMW,
+		llmRegistry:      llmRegistry,
+		runtime:          runtime,
+		router:           router,
+		corsOrigin:       corsOrigin,
 	}
 
 	server.setupRoutes()
@@ -133,7 +146,14 @@ func (s *Server) setupRoutes() {
 	protected.DELETE("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), s.deleteSchedule)
 	protected.POST("/schedules/:id/run", s.requirePerm(auth.PermSchedulesWrite), s.runSchedule)
 
+	protected.GET("/schedule-runs", s.requirePerm(auth.PermSchedulesRead), s.listScheduleRuns)
+	protected.GET("/schedule-runs/:id", s.requirePerm(auth.PermSchedulesRead), s.getScheduleRun)
+	protected.GET("/schedule-runs/:id/jobs", s.requirePerm(auth.PermSchedulesRead), s.listScheduleRunJobs)
+	protected.POST("/schedule-runs/:id/cancel", s.requirePerm(auth.PermSchedulesWrite), s.cancelScheduleRun)
+	protected.POST("/schedule-runs/:id/jobs/:job_id/retry", s.requirePerm(auth.PermSchedulesWrite), s.retryScheduleJob)
+
 	protected.GET("/scheduler/status", s.requirePerm(auth.PermSchedulesRead), s.getSchedulerStatus)
+	protected.GET("/scheduler/health", s.getSchedulerHealth)
 	protected.POST("/scheduler/start", s.requirePerm(auth.PermSchedulesWrite), s.startScheduler)
 	protected.POST("/scheduler/stop", s.requirePerm(auth.PermSchedulesWrite), s.stopScheduler)
 	protected.POST("/scheduler/reload", s.requirePerm(auth.PermSchedulesWrite), s.reloadScheduler)
@@ -228,6 +248,17 @@ func resolveUIPath() string {
 // Run starts the API server
 func (s *Server) Run(address string) error {
 	return s.router.Run(address)
+}
+
+// Close stops background services and releases etcd connections.
+func (s *Server) Close() error {
+	if s.schedulerService != nil {
+		s.schedulerService.Stop()
+	}
+	if s.runtime != nil {
+		return s.runtime.Close()
+	}
+	return nil
 }
 
 // Helper functions

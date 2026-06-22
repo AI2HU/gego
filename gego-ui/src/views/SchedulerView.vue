@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import RunDetailDrawer from '@/components/scheduler/RunDetailDrawer.vue'
 import AddScheduleWizard from '@/components/scheduler/AddScheduleWizard.vue'
 import SchedulesTable from '@/components/scheduler/SchedulesTable.vue'
 import AppAlert from '@/components/ui/AppAlert.vue'
@@ -10,10 +11,13 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { getCronHint, getCronLabel } from '@/types/schedule'
+import type { ScheduleRunResponse } from '@/types/schedule'
 import {
   useDeleteScheduleMutation,
   useReloadSchedulerMutation,
   useRunScheduleMutation,
+  useScheduleRunQuery,
+  useScheduleRunsListQuery,
   useSchedulerStatusQuery,
   useSchedulesQuery,
   useStartSchedulerMutation,
@@ -25,33 +29,54 @@ const showWizard = ref(false)
 const deletingId = ref<string | null>(null)
 const togglingId = ref<string | null>(null)
 const runningId = ref<string | null>(null)
+const activeRunId = ref<string | null>(null)
 const actionError = ref<string | null>(null)
 
 const schedulesQuery = useSchedulesQuery()
 const statusQuery = useSchedulerStatusQuery()
+const runsListQuery = useScheduleRunsListQuery()
 const startMutation = useStartSchedulerMutation()
 const stopMutation = useStopSchedulerMutation()
 const reloadMutation = useReloadSchedulerMutation()
 const deleteMutation = useDeleteScheduleMutation()
 const updateMutation = useUpdateScheduleMutation()
 const runMutation = useRunScheduleMutation()
+const activeRunQuery = useScheduleRunQuery(activeRunId)
 
 const schedules = computed(() => schedulesQuery.data.value ?? [])
 const enabledSchedules = computed(() => schedules.value.filter((schedule) => schedule.enabled))
 
+const latestRunByScheduleId = computed(() => {
+  const map: Record<string, ScheduleRunResponse> = {}
+  for (const run of runsListQuery.data.value?.data ?? []) {
+    const existing = map[run.schedule_id]
+    if (!existing || new Date(run.created_at) > new Date(existing.created_at)) {
+      map[run.schedule_id] = run
+    }
+  }
+  return map
+})
+
 const schedulerRunning = computed(() => statusQuery.data.value?.running ?? false)
 const enabledScheduleCount = computed(() => enabledSchedules.value.length)
+const pendingJobs = computed(() => statusQuery.data.value?.pending_jobs ?? 0)
+const activeWorkers = computed(() => statusQuery.data.value?.active_workers ?? 0)
+const isLeader = computed(() => statusQuery.data.value?.is_leader ?? false)
 
 const errorMessage = computed(() => {
-  const error = schedulesQuery.error.value ?? statusQuery.error.value
+  const error = schedulesQuery.error.value
   if (!error) return null
   return error instanceof Error ? error.message : 'Failed to load scheduler data'
 })
 
+const statusError = computed(() => {
+  const error = statusQuery.error.value
+  if (!error) return null
+  return error instanceof Error ? error.message : 'Failed to load scheduler status'
+})
+
 const isInitialLoading = computed(
-  () =>
-    (schedulesQuery.isPending.value && !schedulesQuery.data.value) ||
-    (statusQuery.isPending.value && !statusQuery.data.value),
+  () => schedulesQuery.isPending.value && schedulesQuery.data.value === undefined,
 )
 
 const isSchedulerBusy = computed(
@@ -59,6 +84,10 @@ const isSchedulerBusy = computed(
     startMutation.isPending.value ||
     stopMutation.isPending.value ||
     reloadMutation.isPending.value,
+)
+
+const canRunSchedules = computed(
+  () => !statusQuery.isError.value && !statusQuery.isPending.value && activeWorkers.value > 0,
 )
 
 function openWizard() {
@@ -129,12 +158,22 @@ async function handleRun(id: string) {
   runningId.value = id
   actionError.value = null
   try {
-    await runMutation.mutateAsync(id)
+    const result = await runMutation.mutateAsync(id)
+    activeRunId.value = result.run_id
+    void statusQuery.refetch()
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : 'Failed to run schedule'
   } finally {
     runningId.value = null
   }
+}
+
+function closeRunDetail() {
+  activeRunId.value = null
+}
+
+function handleViewRun(runId: string) {
+  activeRunId.value = runId
 }
 </script>
 
@@ -176,17 +215,25 @@ async function handleRun(id: string) {
             <div>
               <h2 class="text-base font-semibold text-gray-900">Scheduler control</h2>
               <p class="text-sm text-gray-500 mt-1">
-                Start or stop the cron scheduler. Reload after changing schedules.
+                Start or stop the cron scheduler. Requires etcd and at least one worker process.
               </p>
             </div>
             <StatusBadge
               :connected="schedulerRunning"
-              :label="schedulerRunning ? 'Running' : 'Stopped'"
+              :label="statusQuery.isPending.value ? 'Loading…' : (schedulerRunning ? 'Running' : 'Stopped')"
             />
           </div>
         </template>
 
         <div class="space-y-4">
+          <div
+            v-if="statusError"
+            class="rounded-lg border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900"
+          >
+            Scheduler status unavailable: {{ statusError }}.
+            Start etcd with <code class="font-mono text-xs">make etcd-dev</code>.
+          </div>
+
           <div class="flex flex-wrap items-center gap-3 text-sm text-gray-600">
             <span>
               <span class="font-semibold text-gray-900">{{ enabledScheduleCount }}</span>
@@ -197,6 +244,32 @@ async function handleRun(id: string) {
               <span class="font-semibold text-gray-900">{{ schedules.length }}</span>
               total schedule{{ schedules.length === 1 ? '' : 's' }}
             </span>
+            <span class="hidden sm:inline text-gray-300">|</span>
+            <span>
+              <span class="font-semibold text-gray-900">{{ pendingJobs }}</span>
+              pending job{{ pendingJobs === 1 ? '' : 's' }}
+            </span>
+            <span class="hidden sm:inline text-gray-300">|</span>
+            <span>
+              <span class="font-semibold text-gray-900">{{ activeWorkers }}</span>
+              active worker{{ activeWorkers === 1 ? '' : 's' }}
+            </span>
+            <template v-if="schedulerRunning">
+              <span class="hidden sm:inline text-gray-300">|</span>
+              <span>
+                leader: <span class="font-semibold text-gray-900">{{ isLeader ? 'this node' : 'other' }}</span>
+              </span>
+            </template>
+          </div>
+
+          <div v-if="!statusQuery.isPending.value && activeWorkers === 0" class="rounded-lg border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
+            <template v-if="pendingJobs > 0">
+              Jobs are queued but no workers are connected.
+            </template>
+            <template v-else>
+              No workers are connected.
+            </template>
+            Start a worker with <code class="font-mono text-xs">gego worker start</code> before running schedules.
           </div>
 
           <div v-if="enabledScheduleCount === 0" class="rounded-lg border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
@@ -258,12 +331,15 @@ async function handleRun(id: string) {
       <SchedulesTable
         v-else
         :schedules="schedules"
+        :latest-runs="latestRunByScheduleId"
+        :can-run="canRunSchedules"
         :deleting-id="deletingId"
         :toggling-id="togglingId"
         :running-id="runningId"
         @delete="handleDelete"
         @toggle-enabled="handleToggleEnabled"
         @run="handleRun"
+        @view-run="handleViewRun"
       />
     </template>
 
@@ -271,6 +347,13 @@ async function handleRun(id: string) {
       v-if="showWizard"
       @close="closeWizard"
       @added="onScheduleAdded"
+    />
+    <RunDetailDrawer
+      v-if="activeRunId && activeRunQuery.data.value"
+      :run="activeRunQuery.data.value.run"
+      :jobs="activeRunQuery.data.value.jobs"
+      @close="closeRunDetail"
+      @retried="() => { activeRunQuery.refetch(); runsListQuery.refetch() }"
     />
   </div>
 </template>
