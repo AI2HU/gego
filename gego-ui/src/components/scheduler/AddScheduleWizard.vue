@@ -11,7 +11,14 @@ import { useModelsQuery } from '@/queries/models'
 import { usePromptsQuery } from '@/queries/prompts'
 import { useCreateScheduleMutation } from '@/queries/schedules'
 import type { CronPreset } from '@/types/schedule'
-import { CRON_PRESETS } from '@/types/schedule'
+import { CRON_PRESETS, CRON_PRESET_HINTS, CRON_PRESET_LABELS } from '@/types/schedule'
+
+const frequencyOptions: { id: CronPreset; label: string; hint: string }[] = [
+  { id: 'daily', label: CRON_PRESET_LABELS.daily, hint: CRON_PRESET_HINTS.daily },
+  { id: 'weekly', label: CRON_PRESET_LABELS.weekly, hint: CRON_PRESET_HINTS.weekly },
+  { id: 'monthly', label: CRON_PRESET_LABELS.monthly, hint: CRON_PRESET_HINTS.monthly },
+  { id: 'custom', label: 'Custom', hint: 'Enter your own cron expression' },
+]
 
 const emit = defineEmits<{
   close: []
@@ -304,12 +311,7 @@ async function saveSchedule() {
               <label class="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <label
-                  v-for="option in [
-                    { id: 'daily', label: 'Every day', hint: '0 9 * * *' },
-                    { id: 'weekly', label: 'Every week', hint: '0 9 * * MON' },
-                    { id: 'monthly', label: 'Every month', hint: '0 9 1 * *' },
-                    { id: 'custom', label: 'Custom', hint: 'Cron expression' },
-                  ]"
+                  v-for="option in frequencyOptions"
                   :key="option.id"
                   class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors"
                   :class="cronPreset === option.id ? 'border-slate-400 bg-slate-50' : 'border-gray-200/80'"

@@ -9,6 +9,7 @@ import AppCard from '@/components/ui/AppCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { getCronHint, getCronLabel } from '@/types/schedule'
 import {
   useDeleteScheduleMutation,
   useReloadSchedulerMutation,
@@ -207,7 +208,12 @@ async function handleRun(id: string) {
             <ul class="space-y-1.5 text-sm text-gray-700">
               <li v-for="schedule in enabledSchedules" :key="schedule.id">
                 {{ schedule.name }}
-                <span class="text-gray-400 font-mono text-xs ml-1">{{ schedule.cron_expr }}</span>
+                <span
+                  class="text-gray-400 text-xs ml-1"
+                  :title="getCronHint(schedule.cron_expr)"
+                >
+                  {{ getCronLabel(schedule.cron_expr) }}
+                </span>
               </li>
             </ul>
           </div>

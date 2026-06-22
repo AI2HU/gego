@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { ScheduleResponse } from '@/types/schedule'
+import { getCronHint, getCronLabel } from '@/types/schedule'
 
 defineProps<{
   schedules: ScheduleResponse[]
@@ -57,7 +58,7 @@ function confirmDelete(id: string) {
         <thead class="border-b border-gray-200/60 bg-slate-50/80">
           <tr class="text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
             <th class="px-4 py-3">Schedule</th>
-            <th class="px-4 py-3">Cron</th>
+            <th class="px-4 py-3">Frequency</th>
             <th class="px-4 py-3">Prompts</th>
             <th class="px-4 py-3">Models</th>
             <th class="px-4 py-3">Temp</th>
@@ -77,7 +78,14 @@ function confirmDelete(id: string) {
               <p class="font-medium text-gray-900">{{ schedule.name }}</p>
               <p class="text-xs text-gray-400 mt-0.5 font-mono">{{ schedule.id }}</p>
             </td>
-            <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ schedule.cron_expr }}</td>
+            <td class="px-4 py-3 text-gray-700">
+              <span
+                class="text-sm"
+                :title="getCronHint(schedule.cron_expr)"
+              >
+                {{ getCronLabel(schedule.cron_expr) }}
+              </span>
+            </td>
             <td class="px-4 py-3 text-gray-700">{{ schedule.prompt_ids.length }}</td>
             <td class="px-4 py-3 text-gray-700">{{ schedule.llm_ids.length }}</td>
             <td class="px-4 py-3 text-gray-700">{{ formatTemperature(schedule.temperature) }}</td>
