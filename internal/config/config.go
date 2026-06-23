@@ -124,6 +124,9 @@ func (c *Config) Save(path string) error {
 
 // GetConfigPath returns the default config file path
 func GetConfigPath() string {
+	if envPath := os.Getenv("GEGO_CONFIG_PATH"); envPath != "" {
+		return envPath
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ".gego/config.yaml"
