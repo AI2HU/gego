@@ -66,6 +66,8 @@ type Response struct {
 	Temperature  float64                `json:"temperature,omitempty" bson:"temperature,omitempty"` // Temperature used for generation
 	Metadata     map[string]interface{} `json:"metadata,omitempty" bson:"metadata,omitempty"`       // Additional metadata
 	ScheduleID   string                 `json:"schedule_id,omitempty" bson:"schedule_id,omitempty"`
+	RunID        string                 `json:"run_id,omitempty" bson:"run_id,omitempty"`
+	JobID        string                 `json:"job_id,omitempty" bson:"job_id,omitempty"`
 	TokensUsed   int                    `json:"tokens_used,omitempty" bson:"tokens_used,omitempty"`
 	Error        string                 `json:"error,omitempty" bson:"error,omitempty"`
 	SearchURLs   []SearchURL            `json:"search_urls,omitempty" bson:"search_urls,omitempty"`

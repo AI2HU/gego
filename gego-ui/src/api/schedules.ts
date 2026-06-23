@@ -3,6 +3,7 @@ import type {
   CreateScheduleRequest,
   PaginatedSchedulesResponse,
   ScheduleResponse,
+  ScheduleRunEnqueueResponse,
   UpdateScheduleRequest,
 } from '@/types/schedule'
 
@@ -43,6 +44,6 @@ export function deleteSchedule(id: string): Promise<void> {
   return apiRequest<void>(`/schedules/${id}`, { method: 'DELETE' })
 }
 
-export function runSchedule(id: string): Promise<void> {
-  return apiRequest<void>(`/schedules/${id}/run`, { method: 'POST' })
+export function runSchedule(id: string): Promise<ScheduleRunEnqueueResponse> {
+  return apiRequest<ScheduleRunEnqueueResponse>(`/schedules/${id}/run`, { method: 'POST' })
 }

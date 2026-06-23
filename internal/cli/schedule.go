@@ -18,7 +18,10 @@ import (
 var scheduleCmd = &cobra.Command{
 	Use:   "schedule",
 	Short: "Manage schedules",
-	Long:  `Add, list, update, and delete execution schedules.`,
+	Long: `Add, list, update, and delete execution schedules.
+
+Cron and manual runs enqueue jobs to etcd. Start etcd and at least one worker
+(gego worker start) before running schedules.`,
 }
 
 var scheduleAddCmd = &cobra.Command{
@@ -63,7 +66,8 @@ var scheduleDisableCmd = &cobra.Command{
 
 var scheduleRunCmd = &cobra.Command{
 	Use:   "run [id]",
-	Short: "Run a schedule immediately",
+	Short: "Enqueue a schedule run",
+	Long:  `Enqueue prompt×provider jobs for a schedule into etcd. Requires a running worker (gego worker start).`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runScheduleRun,
 }
@@ -143,7 +147,7 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s%d. %s (%s - %s)%s\n", CountStyle, i+1, FormatValue(l.Name), FormatSecondary(l.Provider), FormatSecondary(l.Model), Reset)
 	}
 
-	fmt.Printf("\n%sSelect LLMs (comma-separated numbers or 'all'): %s", LabelStyle, Reset)
+	fmt.Printf("\n%sSelect LLMs (one model per provider is used at run time; comma-separated numbers or 'all'): %s", LabelStyle, Reset)
 	llmSelection, _ := reader.ReadString('\n')
 	llmSelection = strings.TrimSpace(llmSelection)
 
@@ -227,7 +231,9 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%sPrompts: %s\n", LabelStyle, FormatCount(len(schedule.PromptIDs)))
 	fmt.Printf("%sLLMs: %s\n", LabelStyle, FormatCount(len(schedule.LLMIDs)))
 	fmt.Printf("%sTemperature: %s\n", LabelStyle, FormatValue(fmt.Sprintf("%.1f", schedule.Temperature)))
-	fmt.Printf("\n%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
+	fmt.Printf("\n%sTo execute this schedule:%s\n", InfoStyle, Reset)
+	fmt.Printf("  1. %s\n", FormatSecondary("gego worker start"))
+	fmt.Printf("  2. %s (cron) or %s (once)\n", FormatSecondary("gego scheduler start"), FormatSecondary("gego schedule run <id>"))
 
 	return nil
 }
@@ -299,9 +305,6 @@ func runScheduleGet(cmd *cobra.Command, args []string) error {
 	if schedule.LastRun != nil {
 		fmt.Printf("%sLast Run: %s\n", LabelStyle, FormatMeta(schedule.LastRun.Format(time.RFC3339)))
 	}
-	if schedule.NextRun != nil {
-		fmt.Printf("%sNext Run: %s\n", LabelStyle, FormatMeta(schedule.NextRun.Format(time.RFC3339)))
-	}
 
 	fmt.Printf("\n%sPrompts (%s):%s\n", SuccessStyle, FormatCount(len(schedule.PromptIDs)), Reset)
 	for _, promptID := range schedule.PromptIDs {
@@ -360,13 +363,21 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
+		if runtime != nil {
+			for _, schedule := range schedules {
+				_ = runtime.Enqueue.CancelRunsForSchedule(ctx, schedule.ID)
+			}
+		}
+
 		deletedCount, err := database.DeleteAllSchedules(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to delete all schedules: %w", err)
 		}
 
 		fmt.Printf("%s✅ Successfully deleted %s schedules!%s\n", SuccessStyle, FormatCount(deletedCount), Reset)
-		fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
+		if runtime != nil {
+			fmt.Printf("%sRestart the scheduler to apply changes: %s%s\n", InfoStyle, FormatSecondary("gego scheduler start"), Reset)
+		}
 		return nil
 	}
 
@@ -378,6 +389,12 @@ func runScheduleDelete(cmd *cobra.Command, args []string) error {
 	if response != "y" && response != "yes" {
 		fmt.Printf("%sCancelled.%s\n", WarningStyle, Reset)
 		return nil
+	}
+
+	if runtime != nil {
+		if err := runtime.Enqueue.CancelRunsForSchedule(ctx, id); err != nil {
+			fmt.Printf("%s⚠️  Could not cancel active runs: %v%s\n", WarningStyle, err, Reset)
+		}
 	}
 
 	if err := database.DeleteSchedule(ctx, id); err != nil {
@@ -428,19 +445,31 @@ func runScheduleDisable(cmd *cobra.Command, args []string) error {
 }
 
 func runScheduleRun(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
 	id := args[0]
 
-	if err := initializeLLMProviders(ctx); err != nil {
-		return fmt.Errorf("failed to initialize LLM providers: %w", err)
+	checkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if runtime == nil {
+		return fmt.Errorf("runtime not initialized (is etcd running?)")
 	}
 
-	fmt.Printf("%s⏳ Executing schedule %s...%s\n", InfoStyle, FormatValue(id), Reset)
-
-	if err := sched.ExecuteNow(ctx, id); err != nil {
-		return fmt.Errorf("failed to execute schedule: %w", err)
+	workers, err := runtime.Store.ListWorkers(checkCtx)
+	if err != nil {
+		return fmt.Errorf("failed to check workers: %w", err)
+	}
+	if len(workers) == 0 {
+		return fmt.Errorf("no workers connected — start one with: gego worker start")
 	}
 
-	fmt.Printf("%s✅ Schedule execution completed!%s\n", SuccessStyle, Reset)
+	fmt.Printf("%s⏳ Enqueueing schedule %s...%s\n", InfoStyle, FormatValue(id), Reset)
+
+	runID, err := runtime.Enqueue.EnqueueSchedule(context.Background(), id, models.ScheduleRunTriggerManual, "", 0)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue schedule: %w", err)
+	}
+
+	fmt.Printf("%s✅ Schedule enqueued! Run ID: %s%s\n", SuccessStyle, FormatValue(runID), Reset)
+	fmt.Printf("%sWorkers will process jobs from etcd. Track progress via the API or UI.%s\n", InfoStyle, Reset)
 	return nil
 }

@@ -18,15 +18,58 @@ import (
 )
 
 func (s *Server) getSchedulerStatus(c *gin.Context) {
-	running, count, err := s.schedulerService.GetStatus(c.Request.Context())
+	ctx, cancel := etcdRequestContext(c.Request.Context())
+	defer cancel()
+
+	enabled := true
+	schedules, err := s.db.ListSchedules(ctx, &enabled)
 	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get scheduler status: "+err.Error())
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to list schedules: "+err.Error())
+		return
+	}
+
+	running, _, isLeader, pendingJobs, activeRuns, activeWorkers, err := s.schedulerService.GetStatus(ctx)
+	if err != nil {
+		s.errorResponse(c, http.StatusServiceUnavailable, "etcd unavailable: "+err.Error())
 		return
 	}
 
 	s.successResponse(c, models.SchedulerStatusResponse{
 		Running:          running,
-		EnabledSchedules: count,
+		EnabledSchedules: len(schedules),
+		IsLeader:         isLeader,
+		PendingJobs:      pendingJobs,
+		ActiveRuns:       activeRuns,
+		ActiveWorkers:    activeWorkers,
+	})
+}
+
+func (s *Server) getSchedulerHealth(c *gin.Context) {
+	ctx, cancel := etcdRequestContext(c.Request.Context())
+	defer cancel()
+	if err := s.jobStore.Ping(ctx); err != nil {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success: false,
+			Error:   "etcd unavailable: " + err.Error(),
+		})
+		return
+	}
+
+	workers, err := s.jobStore.ListWorkers(ctx)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success: false,
+			Error:   "failed to list workers: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Data: gin.H{
+			"etcd":            "ok",
+			"active_workers":  len(workers),
+		},
 	})
 }
 
@@ -38,37 +81,22 @@ func (s *Server) startScheduler(c *gin.Context) {
 		return
 	}
 
-	if err := s.schedulerService.Start(ctx); err != nil {
+	listFn := func(ctx context.Context) ([]*models.Schedule, error) {
+		enabled := true
+		return s.db.ListSchedules(ctx, &enabled)
+	}
+
+	if err := s.schedulerService.Start(ctx, listFn); err != nil {
 		s.errorResponse(c, http.StatusConflict, err.Error())
 		return
 	}
 
-	running, count, err := s.schedulerService.GetStatus(ctx)
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get scheduler status: "+err.Error())
-		return
-	}
-
-	s.successResponse(c, models.SchedulerStatusResponse{
-		Running:          running,
-		EnabledSchedules: count,
-	})
+	s.getSchedulerStatus(c)
 }
 
 func (s *Server) stopScheduler(c *gin.Context) {
-	ctx := c.Request.Context()
 	s.schedulerService.Stop()
-
-	_, count, err := s.schedulerService.GetStatus(ctx)
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get scheduler status: "+err.Error())
-		return
-	}
-
-	s.successResponse(c, models.SchedulerStatusResponse{
-		Running:          false,
-		EnabledSchedules: count,
-	})
+	s.getSchedulerStatus(c)
 }
 
 func (s *Server) reloadScheduler(c *gin.Context) {
@@ -79,40 +107,44 @@ func (s *Server) reloadScheduler(c *gin.Context) {
 		return
 	}
 
-	if err := s.schedulerService.Reload(ctx); err != nil {
+	listFn := func(ctx context.Context) ([]*models.Schedule, error) {
+		enabled := true
+		return s.db.ListSchedules(ctx, &enabled)
+	}
+
+	if err := s.schedulerService.Reload(ctx, listFn); err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to reload scheduler: "+err.Error())
 		return
 	}
 
-	running, count, err := s.schedulerService.GetStatus(ctx)
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to get scheduler status: "+err.Error())
-		return
-	}
-
-	s.successResponse(c, models.SchedulerStatusResponse{
-		Running:          running,
-		EnabledSchedules: count,
-	})
+	s.getSchedulerStatus(c)
 }
 
 func (s *Server) runSchedule(c *gin.Context) {
 	id := c.Param("id")
-	ctx := c.Request.Context()
+	ctx, cancel := etcdRequestContext(c.Request.Context())
+	defer cancel()
 
-	if err := s.initializeLLMProviders(ctx); err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to initialize LLM providers: "+err.Error())
+	workers, err := s.jobStore.ListWorkers(ctx)
+	if err != nil {
+		s.errorResponse(c, http.StatusServiceUnavailable, "etcd unavailable: "+err.Error())
+		return
+	}
+	if len(workers) == 0 {
+		s.errorResponse(c, http.StatusConflict, "No workers connected. Start a worker with: gego worker start")
 		return
 	}
 
-	if err := s.schedulerService.ExecuteNow(ctx, id); err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to execute schedule: "+err.Error())
+	runID, err := s.enqueueService.EnqueueSchedule(ctx, id, models.ScheduleRunTriggerManual, "", 0)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to enqueue schedule: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, models.APIResponse{
+	c.JSON(http.StatusAccepted, models.APIResponse{
 		Success: true,
-		Message: "Schedule execution completed",
+		Data:    models.ScheduleRunEnqueueResponse{RunID: runID},
+		Message: "Schedule enqueued",
 	})
 }
 

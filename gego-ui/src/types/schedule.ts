@@ -7,7 +7,6 @@ export interface ScheduleResponse {
   temperature: number
   enabled: boolean
   last_run?: string
-  next_run?: string
   created_at: string
   updated_at: string
 }
@@ -43,6 +42,60 @@ export interface PaginatedSchedulesResponse {
 export interface SchedulerStatusResponse {
   running: boolean
   enabled_schedules: number
+  is_leader: boolean
+  pending_jobs: number
+  active_runs: number
+  active_workers: number
+}
+
+export interface ScheduleRunEnqueueResponse {
+  run_id: string
+}
+
+export interface ScheduleRunResponse {
+  id: string
+  schedule_id: string
+  trigger: string
+  status: string
+  total_jobs: number
+  completed_jobs: number
+  failed_jobs: number
+  created_at: string
+  started_at?: string
+  finished_at?: string
+}
+
+export interface ScheduleJobResponse {
+  id: string
+  run_id: string
+  schedule_id: string
+  prompt_id: string
+  llm_id: string
+  provider: string
+  temperature: number
+  status: string
+  attempts: number
+  max_attempts: number
+  worker_id?: string
+  response_id?: string
+  error?: string
+  created_at: string
+  claimed_at?: string
+  completed_at?: string
+}
+
+export interface ScheduleRunListResponse {
+  data: ScheduleRunResponse[]
+  next_cursor?: string
+}
+
+export interface ScheduleRunDetailResponse {
+  run: ScheduleRunResponse
+  jobs: ScheduleJobResponse[]
+}
+
+export function formatRunStatus(status: string): string {
+  return status.replace(/_/g, ' ')
 }
 
 export type CronPreset = 'daily' | 'weekly' | 'monthly' | 'custom'

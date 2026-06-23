@@ -48,7 +48,6 @@ func (s *Server) listSchedules(c *gin.Context) {
 			Temperature: schedule.Temperature,
 			Enabled:     schedule.Enabled,
 			LastRun:     schedule.LastRun,
-			NextRun:     schedule.NextRun,
 			CreatedAt:   schedule.CreatedAt,
 			UpdatedAt:   schedule.UpdatedAt,
 		}
@@ -86,7 +85,6 @@ func (s *Server) getSchedule(c *gin.Context) {
 		Temperature: schedule.Temperature,
 		Enabled:     schedule.Enabled,
 		LastRun:     schedule.LastRun,
-		NextRun:     schedule.NextRun,
 		CreatedAt:   schedule.CreatedAt,
 		UpdatedAt:   schedule.UpdatedAt,
 	}
@@ -158,7 +156,6 @@ func (s *Server) createSchedule(c *gin.Context) {
 		Temperature: schedule.Temperature,
 		Enabled:     schedule.Enabled,
 		LastRun:     schedule.LastRun,
-		NextRun:     schedule.NextRun,
 		CreatedAt:   schedule.CreatedAt,
 		UpdatedAt:   schedule.UpdatedAt,
 	}
@@ -246,7 +243,6 @@ func (s *Server) updateSchedule(c *gin.Context) {
 		Temperature: schedule.Temperature,
 		Enabled:     schedule.Enabled,
 		LastRun:     schedule.LastRun,
-		NextRun:     schedule.NextRun,
 		CreatedAt:   schedule.CreatedAt,
 		UpdatedAt:   schedule.UpdatedAt,
 	}
@@ -257,8 +253,11 @@ func (s *Server) updateSchedule(c *gin.Context) {
 // deleteSchedule handles DELETE /api/v1/schedules/:id
 func (s *Server) deleteSchedule(c *gin.Context) {
 	id := c.Param("id")
+	ctx := c.Request.Context()
 
-	if err := s.scheduleService.DeleteSchedule(c.Request.Context(), id); err != nil {
+	_ = s.enqueueService.CancelRunsForSchedule(ctx, id)
+
+	if err := s.scheduleService.DeleteSchedule(ctx, id); err != nil {
 		s.errorResponse(c, http.StatusNotFound, "Schedule not found: "+err.Error())
 		return
 	}

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
+import ProviderLogo from '@/components/providers/ProviderLogo.vue'
 import AppAlert from '@/components/ui/AppAlert.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -87,8 +88,22 @@ const allFilteredPromptsSelected = computed(
     filteredPrompts.value.every((prompt) => selectedPromptIds.value.has(prompt.id)),
 )
 
-const allModelsSelected = computed(
-  () => models.value.length > 0 && selectedModelIds.value.size === models.value.length,
+const modelsByProvider = computed(() => {
+  const groups = new Map<string, typeof models.value>()
+  for (const model of models.value) {
+    const list = groups.get(model.provider) ?? []
+    list.push(model)
+    groups.set(model.provider, list)
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
+})
+
+const allProvidersSelected = computed(
+  () =>
+    modelsByProvider.value.length > 0 &&
+    modelsByProvider.value.every(([, providerModels]) =>
+      providerModels.some((model) => selectedModelIds.value.has(model.id)),
+    ),
 )
 
 const stepNumber = computed(() => {
@@ -215,21 +230,36 @@ function clearFilters() {
 }
 
 function toggleModel(id: string) {
+  const model = models.value.find((entry) => entry.id === id)
+  if (!model) return
+
   const next = new Set(selectedModelIds.value)
   if (next.has(id)) {
     next.delete(id)
   } else {
+    for (const other of models.value) {
+      if (other.provider === model.provider) {
+        next.delete(other.id)
+      }
+    }
     next.add(id)
   }
   selectedModelIds.value = next
 }
 
 function toggleAllModels() {
-  if (allModelsSelected.value) {
+  if (allProvidersSelected.value) {
     selectedModelIds.value = new Set()
-  } else {
-    selectedModelIds.value = new Set(models.value.map((model) => model.id))
+    return
   }
+
+  const next = new Set<string>()
+  for (const [, providerModels] of modelsByProvider.value) {
+    if (providerModels[0]) {
+      next.add(providerModels[0].id)
+    }
+  }
+  selectedModelIds.value = next
 }
 
 async function saveSchedule() {
@@ -478,10 +508,10 @@ async function saveSchedule() {
           <div v-else-if="step === 'models'" class="space-y-4">
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm text-gray-600">
-                Select models to run the selected prompts with.
+                Select one model per provider. Each prompt runs once per provider per schedule run.
               </p>
               <AppButton variant="ghost" size="sm" @click="toggleAllModels">
-                {{ allModelsSelected ? 'Deselect all' : 'Select all' }}
+                {{ allProvidersSelected ? 'Deselect all' : 'Select all providers' }}
               </AppButton>
             </div>
 
@@ -489,25 +519,36 @@ async function saveSchedule() {
               No models available. Add models first.
             </div>
 
-            <div v-else class="space-y-2 max-h-80 overflow-y-auto">
-              <label
-                v-for="model in models"
-                :key="model.id"
-                class="flex items-start gap-3 rounded-lg border border-gray-200/80 p-3 cursor-pointer hover:bg-slate-50"
+            <div v-else class="space-y-4 max-h-80 overflow-y-auto">
+              <section
+                v-for="[provider, providerModels] in modelsByProvider"
+                :key="provider"
+                class="rounded-lg border border-gray-200/80 overflow-hidden"
               >
-                <input
-                  type="checkbox"
-                  class="mt-1"
-                  :checked="selectedModelIds.has(model.id)"
-                  @change="toggleModel(model.id)"
-                />
-                <span>
-                  <span class="block text-sm font-medium text-gray-900">{{ model.name }}</span>
-                  <span class="block text-xs text-gray-500 mt-0.5">
-                    {{ formatProviderName(model.provider) }} · {{ model.model }}
-                  </span>
-                </span>
-              </label>
+                <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-gray-200/80">
+                  <ProviderLogo :provider="provider" class="h-5 w-5" />
+                  <span class="text-sm font-medium text-gray-900">{{ formatProviderName(provider) }}</span>
+                </div>
+                <div class="divide-y divide-gray-100">
+                  <label
+                    v-for="model in providerModels"
+                    :key="model.id"
+                    class="flex items-start gap-3 p-3 cursor-pointer hover:bg-slate-50"
+                  >
+                    <input
+                      type="radio"
+                      class="mt-1"
+                      :name="`provider-${provider}`"
+                      :checked="selectedModelIds.has(model.id)"
+                      @change="toggleModel(model.id)"
+                    />
+                    <span>
+                      <span class="block text-sm font-medium text-gray-900">{{ model.name }}</span>
+                      <span class="block text-xs text-gray-500 mt-0.5">{{ model.model }}</span>
+                    </span>
+                  </label>
+                </div>
+              </section>
             </div>
           </div>
 
