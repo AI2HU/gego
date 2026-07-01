@@ -33,15 +33,15 @@ RUN apk --no-cache add ca-certificates tzdata
 
 COPY --from=go-builder /app/gego /usr/local/bin/gego
 COPY --from=go-builder /app/internal/db/migrations /migrations
-COPY --from=go-builder /app/config/docker.yaml /app/config/config.yaml
 COPY --from=ui-builder /app/gego-ui/dist /app/ui
 
-RUN mkdir -p /app/data /app/config /app/logs
+RUN mkdir -p /app/data /app/logs
 
-ENV GEGO_CONFIG_PATH=/app/config/config.yaml
 ENV GEGO_DATA_PATH=/app/data
 ENV GEGO_LOG_PATH=/app/logs
 ENV GEGO_POSTGRES_URI=postgres://gego:gego@postgres:5432/gego?sslmode=disable
+ENV GEGO_MONGODB_URI=mongodb://mongodb:27017
+ENV GEGO_MONGODB_DATABASE=gego
 ENV GEGO_JWT_SECRET=change-me-to-a-secret-at-least-32-chars
 
 EXPOSE 8989

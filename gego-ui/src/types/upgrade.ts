@@ -1,7 +1,10 @@
 export const UPGRADE_SQLITE_TO_POSTGRES = 'sqlite_to_postgres'
 
-export interface UpgradesStatusResponse {
-  required_upgrade_codes: string[]
+export type UpgradeSeverity = 'major' | 'minor'
+
+export interface UpgradeItem {
+  code: string
+  severity: UpgradeSeverity
 }
 
 export interface RunUpgradeRequest {
@@ -13,4 +16,10 @@ export interface RunUpgradeResponse {
   status: string
   message: string
   restart_required: boolean
+}
+
+export interface UpgradeDoc {
+  title: string
+  summary: string
+  steps: string[]
 }

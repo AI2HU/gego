@@ -1,9 +1,0 @@
-sql_database:
-  provider: postgres
-  uri: postgres://gego:gego@postgres:5432/gego?sslmode=disable
-  database: gego
-
-nosql_database:
-  provider: mongodb
-  uri: mongodb://mongodb:27017
-  database: gego

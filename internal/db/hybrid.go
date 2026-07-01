@@ -97,6 +97,37 @@ func (h *HybridDB) Ping(ctx context.Context) error {
 	return nil
 }
 
+func (h *HybridDB) ReconnectSQL(ctx context.Context, sqlConfig *models.Config) error {
+	if h.sqlDB != nil {
+		_ = h.sqlDB.Disconnect(ctx)
+	}
+
+	var sqlDB SQLBackend
+	var err error
+
+	switch sqlConfig.Provider {
+	case "postgres":
+		sqlDB, err = postgres.New(sqlConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create PostgreSQL database: %w", err)
+		}
+	case "sqlite":
+		sqlDB, err = sqlite.New(sqlConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create SQLite database: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported SQL database provider: %s", sqlConfig.Provider)
+	}
+
+	if err := sqlDB.Connect(ctx); err != nil {
+		return fmt.Errorf("failed to connect to SQL database: %w", err)
+	}
+
+	h.sqlDB = sqlDB
+	return nil
+}
+
 func (h *HybridDB) GetSQLBackend() SQLBackend {
 	return h.sqlDB
 }

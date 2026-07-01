@@ -63,13 +63,16 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		configPath = appconfig.GetConfigPath()
 	}
 
-	if !appconfig.Exists(configPath) {
-		return fmt.Errorf("configuration file not found at %s. Run 'gego init' to create one", configPath)
-	}
-
-	cfg, err := appconfig.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+	var cfg *appconfig.Config
+	var err error
+	if appconfig.Exists(configPath) {
+		cfg, err = appconfig.Load(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	} else {
+		cfg = appconfig.LoadFromEnv()
+		fmt.Printf("No config file at %s — using environment variables\n", configPath)
 	}
 
 	if cfg.KeywordsExclusionPath != "" {

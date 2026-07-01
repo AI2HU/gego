@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -37,8 +38,10 @@ type Server struct {
 	searchService    *services.SearchService
 	authService      *services.AuthService
 	authMiddleware   *auth.Middleware
+	authConfig       auth.Config
 	upgradeService   *services.UpgradeService
 	configPath       string
+	dbMu             sync.Mutex
 	llmRegistry      *llm.Registry
 	runtime          *services.Runtime
 	router           *gin.Engine
@@ -102,6 +105,7 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, 
 		searchService:    services.NewSearchService(database),
 		authService:      services.NewAuthService(database, authConfig),
 		authMiddleware:   authMW,
+		authConfig:       authConfig,
 		upgradeService:   services.NewUpgradeService(appCfg),
 		configPath:       configPath,
 		llmRegistry:      llmRegistry,
@@ -122,6 +126,8 @@ func (s *Server) setupRoutes() {
 	api.POST("/auth/login", s.login)
 	api.POST("/auth/refresh", s.refresh)
 	api.POST("/auth/logout", s.logout)
+	api.GET("/upgrades", s.listRequiredUpgrades)
+	api.POST("/upgrades", s.runUpgrade)
 
 	protected := api.Group("")
 	protected.Use(s.authMiddleware.Authenticate())
@@ -170,8 +176,6 @@ func (s *Server) setupRoutes() {
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
 	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)
 	protected.GET("/auth/me", s.requirePerm(auth.PermAuthProfile), s.me)
-	protected.GET("/upgrades", s.requirePerm(auth.PermUpgradesExecute), s.listRequiredUpgrades)
-	protected.POST("/upgrades", s.requirePerm(auth.PermUpgradesExecute), s.runUpgrade)
 
 	s.setupStaticUI()
 }

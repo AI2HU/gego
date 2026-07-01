@@ -296,8 +296,9 @@ type ErrorLogResponse struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type UpgradesStatusResponse struct {
-	RequiredUpgradeCodes []string `json:"required_upgrade_codes"`
+type UpgradeItem struct {
+	Code   string `json:"code"`
+	Severity string `json:"severity"`
 }
 
 type RunUpgradeRequest struct {

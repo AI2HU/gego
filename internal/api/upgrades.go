@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -11,17 +12,14 @@ import (
 )
 
 func (s *Server) listRequiredUpgrades(c *gin.Context) {
-	codes, err := s.upgradeService.ListRequired(c.Request.Context())
+	_ = s.upgradeService.ReloadConfig(s.configPath)
+
+	items, err := s.upgradeService.ListUpgrades(c.Request.Context())
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if codes == nil {
-		codes = []string{}
-	}
-	s.successResponse(c, models.UpgradesStatusResponse{
-		RequiredUpgradeCodes: codes,
-	})
+	s.successResponse(c, items)
 }
 
 func (s *Server) runUpgrade(c *gin.Context) {
@@ -53,6 +51,19 @@ func (s *Server) runUpgrade(c *gin.Context) {
 		}
 		s.errorResponse(c, status, msg)
 		return
+	}
+
+	if code == services.UpgradeSQLiteToPostgres {
+		if err := s.reconnectSQLFromConfig(c.Request.Context()); err != nil {
+			s.errorResponse(c, http.StatusInternalServerError,
+				fmt.Sprintf("upgrade completed but API failed to switch to PostgreSQL: %v", err))
+			return
+		}
+		result.RestartRequired = false
+		if result.Message != "" {
+			result.Message += " "
+		}
+		result.Message += "API is now using PostgreSQL. Restart the worker process if it is running."
 	}
 
 	s.successResponse(c, models.RunUpgradeResponse{

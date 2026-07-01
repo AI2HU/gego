@@ -27,7 +27,7 @@ function authHeaders(): HeadersInit {
 }
 
 function shouldRetryAuth(path: string): boolean {
-  return !path.startsWith('/auth/login')
+  return !path.startsWith('/auth/login') && !path.startsWith('/upgrades')
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {

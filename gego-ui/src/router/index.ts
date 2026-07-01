@@ -3,10 +3,16 @@ import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { authGuard } from '@/router/guards/auth-guard'
 import { permissionGuard } from '@/router/guards/permission-guard'
+import { upgradeGuard } from '@/router/guards/upgrade-guard'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/upgrade',
+      name: 'upgrade',
+      component: () => import('@/views/MajorUpgradeView.vue'),
+    },
     {
       path: '/login',
       name: 'login',
@@ -70,6 +76,7 @@ const router = createRouter({
   ],
 })
 
+router.beforeEach(upgradeGuard)
 router.beforeEach(authGuard)
 
 export default router
