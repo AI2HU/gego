@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-./gego
+/gego
 *.db
 
 # Test binary, built with `go test -c`
@@ -38,6 +38,10 @@ config.yaml
 dist/
 build/
 bin/
+
+# Runtime artifacts (etcd data)
+default.etcd/
+*.etcd/
 
 # Logs
 *.log
