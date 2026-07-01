@@ -6,24 +6,30 @@ import (
 	"time"
 
 	"github.com/AI2HU/gego/internal/db/mongodb"
+	"github.com/AI2HU/gego/internal/db/postgres"
 	"github.com/AI2HU/gego/internal/db/sqlite"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/shared"
 )
 
-// HybridDB implements the Database interface using both SQLite and NoSQL
+// HybridDB implements the Database interface using PostgreSQL (or legacy SQLite) and MongoDB.
 type HybridDB struct {
-	sqlDB   SQLDatabase   // SQLite for LLMs and Schedules
-	nosqlDB NoSQLDatabase // MongoDB for Prompts and Responses
+	sqlDB   SQLBackend
+	nosqlDB NoSQLDatabase
 }
 
-// New creates a new hybrid database instance
+// New creates a new hybrid database instance.
 func New(sqlConfig, nosqlConfig *models.Config) (*HybridDB, error) {
-	var sqlDB SQLDatabase
+	var sqlDB SQLBackend
 	var nosqlDB NoSQLDatabase
 	var err error
 
 	switch sqlConfig.Provider {
+	case "postgres":
+		sqlDB, err = postgres.New(sqlConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create PostgreSQL database: %w", err)
+		}
 	case "sqlite":
 		sqlDB, err = sqlite.New(sqlConfig)
 		if err != nil {
@@ -49,7 +55,6 @@ func New(sqlConfig, nosqlConfig *models.Config) (*HybridDB, error) {
 	}, nil
 }
 
-// Connection management
 func (h *HybridDB) Connect(ctx context.Context) error {
 	if err := h.sqlDB.Connect(ctx); err != nil {
 		return fmt.Errorf("failed to connect to SQL database: %w", err)
@@ -90,6 +95,10 @@ func (h *HybridDB) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (h *HybridDB) GetSQLBackend() SQLBackend {
+	return h.sqlDB
 }
 
 func (h *HybridDB) CreateLLM(ctx context.Context, llm *models.LLMConfig) error {
@@ -168,7 +177,6 @@ func (h *HybridDB) RevokeSession(ctx context.Context, id string) error {
 	return h.sqlDB.RevokeSession(ctx, id)
 }
 
-// Prompt operations - Use NoSQL
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/AI2HU/gego/internal/auth"
 	appconfig "github.com/AI2HU/gego/internal/config"
 	"github.com/AI2HU/gego/internal/db"
+	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
 	"github.com/AI2HU/gego/internal/shared"
@@ -128,6 +129,11 @@ func runAPI(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✅ Database connection successful!")
 
+	if cfg.SQLDatabase.Provider == "sqlite" {
+		logger.Info("SQLite legacy mode — run database upgrade via UI or `gego db upgrade-from-sqlite`")
+		fmt.Println("\n⚠️  SQLite legacy mode detected. Upgrade to PostgreSQL via the admin UI or CLI.")
+	}
+
 	fmt.Println("\n🔄 Running database migrations...")
 	if err := runDatabaseMigrations(ctx, database); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
@@ -150,7 +156,7 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	server, err := api.NewServer(database, selectedCORSOrigin, authConfig)
+	server, err := api.NewServer(database, selectedCORSOrigin, authConfig, cfg, configPath)
 	if err != nil {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}

@@ -15,9 +15,9 @@ func runDatabaseMigrations(ctx context.Context, database db.Database) error {
 		return fmt.Errorf("database is not a HybridDB instance")
 	}
 
-	sqliteDB := hybridDB.GetSQLiteDatabase()
-	if sqliteDB == nil {
-		return fmt.Errorf("SQLite database not available")
+	sqlBackend := hybridDB.GetSQLBackend()
+	if sqlBackend == nil {
+		return fmt.Errorf("SQL database not available")
 	}
 
 	migrationsDir := os.Getenv("GEGO_MIGRATIONS_DIR")
@@ -29,10 +29,10 @@ func runDatabaseMigrations(ctx context.Context, database db.Database) error {
 		}
 	}
 
-	sqlDB := sqliteDB.GetDB()
+	sqlDB := sqlBackend.GetDB()
 	if sqlDB == nil {
 		return fmt.Errorf("database connection not available")
 	}
 
-	return db.RunMigrations(ctx, sqlDB, migrationsDir)
+	return db.RunMigrations(ctx, sqlDB, sqlBackend.DriverName(), migrationsDir)
 }

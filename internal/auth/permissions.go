@@ -16,6 +16,7 @@ const (
 	PermStatsRead      Permission = "stats:read"
 	PermSearchExecute  Permission = "search:execute"
 	PermAuthProfile    Permission = "auth:profile"
+	PermUpgradesExecute Permission = "upgrades:execute"
 )
 
 type EndpointPolicy struct {
@@ -30,6 +31,7 @@ var RolePermissions = map[models.Role][]Permission{
 		PermPromptsRead, PermPromptsWrite,
 		PermSchedulesRead, PermSchedulesWrite,
 		PermStatsRead, PermSearchExecute, PermAuthProfile,
+		PermUpgradesExecute,
 	},
 	models.RoleMember: {
 		PermLLMsRead,
@@ -74,6 +76,8 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "POST", Path: "/search", Permission: PermSearchExecute},
 	{Method: "GET", Path: "/logs/errors", Permission: PermSchedulesRead},
 	{Method: "GET", Path: "/auth/me", Permission: PermAuthProfile},
+	{Method: "GET", Path: "/upgrades", Permission: PermUpgradesExecute},
+	{Method: "POST", Path: "/upgrades", Permission: PermUpgradesExecute},
 }
 
 func HasPermission(role models.Role, perm Permission) bool {

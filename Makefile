@@ -16,6 +16,11 @@ GEGO_BOOTSTRAP_ADMIN_PASSWORD ?= admin1234
 GEGO_BOOTSTRAP_ADMIN_USERNAME ?= admin
 GEGO_ETCD_ENDPOINTS ?= 127.0.0.1:2379
 
+ifneq (,$(wildcard .env.dev))
+include .env.dev
+export
+endif
+
 # Build the application
 build:
 	@echo "Building $(BINARY_NAME)..."

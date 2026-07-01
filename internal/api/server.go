@@ -37,6 +37,8 @@ type Server struct {
 	searchService    *services.SearchService
 	authService      *services.AuthService
 	authMiddleware   *auth.Middleware
+	upgradeService   *services.UpgradeService
+	configPath       string
 	llmRegistry      *llm.Registry
 	runtime          *services.Runtime
 	router           *gin.Engine
@@ -44,7 +46,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server
-func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) (*Server, error) {
+func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, appCfg *config.Config, configPath string) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
@@ -100,6 +102,8 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) 
 		searchService:    services.NewSearchService(database),
 		authService:      services.NewAuthService(database, authConfig),
 		authMiddleware:   authMW,
+		upgradeService:   services.NewUpgradeService(appCfg),
+		configPath:       configPath,
 		llmRegistry:      llmRegistry,
 		runtime:          runtime,
 		router:           router,
@@ -166,6 +170,8 @@ func (s *Server) setupRoutes() {
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
 	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)
 	protected.GET("/auth/me", s.requirePerm(auth.PermAuthProfile), s.me)
+	protected.GET("/upgrades", s.requirePerm(auth.PermUpgradesExecute), s.listRequiredUpgrades)
+	protected.POST("/upgrades", s.requirePerm(auth.PermUpgradesExecute), s.runUpgrade)
 
 	s.setupStaticUI()
 }

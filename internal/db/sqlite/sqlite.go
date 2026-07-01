@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/AI2HU/gego/internal/db/sqlutil"
 	"github.com/AI2HU/gego/internal/models"
 )
 
@@ -84,71 +85,24 @@ func (s *SQLite) GetDB() *sql.DB {
 	return s.db
 }
 
+func (s *SQLite) DriverName() string {
+	return "sqlite3"
+}
+
 func mapToJSON(m map[string]string) string {
-	if len(m) == 0 {
-		return "{}"
-	}
-	result := "{"
-	first := true
-	for k, v := range m {
-		if !first {
-			result += ","
-		}
-		result += fmt.Sprintf(`"%s":"%s"`, k, v)
-		first = false
-	}
-	result += "}"
-	return result
+	return sqlutil.MapToJSON(m)
 }
 
 func jsonToMap(jsonStr string) map[string]string {
-	if jsonStr == "" || jsonStr == "{}" {
-		return make(map[string]string)
-	}
-	return make(map[string]string)
+	return sqlutil.JSONToMap(jsonStr)
 }
 
 func sliceToJSON(slice []string) string {
-	if len(slice) == 0 {
-		return "[]"
-	}
-	result := "["
-	for i, s := range slice {
-		if i > 0 {
-			result += ","
-		}
-		result += fmt.Sprintf(`"%s"`, s)
-	}
-	result += "]"
-	return result
+	return sqlutil.SliceToJSON(slice)
 }
 
 func jsonToSlice(jsonStr string) []string {
-	if jsonStr == "" || jsonStr == "[]" {
-		return []string{}
-	}
-
-	jsonStr = strings.TrimSpace(jsonStr)
-	if !strings.HasPrefix(jsonStr, "[") || !strings.HasSuffix(jsonStr, "]") {
-		return []string{}
-	}
-
-	jsonStr = jsonStr[1 : len(jsonStr)-1]
-	if jsonStr == "" {
-		return []string{}
-	}
-
-	parts := strings.Split(jsonStr, ",")
-	var result []string
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, `"`) && strings.HasSuffix(part, `"`) {
-			part = part[1 : len(part)-1]
-		}
-		result = append(result, part)
-	}
-
-	return result
+	return sqlutil.JSONToSlice(jsonStr)
 }
 
 // CreateLLM creates a new LLM configuration

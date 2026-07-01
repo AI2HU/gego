@@ -3,6 +3,7 @@ import { RouterView } from 'vue-router'
 
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
+import UpgradeBanner from '@/components/upgrade/UpgradeBanner.vue'
 import { navSections } from '@/design/navigation'
 import { page } from '@/design/classes'
 </script>
@@ -13,6 +14,7 @@ import { page } from '@/design/classes'
       <AppSidebar :nav-sections="navSections" />
 
       <div :class="page.content">
+        <UpgradeBanner />
         <AppHeader />
 
         <main :class="page.main">
