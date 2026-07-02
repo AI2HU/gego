@@ -54,7 +54,7 @@ var statsResetCmd = &cobra.Command{
 var statsRefreshCmd = &cobra.Command{
 	Use:   "refresh",
 	Short: "Refresh exclusion words list and ensure stats are up to date",
-	Long:  `Reload the keywords_exclusion file and verify it's loaded correctly. This ensures that future stats calculations use the latest exclusion list.`,
+	Long:  `Reload the exclusion words cache from the database. This ensures that future stats calculations use the latest exclusion list.`,
 	Args:  cobra.NoArgs,
 	RunE:  runStatsRefresh,
 }
@@ -328,25 +328,27 @@ func runStatsRefresh(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s===========================%s\n", DimStyle, Reset)
 	fmt.Println()
 
-	fmt.Printf("%sReloading exclusion words from keywords_exclusion file...%s\n", InfoStyle, Reset)
+	if exclusionWordsService == nil {
+		return fmt.Errorf("exclusion words service not initialized")
+	}
 
-	err := shared.ReloadExclusionWords()
-	if err != nil {
+	fmt.Printf("%sReloading exclusion words from database...%s\n", InfoStyle, Reset)
+
+	ctx := context.Background()
+	if err := exclusionWordsService.RefreshCache(ctx); err != nil {
 		return fmt.Errorf("failed to reload exclusion words: %w", err)
 	}
 
 	exclusionWords := shared.GetExclusionWordsList()
-	exclusionFilePath := shared.GetExclusionFilePath()
 
 	fmt.Printf("%s✅ Exclusion words reloaded successfully!%s\n", SuccessStyle, Reset)
 	fmt.Println()
-	fmt.Printf("%sFile Location: %s%s\n", LabelStyle, FormatValue(exclusionFilePath), Reset)
 	fmt.Printf("%sTotal Words: %s%d%s\n", LabelStyle, CountStyle, len(exclusionWords), Reset)
 	fmt.Println()
 
 	if len(exclusionWords) == 0 {
 		fmt.Printf("%s⚠️  No exclusion words found. All capitalized words will be counted as keywords.%s\n", WarningStyle, Reset)
-		fmt.Printf("%sAdd words to %s to exclude them from keyword statistics.%s\n", DimStyle, exclusionFilePath, Reset)
+		fmt.Printf("%sAdd words via the admin UI or API to exclude them from keyword statistics.%s\n", DimStyle, Reset)
 		return nil
 	}
 

@@ -60,6 +60,13 @@ const router = createRouter({
           beforeEnter: [permissionGuard],
         },
         {
+          path: 'admin/exclusion-words',
+          name: 'exclusionWords',
+          component: () => import('@/views/ExclusionWordsView.vue'),
+          meta: { permissions: ['exclusionWords'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
           path: 'admin/logs',
           name: 'logs',
           component: () => import('@/views/LogsView.vue'),

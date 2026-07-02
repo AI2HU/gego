@@ -3,23 +3,17 @@ package shared
 import (
 	"bufio"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/AI2HU/gego/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
 var (
-	exclusionWords       map[string]bool
-	exclusionWordsOnce   sync.Once
-	exclusionWordsMu     sync.RWMutex
-	exclusionFileModTime time.Time
-	exclusionFilePath    string
-	exclusionFilePathMu  sync.RWMutex
+	exclusionWords     map[string]bool
+	exclusionWordsList []string
+	exclusionWordsMu   sync.RWMutex
 )
 
 // ParseEnabledFilter parses the enabled query parameter and returns a pointer to bool or nil
@@ -39,127 +33,100 @@ func ParseEnabledFilter(c *gin.Context) *bool {
 	}
 }
 
-// getExclusionWords loads exclusion words from file or returns default words
-// It automatically reloads if the file has been modified since last load
-func getExclusionWords() map[string]bool {
-	exclusionWordsOnce.Do(func() {
-		exclusionWordsMu.Lock()
-		exclusionWords, exclusionFileModTime = loadExclusionWordsFromFileWithModTime()
-		exclusionWordsMu.Unlock()
-	})
+// SetExclusionWords replaces the in-memory exclusion word cache.
+func SetExclusionWords(words []string) {
+	exclusionWordsMu.Lock()
+	defer exclusionWordsMu.Unlock()
 
-	exclusionFile := getExclusionFilePath()
-	fileInfo, err := os.Stat(exclusionFile)
-	if err == nil && !fileInfo.ModTime().IsZero() && fileInfo.ModTime().After(exclusionFileModTime) {
-		exclusionWordsMu.Lock()
-		exclusionWords, exclusionFileModTime = loadExclusionWordsFromFileWithModTime()
-		exclusionWordsMu.Unlock()
+	exclusionWords = make(map[string]bool, len(words))
+	exclusionWordsList = make([]string, 0, len(words))
+	for _, word := range words {
+		normalized := strings.TrimSpace(word)
+		if normalized == "" {
+			continue
+		}
+		key := strings.ToLower(normalized)
+		if exclusionWords[key] {
+			continue
+		}
+		exclusionWords[key] = true
+		exclusionWordsList = append(exclusionWordsList, normalized)
 	}
+}
 
+// ReloadExclusionWords reloads exclusion words from the provided list.
+func ReloadExclusionWords(words []string) {
+	SetExclusionWords(words)
+}
+
+// GetExclusionWordsList returns a list of all exclusion words.
+func GetExclusionWordsList() []string {
+	exclusionWordsMu.RLock()
+	defer exclusionWordsMu.RUnlock()
+
+	result := make([]string, len(exclusionWordsList))
+	copy(result, exclusionWordsList)
+	return result
+}
+
+func getExclusionWords() map[string]bool {
 	exclusionWordsMu.RLock()
 	defer exclusionWordsMu.RUnlock()
 	return exclusionWords
 }
 
-// ReloadExclusionWords reloads the exclusion words from file
-func ReloadExclusionWords() error {
-	exclusionWordsMu.Lock()
-	defer exclusionWordsMu.Unlock()
-	exclusionWords, exclusionFileModTime = loadExclusionWordsFromFileWithModTime()
-	return nil
+func isExcluded(word string, exclusions map[string]bool) bool {
+	if exclusions == nil {
+		return false
+	}
+	return exclusions[strings.ToLower(word)]
 }
 
-// GetExclusionWordsList returns a list of all exclusion words (for debugging/inspection)
-func GetExclusionWordsList() []string {
-	words := getExclusionWords()
-	result := make([]string, 0, len(words))
-	for word := range words {
-		result = append(result, word)
-	}
-	return result
-}
-
-// loadExclusionWordsFromFileWithModTime loads exclusion words and their modification time
-func loadExclusionWordsFromFileWithModTime() (map[string]bool, time.Time) {
-	exclusionFile := getExclusionFilePath()
-
-	words := make(map[string]bool)
-	var modTime time.Time
-
-	fileInfo, err := os.Stat(exclusionFile)
+// LoadExclusionWordsFromFile reads exclusion words from a legacy file path.
+func LoadExclusionWordsFromFile(path string) ([]string, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return words, modTime
-	}
-	modTime = fileInfo.ModTime()
-
-	file, err := os.Open(exclusionFile)
-	if err != nil {
-		return words, modTime
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	defer file.Close()
 
+	var words []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" && !strings.HasPrefix(line, "#") {
-			words[line] = true
+			words = append(words, line)
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
-		return make(map[string]bool), modTime
+		return nil, err
 	}
-
-	return words, modTime
+	return words, nil
 }
 
-// SetExclusionFilePath sets the path to the keywords_exclusion file from config
-func SetExclusionFilePath(path string) {
-	exclusionFilePathMu.Lock()
-	defer exclusionFilePathMu.Unlock()
-	exclusionFilePath = path
-}
-
-// getExclusionFilePath returns the path to the keywords_exclusion file
-func getExclusionFilePath() string {
-	exclusionFilePathMu.RLock()
-	path := exclusionFilePath
-	exclusionFilePathMu.RUnlock()
-
-	if path != "" {
-		return path
-	}
-
-	var configPath string
-	if envPath := os.Getenv("GEGO_CONFIG_PATH"); envPath != "" {
-		configPath = envPath
-	} else {
-		configPath = config.GetConfigPath()
-	}
-	configDir := filepath.Dir(configPath)
-	return filepath.Join(configDir, "keywords_exclusion")
-}
-
-// GetExclusionFilePath returns the path to the keywords_exclusion file (exported for CLI)
-func GetExclusionFilePath() string {
-	return getExclusionFilePath()
-}
-
-// ExtractCapitalizedWords extracts words that start with a capital letter
+// ExtractCapitalizedWords extracts words that start with a capital letter.
 func ExtractCapitalizedWords(text string) []string {
+	return filterCapitalizedWords(text, getExclusionWords())
+}
+
+// ExtractAllCapitalizedWords extracts capitalized words without applying exclusions.
+func ExtractAllCapitalizedWords(text string) []string {
+	return filterCapitalizedWords(text, nil)
+}
+
+func filterCapitalizedWords(text string, exclusions map[string]bool) []string {
 	re := regexp.MustCompile(`\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b`)
 	matches := re.FindAllString(text, -1)
 
-	// Filter common words that can be confused with brand names
 	var filtered []string
-	commonWords := getExclusionWords()
-
 	for _, word := range matches {
-		if !commonWords[word] {
+		if !isExcluded(word, exclusions) {
 			filtered = append(filtered, word)
 		}
 	}
-
 	return filtered
 }
 

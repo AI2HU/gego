@@ -74,6 +74,14 @@ type Response struct {
 	CreatedAt    time.Time              `json:"created_at" bson:"created_at"`
 }
 
+// ExclusionWord represents a word excluded from brand/keyword tracking
+type ExclusionWord struct {
+	ID        string    `json:"id"`
+	Word      string    `json:"word"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // ModelInfo represents information about an available model from a provider
 type ModelInfo struct {
 	ID          string `json:"id"`

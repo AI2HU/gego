@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -17,7 +16,6 @@ import (
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
-	"github.com/AI2HU/gego/internal/shared"
 )
 
 var (
@@ -73,15 +71,6 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	} else {
 		cfg = appconfig.LoadFromEnv()
 		fmt.Printf("No config file at %s — using environment variables\n", configPath)
-	}
-
-	if cfg.KeywordsExclusionPath != "" {
-		exclusionPath := cfg.KeywordsExclusionPath
-		if !filepath.IsAbs(exclusionPath) {
-			configDir := filepath.Dir(configPath)
-			exclusionPath = filepath.Join(configDir, exclusionPath)
-		}
-		shared.SetExclusionFilePath(exclusionPath)
 	}
 
 	selectedCORSOrigin := corsOrigin
@@ -143,6 +132,11 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("✅ Database migrations completed successfully!")
 
+	exclusionWordsService := services.NewExclusionWordsService(database)
+	if err := exclusionWordsService.Initialize(ctx, cfg.ResolveKeywordsExclusionPath(configPath)); err != nil {
+		return fmt.Errorf("failed to initialize exclusion words: %w", err)
+	}
+
 	fmt.Println("\n🔐 Checking API users...")
 	bootstrappedUser, err := services.BootstrapAdminFromEnv(ctx, database)
 	if err != nil {
@@ -159,7 +153,7 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	server, err := api.NewServer(database, selectedCORSOrigin, authConfig, cfg, configPath)
+	server, err := api.NewServer(database, selectedCORSOrigin, authConfig, cfg, configPath, exclusionWordsService)
 	if err != nil {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
-	"github.com/AI2HU/gego/internal/shared"
 )
 
 var (
@@ -29,6 +27,7 @@ var (
 	logFile      string
 	cfg          *config.Config
 	database     db.Database
+	exclusionWordsService *services.ExclusionWordsService
 	llmRegistry  *llm.Registry
 	runtime      *services.Runtime
 	statsService *services.StatsService
@@ -91,15 +90,6 @@ and compare performance across different LLM providers.`,
 				if err != nil {
 					return fmt.Errorf("failed to load config: %w", err)
 				}
-
-				if cfg.KeywordsExclusionPath != "" {
-					exclusionPath := cfg.KeywordsExclusionPath
-					if !filepath.IsAbs(exclusionPath) {
-						configDir := filepath.Dir(cfgFile)
-						exclusionPath = filepath.Join(configDir, exclusionPath)
-					}
-					shared.SetExclusionFilePath(exclusionPath)
-				}
 			}
 		}
 
@@ -133,6 +123,11 @@ and compare performance across different LLM providers.`,
 
 		if err := database.Connect(context.Background()); err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
+		}
+
+		exclusionWordsService = services.NewExclusionWordsService(database)
+		if err := exclusionWordsService.Initialize(context.Background(), cfg.ResolveKeywordsExclusionPath(cfgFile)); err != nil {
+			return fmt.Errorf("failed to initialize exclusion words: %w", err)
 		}
 
 		statsService = services.NewStatsService(database)

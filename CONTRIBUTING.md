@@ -177,6 +177,14 @@ if err != nil {
 
 ### Database Operations
 
+Gego's active SQL store is **PostgreSQL**. **SQLite is legacy** (kept only for unmigrated installations). See [`internal/db/README.md`](internal/db/README.md).
+
+When adding or changing SQL-backed features:
+
+- Add PostgreSQL migrations in `internal/db/migrations/postgres/`
+- Implement access in `internal/db/postgres/`
+- **Do not** update `internal/db/sqlite/` or `internal/db/migrations/sqlite/`
+
 - Always use context.Context
 - Handle errors gracefully
 - Use transactions when appropriate

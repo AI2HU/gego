@@ -34,9 +34,10 @@ type Server struct {
 	schedulerService *services.SchedulerService
 	enqueueService   *services.RunEnqueueService
 	jobStore         jobs.Store
-	statsService     *services.StatsService
-	searchService    *services.SearchService
-	authService      *services.AuthService
+	statsService         *services.StatsService
+	searchService        *services.SearchService
+	exclusionWordsService *services.ExclusionWordsService
+	authService          *services.AuthService
 	authMiddleware   *auth.Middleware
 	authConfig       auth.Config
 	upgradeService   *services.UpgradeService
@@ -49,7 +50,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server
-func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, appCfg *config.Config, configPath string) (*Server, error) {
+func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, appCfg *config.Config, configPath string, exclusionWordsService *services.ExclusionWordsService) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
@@ -101,9 +102,10 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, 
 		schedulerService: runtime.Scheduler,
 		enqueueService:   runtime.Enqueue,
 		jobStore:         runtime.Store,
-		statsService:     services.NewStatsService(database),
-		searchService:    services.NewSearchService(database),
-		authService:      services.NewAuthService(database, authConfig),
+		statsService:          services.NewStatsService(database),
+		searchService:         services.NewSearchService(database),
+		exclusionWordsService: exclusionWordsService,
+		authService:           services.NewAuthService(database, authConfig),
 		authMiddleware:   authMW,
 		authConfig:       authConfig,
 		upgradeService:   services.NewUpgradeService(appCfg),
@@ -172,6 +174,11 @@ func (s *Server) setupRoutes() {
 	protected.GET("/stats/urls", s.requirePerm(auth.PermStatsRead), s.getURLStats)
 	protected.GET("/stats/query-urls", s.requirePerm(auth.PermStatsRead), s.getQueryURLStats)
 	protected.GET("/stats/keyword-domains", s.requirePerm(auth.PermStatsRead), s.getKeywordDomainMatrix)
+
+	protected.GET("/exclusion-words/suggestions", s.requirePerm(auth.PermExclusionWordsRead), s.listSuggestedBrandWords)
+	protected.GET("/exclusion-words", s.requirePerm(auth.PermExclusionWordsRead), s.listExclusionWords)
+	protected.POST("/exclusion-words", s.requirePerm(auth.PermExclusionWordsWrite), s.createExclusionWord)
+	protected.DELETE("/exclusion-words/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteExclusionWord)
 
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
 	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)

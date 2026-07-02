@@ -212,3 +212,17 @@ func GetSystemInstruction(cfg *Config, provider LLMProvider) string {
 	}
 	return defaultInstruction
 }
+
+// ResolveKeywordsExclusionPath returns the absolute path to the legacy keywords exclusion file.
+func (c *Config) ResolveKeywordsExclusionPath(configPath string) string {
+	if c == nil || c.KeywordsExclusionPath == "" {
+		return ""
+	}
+	if filepath.IsAbs(c.KeywordsExclusionPath) {
+		return c.KeywordsExclusionPath
+	}
+	if configPath == "" {
+		configPath = GetConfigPath()
+	}
+	return filepath.Join(filepath.Dir(configPath), c.KeywordsExclusionPath)
+}
