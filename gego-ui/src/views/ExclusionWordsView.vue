@@ -7,20 +7,24 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
+import TagFilter from '@/components/ui/TagFilter.vue'
 import {
   useCreateExclusionWordMutation,
   useDeleteExclusionWordMutation,
   useExclusionWordsQuery,
   useSuggestedBrandWordsQuery,
 } from '@/queries/exclusion-words'
+import { usePromptsQuery } from '@/queries/prompts'
 
 const newWord = ref('')
 const searchQuery = ref('')
+const selectedTags = ref<string[]>([])
 const deletingId = ref<string | null>(null)
 const excludingWord = ref<string | null>(null)
 
 const exclusionWordsQuery = useExclusionWordsQuery()
-const suggestionsQuery = useSuggestedBrandWordsQuery(50)
+const promptsQuery = usePromptsQuery()
+const suggestionsQuery = useSuggestedBrandWordsQuery(50, selectedTags)
 const createMutation = useCreateExclusionWordMutation()
 const deleteMutation = useDeleteExclusionWordMutation()
 
@@ -43,9 +47,34 @@ const filteredWords = computed(() => {
   return exclusionWords.value.filter((word) => word.word.toLowerCase().includes(query))
 })
 
+const allTags = computed(() => {
+  const tags = new Set<string>()
+  for (const prompt of promptsQuery.data.value ?? []) {
+    for (const tag of prompt.tags ?? []) {
+      tags.add(tag)
+    }
+  }
+  return Array.from(tags).sort((a, b) => a.localeCompare(b))
+})
+
+const hasActiveTagFilters = computed(() => selectedTags.value.length > 0)
+
 const visibleSuggestions = computed(() =>
   suggestions.value.filter((item) => !excludedWordSet.value.has(item.word.toLowerCase())),
 )
+
+function toggleTag(tag: string) {
+  const index = selectedTags.value.indexOf(tag)
+  if (index === -1) {
+    selectedTags.value = [...selectedTags.value, tag]
+    return
+  }
+  selectedTags.value = selectedTags.value.filter((value) => value !== tag)
+}
+
+function clearTagFilters() {
+  selectedTags.value = []
+}
 
 const errorMessage = computed(() => {
   const error = exclusionWordsQuery.error.value
@@ -189,11 +218,12 @@ async function handleExcludeSuggestion(word: string) {
     </section>
 
     <section>
-      <div class="mb-4 flex items-center justify-between gap-4">
+      <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">Detected brand words</h2>
           <p class="mt-1 text-sm text-gray-600">
             Click a word to exclude it from brand tracking.
+            <span v-if="hasActiveTagFilters">Showing words from responses matching selected tags.</span>
           </p>
         </div>
         <AppButton
@@ -206,6 +236,19 @@ async function handleExcludeSuggestion(word: string) {
         </AppButton>
       </div>
 
+      <div
+        v-if="allTags.length > 0"
+        class="mb-4 rounded-xl border border-gray-200/60 bg-white/60 p-4 backdrop-blur-sm"
+      >
+        <TagFilter
+          :tags="allTags"
+          :selected-tags="selectedTags"
+          :disabled="suggestionsQuery.isFetching.value"
+          @toggle="toggleTag"
+          @clear="clearTagFilters"
+        />
+      </div>
+
       <LoadingState
         v-if="suggestionsQuery.isPending.value && !suggestionsQuery.data.value"
         title="Loading suggestions"
@@ -215,7 +258,11 @@ async function handleExcludeSuggestion(word: string) {
       <EmptyState
         v-else-if="visibleSuggestions.length === 0"
         title="No suggestions available"
-        description="Run prompts via the scheduler to collect responses, then review detected brand words here."
+        :description="
+          hasActiveTagFilters
+            ? 'No detected brand words found for the selected tags. Try different tags or clear the filter.'
+            : 'Run prompts via the scheduler to collect responses, then review detected brand words here.'
+        "
         icon="lightbulb"
       />
 
