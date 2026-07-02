@@ -131,3 +131,24 @@ export function getCronHint(cronExpr: string): string | undefined {
   const preset = CRON_EXPR_TO_PRESET[cronExpr.trim()]
   return preset ? CRON_PRESET_HINTS[preset] : cronExpr.trim() || undefined
 }
+
+export function getCronPreset(cronExpr: string): { preset: CronPreset; customExpr: string } {
+  const trimmed = cronExpr.trim()
+  const preset = CRON_EXPR_TO_PRESET[trimmed]
+  if (preset) {
+    return { preset, customExpr: '' }
+  }
+  return { preset: 'custom', customExpr: trimmed }
+}
+
+export function getTemperatureMode(
+  temperature: number,
+): { mode: 'default' | 'random' | 'custom'; value: string } {
+  if (temperature === -1) {
+    return { mode: 'random', value: '0.7' }
+  }
+  if (temperature === 0.7) {
+    return { mode: 'default', value: '0.7' }
+  }
+  return { mode: 'custom', value: String(temperature) }
+}

@@ -147,7 +147,7 @@ func runScheduleAdd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s%d. %s (%s - %s)%s\n", CountStyle, i+1, FormatValue(l.Name), FormatSecondary(l.Provider), FormatSecondary(l.Model), Reset)
 	}
 
-	fmt.Printf("\n%sSelect LLMs (one model per provider is used at run time; comma-separated numbers or 'all'): %s", LabelStyle, Reset)
+	fmt.Printf("\n%sSelect LLMs (comma-separated numbers or 'all'): %s", LabelStyle, Reset)
 	llmSelection, _ := reader.ReadString('\n')
 	llmSelection = strings.TrimSpace(llmSelection)
 

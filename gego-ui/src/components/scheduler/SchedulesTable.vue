@@ -20,6 +20,7 @@ withDefaults(
 
 const emit = defineEmits<{
   delete: [id: string]
+  edit: [schedule: ScheduleResponse]
   toggleEnabled: [id: string, enabled: boolean]
   run: [id: string]
   viewRun: [runId: string]
@@ -80,7 +81,7 @@ function confirmDelete(id: string) {
             <th class="px-4 py-3">Last run</th>
             <th class="px-4 py-3">Run status</th>
             <th class="px-4 py-3">Status</th>
-            <th class="w-52 px-4 py-3 text-right">Actions</th>
+            <th class="w-64 px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
 
@@ -138,6 +139,13 @@ function confirmDelete(id: string) {
             </td>
             <td class="px-4 py-3">
               <div class="flex items-center justify-end gap-1.5">
+                <AppButton
+                  variant="ghost"
+                  size="sm"
+                  @click="emit('edit', schedule)"
+                >
+                  Edit
+                </AppButton>
                 <span
                   class="inline-flex"
                   :title="canRun ? undefined : 'No worker is started. Run: gego worker start'"

@@ -10,9 +10,19 @@ import LoadingState from '@/components/ui/LoadingState.vue'
 import { formatProviderName } from '@/lib/providers'
 import { useModelsQuery } from '@/queries/models'
 import { usePromptsQuery } from '@/queries/prompts'
-import { useCreateScheduleMutation } from '@/queries/schedules'
-import type { CronPreset } from '@/types/schedule'
-import { CRON_PRESETS, CRON_PRESET_HINTS, CRON_PRESET_LABELS } from '@/types/schedule'
+import { useCreateScheduleMutation, useUpdateScheduleMutation } from '@/queries/schedules'
+import type { CronPreset, ScheduleResponse } from '@/types/schedule'
+import {
+  CRON_PRESETS,
+  CRON_PRESET_HINTS,
+  CRON_PRESET_LABELS,
+  getCronPreset,
+  getTemperatureMode,
+} from '@/types/schedule'
+
+const props = defineProps<{
+  schedule?: ScheduleResponse
+}>()
 
 const frequencyOptions: { id: CronPreset; label: string; hint: string }[] = [
   { id: 'daily', label: CRON_PRESET_LABELS.daily, hint: CRON_PRESET_HINTS.daily },
@@ -24,18 +34,48 @@ const frequencyOptions: { id: CronPreset; label: string; hint: string }[] = [
 const emit = defineEmits<{
   close: []
   added: []
+  updated: []
 }>()
 
 type WizardStep = 'details' | 'prompts' | 'models' | 'saving'
 
+function initFromSchedule(schedule?: ScheduleResponse) {
+  if (!schedule) {
+    return {
+      name: '',
+      cronPreset: 'daily' as CronPreset,
+      customCron: '',
+      temperatureMode: 'default' as const,
+      customTemperature: '0.7',
+      selectedPromptIds: new Set<string>(),
+      selectedModelIds: new Set<string>(),
+    }
+  }
+
+  const cron = getCronPreset(schedule.cron_expr)
+  const temperature = getTemperatureMode(schedule.temperature)
+
+  return {
+    name: schedule.name,
+    cronPreset: cron.preset,
+    customCron: cron.customExpr,
+    temperatureMode: temperature.mode,
+    customTemperature: temperature.value,
+    selectedPromptIds: new Set(schedule.prompt_ids),
+    selectedModelIds: new Set(schedule.llm_ids),
+  }
+}
+
+const initial = initFromSchedule(props.schedule)
+
 const step = ref<WizardStep>('details')
-const name = ref('')
-const cronPreset = ref<CronPreset>('daily')
-const customCron = ref('')
-const temperatureMode = ref<'default' | 'random' | 'custom'>('default')
-const customTemperature = ref('0.7')
-const selectedPromptIds = ref<Set<string>>(new Set())
-const selectedModelIds = ref<Set<string>>(new Set())
+const name = ref(initial.name)
+const cronPreset = ref<CronPreset>(initial.cronPreset)
+const customCron = ref(initial.customCron)
+const temperatureMode = ref<'default' | 'random' | 'custom'>(initial.temperatureMode)
+const customTemperature = ref(initial.customTemperature)
+const selectedPromptIds = ref<Set<string>>(initial.selectedPromptIds)
+const selectedModelIds = ref<Set<string>>(initial.selectedModelIds)
 const activeTagFilter = ref<string | null>(null)
 const searchQuery = ref('')
 const errorMessage = ref<string | null>(null)
@@ -43,6 +83,12 @@ const errorMessage = ref<string | null>(null)
 const promptsQuery = usePromptsQuery()
 const modelsQuery = useModelsQuery()
 const createMutation = useCreateScheduleMutation()
+const updateMutation = useUpdateScheduleMutation()
+
+const isEditMode = computed(() => !!props.schedule)
+const isSaving = computed(
+  () => createMutation.isPending.value || updateMutation.isPending.value,
+)
 
 const prompts = computed(() => promptsQuery.data.value ?? [])
 const models = computed(() => modelsQuery.data.value ?? [])
@@ -98,13 +144,19 @@ const modelsByProvider = computed(() => {
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
 })
 
-const allProvidersSelected = computed(
+const allModelsSelected = computed(
   () =>
-    modelsByProvider.value.length > 0 &&
-    modelsByProvider.value.every(([, providerModels]) =>
-      providerModels.some((model) => selectedModelIds.value.has(model.id)),
-    ),
+    models.value.length > 0 &&
+    models.value.every((model) => selectedModelIds.value.has(model.id)),
 )
+
+function providerModelsSelected(provider: string): boolean {
+  const providerModels = modelsByProvider.value.find(([p]) => p === provider)?.[1] ?? []
+  return (
+    providerModels.length > 0 &&
+    providerModels.every((model) => selectedModelIds.value.has(model.id))
+  )
+}
 
 const stepNumber = computed(() => {
   switch (step.value) {
@@ -230,36 +282,38 @@ function clearFilters() {
 }
 
 function toggleModel(id: string) {
-  const model = models.value.find((entry) => entry.id === id)
-  if (!model) return
-
   const next = new Set(selectedModelIds.value)
   if (next.has(id)) {
     next.delete(id)
   } else {
-    for (const other of models.value) {
-      if (other.provider === model.provider) {
-        next.delete(other.id)
-      }
-    }
     next.add(id)
   }
   selectedModelIds.value = next
 }
 
+function toggleProviderModels(provider: string) {
+  const providerModels = modelsByProvider.value.find(([p]) => p === provider)?.[1] ?? []
+  const next = new Set(selectedModelIds.value)
+  const allSelected = providerModels.every((model) => next.has(model.id))
+
+  for (const model of providerModels) {
+    if (allSelected) {
+      next.delete(model.id)
+    } else {
+      next.add(model.id)
+    }
+  }
+
+  selectedModelIds.value = next
+}
+
 function toggleAllModels() {
-  if (allProvidersSelected.value) {
+  if (allModelsSelected.value) {
     selectedModelIds.value = new Set()
     return
   }
 
-  const next = new Set<string>()
-  for (const [, providerModels] of modelsByProvider.value) {
-    if (providerModels[0]) {
-      next.add(providerModels[0].id)
-    }
-  }
-  selectedModelIds.value = next
+  selectedModelIds.value = new Set(models.value.map((model) => model.id))
 }
 
 async function saveSchedule() {
@@ -271,20 +325,27 @@ async function saveSchedule() {
   errorMessage.value = null
   step.value = 'saving'
 
+  const payload = {
+    name: name.value.trim(),
+    prompt_ids: Array.from(selectedPromptIds.value),
+    llm_ids: Array.from(selectedModelIds.value),
+    cron_expr: resolveCronExpr(),
+    temperature: resolveTemperature(),
+  }
+
   try {
-    await createMutation.mutateAsync({
-      name: name.value.trim(),
-      prompt_ids: Array.from(selectedPromptIds.value),
-      llm_ids: Array.from(selectedModelIds.value),
-      cron_expr: resolveCronExpr(),
-      temperature: resolveTemperature(),
-      enabled: true,
-    })
-    emit('added')
+    if (isEditMode.value && props.schedule) {
+      await updateMutation.mutateAsync({ id: props.schedule.id, payload })
+      emit('updated')
+    } else {
+      await createMutation.mutateAsync({ ...payload, enabled: true })
+      emit('added')
+    }
     closeWizard()
   } catch (error) {
     step.value = 'models'
-    errorMessage.value = error instanceof Error ? error.message : 'Failed to create schedule'
+    const fallback = isEditMode.value ? 'Failed to update schedule' : 'Failed to create schedule'
+    errorMessage.value = error instanceof Error ? error.message : fallback
   }
 }
 </script>
@@ -303,7 +364,7 @@ async function saveSchedule() {
         class="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-gray-200/80 bg-white shadow-2xl overflow-hidden"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="add-schedule-title"
+        :aria-labelledby="isEditMode ? 'edit-schedule-title' : 'add-schedule-title'"
       >
         <div class="border-b border-gray-200/60 px-6 py-5 bg-gradient-to-r from-slate-50 to-white">
           <div class="flex items-start justify-between gap-4">
@@ -311,8 +372,11 @@ async function saveSchedule() {
               <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Step {{ stepNumber }} of 3
               </p>
-              <h2 id="add-schedule-title" class="text-xl font-semibold text-gray-900 mt-1">
-                Add schedule
+              <h2
+                :id="isEditMode ? 'edit-schedule-title' : 'add-schedule-title'"
+                class="text-xl font-semibold text-gray-900 mt-1"
+              >
+                {{ isEditMode ? 'Edit schedule' : 'Add schedule' }}
               </h2>
             </div>
             <button
@@ -508,10 +572,10 @@ async function saveSchedule() {
           <div v-else-if="step === 'models'" class="space-y-4">
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm text-gray-600">
-                Select one model per provider. Each prompt runs once per provider per schedule run.
+                Select models to include. Each prompt runs once per selected model per schedule run.
               </p>
               <AppButton variant="ghost" size="sm" @click="toggleAllModels">
-                {{ allProvidersSelected ? 'Deselect all' : 'Select all providers' }}
+                {{ allModelsSelected ? 'Deselect all' : 'Select all models' }}
               </AppButton>
             </div>
 
@@ -525,9 +589,18 @@ async function saveSchedule() {
                 :key="provider"
                 class="rounded-lg border border-gray-200/80 overflow-hidden"
               >
-                <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-gray-200/80">
-                  <ProviderLogo :provider="provider" class="h-5 w-5" />
-                  <span class="text-sm font-medium text-gray-900">{{ formatProviderName(provider) }}</span>
+                <div class="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border-b border-gray-200/80">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <ProviderLogo :provider="provider" class="h-5 w-5" />
+                    <span class="text-sm font-medium text-gray-900">{{ formatProviderName(provider) }}</span>
+                  </div>
+                  <AppButton
+                    variant="ghost"
+                    size="sm"
+                    @click="toggleProviderModels(provider)"
+                  >
+                    {{ providerModelsSelected(provider) ? 'Deselect all' : 'Select all' }}
+                  </AppButton>
                 </div>
                 <div class="divide-y divide-gray-100">
                   <label
@@ -536,9 +609,8 @@ async function saveSchedule() {
                     class="flex items-start gap-3 p-3 cursor-pointer hover:bg-slate-50"
                   >
                     <input
-                      type="radio"
+                      type="checkbox"
                       class="mt-1"
-                      :name="`provider-${provider}`"
                       :checked="selectedModelIds.has(model.id)"
                       @change="toggleModel(model.id)"
                     />
@@ -554,8 +626,8 @@ async function saveSchedule() {
 
           <LoadingState
             v-else-if="step === 'saving'"
-            title="Creating schedule"
-            description="Saving your new schedule..."
+            :title="isEditMode ? 'Saving changes' : 'Creating schedule'"
+            :description="isEditMode ? 'Updating your schedule...' : 'Saving your new schedule...'"
           />
         </div>
 
@@ -587,10 +659,10 @@ async function saveSchedule() {
             <AppButton
               v-else-if="step === 'models'"
               :disabled="models.length === 0"
-              :loading="createMutation.isPending.value"
+              :loading="isSaving"
               @click="saveSchedule"
             >
-              Create schedule
+              {{ isEditMode ? 'Save changes' : 'Create schedule' }}
             </AppButton>
           </div>
         </div>
