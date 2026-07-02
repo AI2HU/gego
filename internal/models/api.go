@@ -295,3 +295,19 @@ type ErrorLogResponse struct {
 	Temperature float64   `json:"temperature,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
+
+type UpgradeItem struct {
+	Code   string `json:"code"`
+	Severity string `json:"severity"`
+}
+
+type RunUpgradeRequest struct {
+	UpgradeCode string `json:"upgrade_code" binding:"required"`
+}
+
+type RunUpgradeResponse struct {
+	UpgradeCode     string `json:"upgrade_code"`
+	Status          string `json:"status"`
+	Message         string `json:"message"`
+	RestartRequired bool   `json:"restart_required"`
+}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -47,17 +46,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("\n📊 Database Configuration")
 	fmt.Println("--------------------------")
 	fmt.Println("Gego uses a hybrid approach:")
-	fmt.Println("  • SQLite for LLMs and Schedules (structured data)")
-	fmt.Println("  • MongoDB for Prompts and Responses (unstructured data)")
+	fmt.Println("  • PostgreSQL for LLMs, schedules, and users")
+	fmt.Println("  • MongoDB for prompts and responses")
 	fmt.Println()
 
-	fmt.Println("🗄️  SQLite Configuration (for LLMs and Schedules)")
-	sqlitePath, err := promptOptional(reader, "SQLite database path [gego.db]: ", "gego.db")
+	fmt.Println("🐘 PostgreSQL Configuration")
+	postgresURI, err := promptOptional(reader, "PostgreSQL URI [postgres://localhost:5432/gego?sslmode=disable]: ", "postgres://localhost:5432/gego?sslmode=disable")
 	if err != nil {
 		return err
 	}
-	cfg.SQLDatabase.Provider = "sqlite"
-	cfg.SQLDatabase.URI = sqlitePath
+	cfg.SQLDatabase.Provider = "postgres"
+	cfg.SQLDatabase.URI = postgresURI
 	cfg.SQLDatabase.Database = "gego"
 
 	fmt.Println("\n🍃 MongoDB Configuration (for Prompts and Responses)")
@@ -103,7 +102,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("✅ Database connection successful!")
 
 	fmt.Println("\n🔄 Running database migrations...")
-	if err := runMigrations(sqlitePath); err != nil {
+	if err := runDatabaseMigrations(ctx, testDB); err != nil {
 		fmt.Printf("❌ Failed to run migrations: %v\n", err)
 		fmt.Println("You may need to run migrations manually later.")
 	} else {
@@ -119,14 +118,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("\n📋 Configuration Summary")
 	fmt.Println("========================")
-	fmt.Printf("SQLite Database: %s (%s)\n", cfg.SQLDatabase.Provider, cfg.SQLDatabase.URI)
+	fmt.Printf("SQL Database: %s (%s)\n", cfg.SQLDatabase.Provider, cfg.SQLDatabase.URI)
 	fmt.Printf("NoSQL Database: %s (%s)\n", cfg.NoSQLDatabase.Provider, cfg.NoSQLDatabase.URI)
 	fmt.Printf("Database Name: %s\n", cfg.NoSQLDatabase.Database)
 	fmt.Println()
 	fmt.Println("🎉 Setup complete! You can now use gego.")
 	fmt.Println()
 	fmt.Println("ℹ️  Gego uses a hybrid database approach:")
-	fmt.Println("   • SQLite stores LLM configurations and schedules")
+	fmt.Println("   • PostgreSQL stores LLM configurations, schedules, and users")
 	fmt.Println("   • MongoDB stores prompts and responses for keyword analysis")
 	fmt.Println()
 	fmt.Println("Next steps:")
@@ -136,46 +135,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("  4. Start a worker: gego worker start")
 	fmt.Println("  5. Start the scheduler: gego scheduler start")
 	fmt.Println()
-	fmt.Println("Migration commands:")
-	fmt.Println("  • Run migrations: gego migrate up")
-	fmt.Println("  • Check status: gego migrate status")
-
-	return nil
-}
-
-// runMigrations executes database migrations using gomigrate
-func runMigrations(sqlitePath string) error {
-	if _, err := exec.LookPath("migrate"); err != nil {
-		return fmt.Errorf("migrate command not found. Please install golang-migrate: https://github.com/golang-migrate/migrate")
-	}
-
-	migrationsDir := filepath.Join("internal", "db", "migrations")
-
-	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
-		return fmt.Errorf("migrations directory not found: %s", migrationsDir)
-	}
-
-	absSQLitePath, err := filepath.Abs(sqlitePath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve SQLite path: %w", err)
-	}
-
-	dbURL := fmt.Sprintf("sqlite3://%s", absSQLitePath)
-
-	cmd := exec.Command("migrate",
-		"-path", migrationsDir,
-		"-database", dbURL,
-		"up")
-
-	cmd.Dir = "."
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("migration failed: %w\nOutput: %s", err, string(output))
-	}
-
-	if len(output) > 0 {
-		fmt.Printf("Migration output: %s", string(output))
+	if _, err := os.Stat(filepath.Join("internal", "db", "migrations")); err == nil {
+		fmt.Println("Legacy SQLite installs can migrate with: gego db upgrade-from-sqlite")
 	}
 
 	return nil

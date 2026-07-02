@@ -33,6 +33,7 @@ Thumbs.db
 # Configuration files with sensitive data
 config.yaml
 .gego/
+.env.dev
 
 # Build artifacts
 dist/

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -37,6 +38,10 @@ type Server struct {
 	searchService    *services.SearchService
 	authService      *services.AuthService
 	authMiddleware   *auth.Middleware
+	authConfig       auth.Config
+	upgradeService   *services.UpgradeService
+	configPath       string
+	dbMu             sync.Mutex
 	llmRegistry      *llm.Registry
 	runtime          *services.Runtime
 	router           *gin.Engine
@@ -44,7 +49,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server
-func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) (*Server, error) {
+func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, appCfg *config.Config, configPath string) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
@@ -100,6 +105,9 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config) 
 		searchService:    services.NewSearchService(database),
 		authService:      services.NewAuthService(database, authConfig),
 		authMiddleware:   authMW,
+		authConfig:       authConfig,
+		upgradeService:   services.NewUpgradeService(appCfg),
+		configPath:       configPath,
 		llmRegistry:      llmRegistry,
 		runtime:          runtime,
 		router:           router,
@@ -118,6 +126,8 @@ func (s *Server) setupRoutes() {
 	api.POST("/auth/login", s.login)
 	api.POST("/auth/refresh", s.refresh)
 	api.POST("/auth/logout", s.logout)
+	api.GET("/upgrades", s.listRequiredUpgrades)
+	api.POST("/upgrades", s.runUpgrade)
 
 	protected := api.Group("")
 	protected.Use(s.authMiddleware.Authenticate())

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -41,7 +42,7 @@ type AuthConfig struct {
 
 // Config represents the application configuration
 type Config struct {
-	SQLDatabase              DatabaseConfig `yaml:"sql_database"`                         // SQLite for LLMs and Schedules
+	SQLDatabase              DatabaseConfig `yaml:"sql_database"`                         // PostgreSQL for LLMs and Schedules
 	NoSQLDatabase            DatabaseConfig `yaml:"nosql_database"`                       // MongoDB for Prompts and Responses
 	CORSOrigin               string         `yaml:"cors_origin,omitempty"`                // CORS origin for API server
 	Auth                     AuthConfig     `yaml:"auth,omitempty"`                       // JWT authentication settings
@@ -53,7 +54,7 @@ type Config struct {
 
 // DatabaseConfig represents database configuration
 type DatabaseConfig struct {
-	Provider string            `yaml:"provider"` // sqlite, mongodb, cassandra
+	Provider string            `yaml:"provider"` // postgres, sqlite (legacy)
 	URI      string            `yaml:"uri"`
 	Database string            `yaml:"database"`
 	Options  map[string]string `yaml:"options,omitempty"`
@@ -65,8 +66,8 @@ func DefaultConfig() *Config {
 	configDir := filepath.Dir(configPath)
 	return &Config{
 		SQLDatabase: DatabaseConfig{
-			Provider: "sqlite",
-			URI:      "gego.db",
+			Provider: "postgres",
+			URI:      "postgres://localhost:5432/gego?sslmode=disable",
 			Database: "gego",
 		},
 		NoSQLDatabase: DatabaseConfig{
@@ -101,6 +102,43 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// LoadFromEnv builds configuration from environment variables.
+func LoadFromEnv() *Config {
+	cfg := DefaultConfig()
+
+	if uri := strings.TrimSpace(os.Getenv("GEGO_POSTGRES_URI")); uri != "" {
+		cfg.SQLDatabase.URI = uri
+	} else if uri := strings.TrimSpace(os.Getenv("DATABASE_URL")); uri != "" {
+		cfg.SQLDatabase.URI = uri
+	}
+
+	if uri := strings.TrimSpace(os.Getenv("GEGO_MONGODB_URI")); uri != "" {
+		cfg.NoSQLDatabase.URI = uri
+	}
+	if name := strings.TrimSpace(os.Getenv("GEGO_MONGODB_DATABASE")); name != "" {
+		cfg.NoSQLDatabase.Database = name
+	}
+
+	return cfg
+}
+
+// ResolveConfig loads YAML when present; otherwise returns env-based defaults.
+func ResolveConfig(path string, allowEnvFallback bool) (*Config, error) {
+	if path != "" && Exists(path) {
+		return Load(path)
+	}
+	if allowEnvFallback {
+		return LoadFromEnv(), nil
+	}
+	if path == "" {
+		path = GetConfigPath()
+	}
+	if !Exists(path) {
+		return nil, fmt.Errorf("configuration file not found at %s", path)
+	}
+	return Load(path)
 }
 
 // Save saves configuration to file

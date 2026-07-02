@@ -52,33 +52,63 @@ and compare performance across different LLM providers.`,
 			return nil
 		}
 
-		if cfgFile == "" {
-			cfgFile = config.GetConfigPath()
-		}
-
-		if cmd.Name() != "api" && !config.Exists(cfgFile) {
-			return fmt.Errorf("configuration file not found. Run 'gego init' to create one")
-		}
-
-		if cmd.Name() != "api" {
+		if usesEnvConfigByDefault(cmd) {
+			configPath := ""
+			if cmd.Flags().Changed("config") {
+				configPath = cfgFile
+			}
 			var err error
-			cfg, err = config.Load(cfgFile)
+			cfg, err = config.ResolveConfig(configPath, true)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
+			if cfg.SQLDatabase.Provider == "sqlite" {
+				envCfg := config.LoadFromEnv()
+				cfg.SQLDatabase.Provider = "postgres"
+				cfg.SQLDatabase.URI = envCfg.SQLDatabase.URI
+			}
+		} else if isDBCommand(cmd) {
+			if cfgFile == "" {
+				cfgFile = config.GetConfigPath()
+			}
+			var err error
+			cfg, err = config.ResolveConfig(cfgFile, true)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+		} else {
+			if cfgFile == "" {
+				cfgFile = config.GetConfigPath()
+			}
 
-			if cfg.KeywordsExclusionPath != "" {
-				exclusionPath := cfg.KeywordsExclusionPath
-				if !filepath.IsAbs(exclusionPath) {
-					configDir := filepath.Dir(cfgFile)
-					exclusionPath = filepath.Join(configDir, exclusionPath)
+			if cmd.Name() != "api" && !config.Exists(cfgFile) {
+				return fmt.Errorf("configuration file not found. Run 'gego init' to create one")
+			}
+
+			if cmd.Name() != "api" {
+				var err error
+				cfg, err = config.Load(cfgFile)
+				if err != nil {
+					return fmt.Errorf("failed to load config: %w", err)
 				}
-				shared.SetExclusionFilePath(exclusionPath)
+
+				if cfg.KeywordsExclusionPath != "" {
+					exclusionPath := cfg.KeywordsExclusionPath
+					if !filepath.IsAbs(exclusionPath) {
+						configDir := filepath.Dir(cfgFile)
+						exclusionPath = filepath.Join(configDir, exclusionPath)
+					}
+					shared.SetExclusionFilePath(exclusionPath)
+				}
 			}
 		}
 
-		if cmd.Name() == "api" {
+		if cmd.Name() == "api" || cmd.Name() == "init" || isDBCommand(cmd) {
 			return nil
+		}
+
+		if usesEnvConfigByDefault(cmd) && cfg.SQLDatabase.Provider == "sqlite" {
+			return fmt.Errorf("worker requires PostgreSQL: set GEGO_POSTGRES_URI")
 		}
 
 		sqlConfig := &models.Config{
@@ -148,6 +178,7 @@ func init() {
 
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(apiCmd)
+	rootCmd.AddCommand(dbCmd)
 	rootCmd.AddCommand(llmCmd)
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(scheduleCmd)
@@ -190,6 +221,30 @@ func initializeLLMProviders(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func isDBCommand(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "db" {
+			return true
+		}
+	}
+	return false
+}
+
+func usesEnvConfigByDefault(cmd *cobra.Command) bool {
+	if cmd == nil || cmd.Name() != "start" {
+		return false
+	}
+	if cmd.Parent() == nil {
+		return false
+	}
+	switch cmd.Parent().Name() {
+	case "worker", "scheduler":
+		return true
+	default:
+		return false
+	}
 }
 
 func requiresRuntime(cmd *cobra.Command) bool {
