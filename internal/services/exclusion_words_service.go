@@ -132,7 +132,7 @@ func (s *ExclusionWordsService) DeleteExclusionWord(ctx context.Context, id stri
 }
 
 // GetSuggestedBrandWords returns capitalized words detected in responses that are not yet excluded.
-func (s *ExclusionWordsService) GetSuggestedBrandWords(ctx context.Context, limit int) ([]models.SuggestedBrandWordResponse, error) {
+func (s *ExclusionWordsService) GetSuggestedBrandWords(ctx context.Context, limit int, promptIDs []string, tagFilter bool) ([]models.SuggestedBrandWordResponse, error) {
 	if limit < 1 {
 		limit = 50
 	}
@@ -140,7 +140,16 @@ func (s *ExclusionWordsService) GetSuggestedBrandWords(ctx context.Context, limi
 		limit = 200
 	}
 
-	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{})
+	if tagFilter && len(promptIDs) == 0 {
+		return []models.SuggestedBrandWordResponse{}, nil
+	}
+
+	filter := shared.ResponseFilter{Limit: 10000}
+	if len(promptIDs) > 0 {
+		filter.PromptIDs = promptIDs
+	}
+
+	responses, err := s.db.ListResponses(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list responses: %w", err)
 	}

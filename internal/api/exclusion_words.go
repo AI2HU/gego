@@ -64,7 +64,19 @@ func (s *Server) listSuggestedBrandWords(c *gin.Context) {
 		limit = 50
 	}
 
-	suggestions, err := s.exclusionWordsService.GetSuggestedBrandWords(c.Request.Context(), limit)
+	tags := parseTagsFromQuery(c)
+	promptIDs, err := s.resolvePromptIDsByTags(c.Request.Context(), tags)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve prompt tags: "+err.Error())
+		return
+	}
+
+	suggestions, err := s.exclusionWordsService.GetSuggestedBrandWords(
+		c.Request.Context(),
+		limit,
+		promptIDs,
+		len(tags) > 0,
+	)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to get brand word suggestions: "+err.Error())
 		return
