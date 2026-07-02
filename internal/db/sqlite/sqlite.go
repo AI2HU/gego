@@ -1,3 +1,8 @@
+// Package sqlite provides the legacy SQLite SQL backend.
+//
+// SQLite is legacy-only: it exists for deployments that have not migrated to PostgreSQL.
+// Do not add new features or schema changes here. Implement SQL changes in internal/db/postgres/
+// and migrations/postgres/ instead. See internal/db/README.md.
 package sqlite
 
 import (

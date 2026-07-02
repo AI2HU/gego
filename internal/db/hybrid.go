@@ -208,6 +208,30 @@ func (h *HybridDB) RevokeSession(ctx context.Context, id string) error {
 	return h.sqlDB.RevokeSession(ctx, id)
 }
 
+func (h *HybridDB) CreateExclusionWord(ctx context.Context, word *models.ExclusionWord) error {
+	return h.sqlDB.CreateExclusionWord(ctx, word)
+}
+
+func (h *HybridDB) GetExclusionWord(ctx context.Context, id string) (*models.ExclusionWord, error) {
+	return h.sqlDB.GetExclusionWord(ctx, id)
+}
+
+func (h *HybridDB) GetExclusionWordByWord(ctx context.Context, word string) (*models.ExclusionWord, error) {
+	return h.sqlDB.GetExclusionWordByWord(ctx, word)
+}
+
+func (h *HybridDB) ListExclusionWords(ctx context.Context) ([]*models.ExclusionWord, error) {
+	return h.sqlDB.ListExclusionWords(ctx)
+}
+
+func (h *HybridDB) DeleteExclusionWord(ctx context.Context, id string) error {
+	return h.sqlDB.DeleteExclusionWord(ctx, id)
+}
+
+func (h *HybridDB) CountExclusionWords(ctx context.Context) (int, error) {
+	return h.sqlDB.CountExclusionWords(ctx)
+}
+
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)
 }

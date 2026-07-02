@@ -311,3 +311,22 @@ type RunUpgradeResponse struct {
 	Message         string `json:"message"`
 	RestartRequired bool   `json:"restart_required"`
 }
+
+// CreateExclusionWordRequest represents the request to create an exclusion word
+type CreateExclusionWordRequest struct {
+	Word string `json:"word" binding:"required"`
+}
+
+// ExclusionWordResponse represents an exclusion word in API responses
+type ExclusionWordResponse struct {
+	ID        string    `json:"id"`
+	Word      string    `json:"word"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SuggestedBrandWordResponse represents a detected brand word suggestion
+type SuggestedBrandWordResponse struct {
+	Word  string `json:"word"`
+	Count int    `json:"count"`
+}

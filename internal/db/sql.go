@@ -6,7 +6,8 @@ import (
 	"github.com/AI2HU/gego/internal/models"
 )
 
-// SQLDatabase defines the interface for SQL database operations (LLMs and Schedules)
+// SQLDatabase defines the interface for SQL database operations (LLMs and Schedules).
+// Implement new methods in internal/db/postgres/ only; SQLite is legacy (see internal/db/README.md).
 type SQLDatabase interface {
 	// Connection management
 	Connect(ctx context.Context) error
@@ -39,4 +40,12 @@ type SQLDatabase interface {
 	CreateSession(ctx context.Context, session *models.UserSession) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (*models.UserSession, error)
 	RevokeSession(ctx context.Context, id string) error
+
+	// Exclusion word operations
+	CreateExclusionWord(ctx context.Context, word *models.ExclusionWord) error
+	GetExclusionWord(ctx context.Context, id string) (*models.ExclusionWord, error)
+	GetExclusionWordByWord(ctx context.Context, word string) (*models.ExclusionWord, error)
+	ListExclusionWords(ctx context.Context) ([]*models.ExclusionWord, error)
+	DeleteExclusionWord(ctx context.Context, id string) error
+	CountExclusionWords(ctx context.Context) (int, error)
 }

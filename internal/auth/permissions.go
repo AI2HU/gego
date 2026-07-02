@@ -13,9 +13,11 @@ const (
 	PermPromptsWrite   Permission = "prompts:write"
 	PermSchedulesRead  Permission = "schedules:read"
 	PermSchedulesWrite Permission = "schedules:write"
-	PermStatsRead      Permission = "stats:read"
-	PermSearchExecute  Permission = "search:execute"
-	PermAuthProfile    Permission = "auth:profile"
+	PermStatsRead           Permission = "stats:read"
+	PermSearchExecute       Permission = "search:execute"
+	PermExclusionWordsRead  Permission = "exclusion-words:read"
+	PermExclusionWordsWrite Permission = "exclusion-words:write"
+	PermAuthProfile         Permission = "auth:profile"
 )
 
 type EndpointPolicy struct {
@@ -29,7 +31,9 @@ var RolePermissions = map[models.Role][]Permission{
 		PermLLMsRead, PermLLMsWrite,
 		PermPromptsRead, PermPromptsWrite,
 		PermSchedulesRead, PermSchedulesWrite,
-		PermStatsRead, PermSearchExecute, PermAuthProfile,
+		PermStatsRead, PermSearchExecute,
+		PermExclusionWordsRead, PermExclusionWordsWrite,
+		PermAuthProfile,
 	},
 	models.RoleMember: {
 		PermLLMsRead,
@@ -71,6 +75,10 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "GET", Path: "/stats/urls", Permission: PermStatsRead},
 	{Method: "GET", Path: "/stats/query-urls", Permission: PermStatsRead},
 	{Method: "GET", Path: "/stats/keyword-domains", Permission: PermStatsRead},
+	{Method: "GET", Path: "/exclusion-words", Permission: PermExclusionWordsRead},
+	{Method: "GET", Path: "/exclusion-words/suggestions", Permission: PermExclusionWordsRead},
+	{Method: "POST", Path: "/exclusion-words", Permission: PermExclusionWordsWrite},
+	{Method: "DELETE", Path: "/exclusion-words/:id", Permission: PermExclusionWordsWrite},
 	{Method: "POST", Path: "/search", Permission: PermSearchExecute},
 	{Method: "GET", Path: "/logs/errors", Permission: PermSchedulesRead},
 	{Method: "GET", Path: "/auth/me", Permission: PermAuthProfile},
