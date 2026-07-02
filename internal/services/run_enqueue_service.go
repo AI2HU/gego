@@ -47,8 +47,6 @@ func (s *RunEnqueueService) EnqueueSchedule(ctx context.Context, scheduleID stri
 	}
 
 	llms := make([]*models.LLMConfig, 0, len(schedule.LLMIDs))
-	providerLLMs := make(map[string]*models.LLMConfig)
-	providerOrder := make([]string, 0)
 	for _, llmID := range schedule.LLMIDs {
 		llmConfig, err := s.db.GetLLM(ctx, llmID)
 		if err != nil {
@@ -57,11 +55,6 @@ func (s *RunEnqueueService) EnqueueSchedule(ctx context.Context, scheduleID stri
 		if !llmConfig.Enabled {
 			continue
 		}
-		if _, exists := providerLLMs[llmConfig.Provider]; exists {
-			continue
-		}
-		providerLLMs[llmConfig.Provider] = llmConfig
-		providerOrder = append(providerOrder, llmConfig.Provider)
 		llms = append(llms, llmConfig)
 	}
 
@@ -81,10 +74,9 @@ func (s *RunEnqueueService) EnqueueSchedule(ctx context.Context, scheduleID stri
 		CronSlot:   cronSlot,
 	}
 
-	jobList := make([]*models.ScheduleJob, 0, len(prompts)*len(providerOrder))
+	jobList := make([]*models.ScheduleJob, 0, len(prompts)*len(llms))
 	for _, prompt := range prompts {
-		for _, provider := range providerOrder {
-			llmConfig := providerLLMs[provider]
+		for _, llmConfig := range llms {
 			temperature := schedule.Temperature
 			if schedule.Temperature == -1.0 {
 				temperature = rand.Float64()

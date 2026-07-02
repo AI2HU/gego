@@ -11,7 +11,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { getCronHint, getCronLabel } from '@/types/schedule'
-import type { ScheduleRunResponse } from '@/types/schedule'
+import type { ScheduleRunResponse, ScheduleResponse } from '@/types/schedule'
 import {
   useDeleteScheduleMutation,
   useReloadSchedulerMutation,
@@ -26,6 +26,7 @@ import {
 } from '@/queries/schedules'
 
 const showWizard = ref(false)
+const editingSchedule = ref<ScheduleResponse | null>(null)
 const deletingId = ref<string | null>(null)
 const togglingId = ref<string | null>(null)
 const runningId = ref<string | null>(null)
@@ -91,14 +92,26 @@ const canRunSchedules = computed(
 )
 
 function openWizard() {
+  editingSchedule.value = null
   showWizard.value = true
 }
 
 function closeWizard() {
   showWizard.value = false
+  editingSchedule.value = null
+}
+
+function openEditWizard(schedule: ScheduleResponse) {
+  editingSchedule.value = schedule
+  showWizard.value = true
 }
 
 function onScheduleAdded() {
+  void schedulesQuery.refetch()
+  void statusQuery.refetch()
+}
+
+function onScheduleUpdated() {
   void schedulesQuery.refetch()
   void statusQuery.refetch()
 }
@@ -337,6 +350,7 @@ function handleViewRun(runId: string) {
         :toggling-id="togglingId"
         :running-id="runningId"
         @delete="handleDelete"
+        @edit="openEditWizard"
         @toggle-enabled="handleToggleEnabled"
         @run="handleRun"
         @view-run="handleViewRun"
@@ -345,8 +359,10 @@ function handleViewRun(runId: string) {
 
     <AddScheduleWizard
       v-if="showWizard"
+      :schedule="editingSchedule ?? undefined"
       @close="closeWizard"
       @added="onScheduleAdded"
+      @updated="onScheduleUpdated"
     />
     <RunDetailDrawer
       v-if="activeRunId && activeRunQuery.data.value"
