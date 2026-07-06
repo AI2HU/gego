@@ -71,7 +71,7 @@ func (s *Server) listSuggestedBrandWords(c *gin.Context) {
 		return
 	}
 
-	suggestions, err := s.exclusionWordsService.GetSuggestedBrandWords(
+	suggestions, err := s.brandsService.GetSuggestedBrandWords(
 		c.Request.Context(),
 		limit,
 		promptIDs,

@@ -39,8 +39,14 @@ defineProps<{
     <template v-else>
       <template v-for="(segment, segmentIndex) in part.segments" :key="segmentIndex">
         <mark
-          v-if="segment.highlight"
+          v-if="segment.highlight === 'keyword'"
           class="rounded bg-amber-100 px-0.5 font-medium text-amber-900"
+          title="Search term"
+        >{{ segment.text }}</mark>
+        <mark
+          v-else-if="segment.highlight === 'alias'"
+          class="rounded bg-sky-100 px-0.5 font-medium text-sky-900"
+          title="Brand alias match"
         >{{ segment.text }}</mark>
         <span v-else>{{ segment.text }}</span>
       </template>

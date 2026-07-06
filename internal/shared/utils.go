@@ -14,6 +14,8 @@ var (
 	exclusionWords     map[string]bool
 	exclusionWordsList []string
 	exclusionWordsMu   sync.RWMutex
+
+	capitalizedWordRe = regexp.MustCompile(`\b[\p{Lu}][\p{L}]+(?:\s+[\p{Lu}][\p{L}]+)*\b`)
 )
 
 // ParseEnabledFilter parses the enabled query parameter and returns a pointer to bool or nil
@@ -109,23 +111,26 @@ func LoadExclusionWordsFromFile(path string) ([]string, error) {
 
 // ExtractCapitalizedWords extracts words that start with a capital letter.
 func ExtractCapitalizedWords(text string) []string {
-	return filterCapitalizedWords(text, getExclusionWords())
+	return filterCapitalizedWords(text, getExclusionWords(), true)
 }
 
-// ExtractAllCapitalizedWords extracts capitalized words without applying exclusions.
+// ExtractAllCapitalizedWords extracts capitalized words without exclusions or brand resolution.
 func ExtractAllCapitalizedWords(text string) []string {
-	return filterCapitalizedWords(text, nil)
+	return filterCapitalizedWords(text, nil, false)
 }
 
-func filterCapitalizedWords(text string, exclusions map[string]bool) []string {
-	re := regexp.MustCompile(`\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b`)
-	matches := re.FindAllString(text, -1)
+func filterCapitalizedWords(text string, exclusions map[string]bool, resolveBrands bool) []string {
+	matches := capitalizedWordRe.FindAllString(text, -1)
 
 	var filtered []string
 	for _, word := range matches {
-		if !isExcluded(word, exclusions) {
-			filtered = append(filtered, word)
+		if isExcluded(word, exclusions) {
+			continue
 		}
+		if resolveBrands {
+			word = ResolveBrand(word)
+		}
+		filtered = append(filtered, word)
 	}
 	return filtered
 }

@@ -82,6 +82,25 @@ type ExclusionWord struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// Brand represents a canonical brand name with optional aliases
+type Brand struct {
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	Aliases   []*BrandAlias `json:"aliases,omitempty"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
+}
+
+// BrandAlias maps a detected token to a canonical brand name
+type BrandAlias struct {
+	ID            string    `json:"id"`
+	BrandID       string    `json:"brand_id"`
+	Alias         string    `json:"alias"`
+	CaseSensitive bool      `json:"case_sensitive"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 // ModelInfo represents information about an available model from a provider
 type ModelInfo struct {
 	ID          string `json:"id"`

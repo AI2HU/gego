@@ -17,14 +17,9 @@ const emit = defineEmits<{
   updateTags: [id: string, tags: string[]]
 }>()
 
-const expandedId = ref<string | null>(null)
 const editingTagsId = ref<string | null>(null)
 const tagsDraft = ref('')
 const confirmingDeleteId = ref<string | null>(null)
-
-function toggleExpanded(id: string) {
-  expandedId.value = expandedId.value === id ? null : id
-}
 
 function startEditTags(prompt: PromptResponse) {
   editingTagsId.value = prompt.id
@@ -96,27 +91,14 @@ watch(
 
         <tbody class="divide-y divide-gray-100">
           <template v-for="prompt in prompts" :key="prompt.id">
-            <tr
-              class="group transition-colors hover:bg-slate-50/70"
-              :class="expandedId === prompt.id ? 'bg-slate-50/50' : ''"
-            >
+            <tr class="group transition-colors hover:bg-slate-50/70">
               <td class="px-4 py-2.5 align-top min-w-[280px]">
-                <button
-                  type="button"
-                  class="w-full text-left"
-                  @click="toggleExpanded(prompt.id)"
-                >
-                  <p
-                    class="text-gray-900 leading-snug"
-                    :class="expandedId === prompt.id ? 'whitespace-pre-wrap' : 'line-clamp-2'"
-                  >
-                    {{ prompt.template }}
-                  </p>
-                  <p class="mt-1 text-xs text-gray-400">
-                    {{ expandedId === prompt.id ? 'Click to collapse' : 'Click to expand' }}
-                    · Updated {{ formatDate(prompt.updated_at) }}
-                  </p>
-                </button>
+                <p class="whitespace-pre-wrap text-gray-900 leading-snug">
+                  {{ prompt.template }}
+                </p>
+                <p class="mt-1 text-xs text-gray-400">
+                  Updated {{ formatDate(prompt.updated_at) }}
+                </p>
               </td>
 
               <td class="px-4 py-2.5 align-top">

@@ -42,24 +42,13 @@ func (s *Server) search(c *gin.Context) {
 		return
 	}
 
-	countFilter := shared.ResponseFilter{
-		Keyword:   req.Keyword,
-		PromptIDs: promptIDs,
-		StartTime: req.StartTime,
-		EndTime:   req.EndTime,
-	}
-
-	totalResponses, err := s.searchService.CountResponses(c.Request.Context(), countFilter)
-	if err != nil {
-		s.errorResponse(c, http.StatusInternalServerError, "Failed to count responses: "+err.Error())
-		return
-	}
-
 	keywordStats, err := s.searchService.SearchKeyword(c.Request.Context(), req.Keyword, req.StartTime, req.EndTime, promptIDs)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to search keyword: "+err.Error())
 		return
 	}
+
+	totalResponses := int64(keywordStats.MatchingResponses)
 
 	filter := shared.ResponseFilter{
 		Keyword:   req.Keyword,
@@ -77,6 +66,7 @@ func (s *Server) search(c *gin.Context) {
 
 	response := models.SearchResponse{
 		Keyword:        keywordStats.Keyword,
+		SearchTerms:    shared.GetBrandSearchTermStrings(req.Keyword),
 		TotalResponses: totalResponses,
 		TotalMentions:  keywordStats.TotalMentions,
 		UniquePrompts: keywordStats.UniquePrompts,

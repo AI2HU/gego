@@ -256,6 +256,102 @@ func (h *HybridDB) CountExclusionWords(ctx context.Context) (int, error) {
 	return ew.CountExclusionWords(ctx)
 }
 
+func (h *HybridDB) CreateBrand(ctx context.Context, brand *models.Brand) error {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return b.CreateBrand(ctx, brand)
+}
+
+func (h *HybridDB) GetBrand(ctx context.Context, id string) (*models.Brand, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return b.GetBrand(ctx, id)
+}
+
+func (h *HybridDB) GetBrandByName(ctx context.Context, name string) (*models.Brand, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return b.GetBrandByName(ctx, name)
+}
+
+func (h *HybridDB) ListBrands(ctx context.Context) ([]*models.Brand, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return b.ListBrands(ctx)
+}
+
+func (h *HybridDB) UpdateBrand(ctx context.Context, brand *models.Brand) error {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return b.UpdateBrand(ctx, brand)
+}
+
+func (h *HybridDB) DeleteBrand(ctx context.Context, id string) error {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return b.DeleteBrand(ctx, id)
+}
+
+func (h *HybridDB) CreateBrandAlias(ctx context.Context, alias *models.BrandAlias) error {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return b.CreateBrandAlias(ctx, alias)
+}
+
+func (h *HybridDB) GetBrandAlias(ctx context.Context, id string) (*models.BrandAlias, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return b.GetBrandAlias(ctx, id)
+}
+
+func (h *HybridDB) GetBrandAliasByAlias(ctx context.Context, alias string) (*models.BrandAlias, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return b.GetBrandAliasByAlias(ctx, alias)
+}
+
+func (h *HybridDB) ListBrandAliasesByBrandID(ctx context.Context, brandID string) ([]*models.BrandAlias, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return b.ListBrandAliasesByBrandID(ctx, brandID)
+}
+
+func (h *HybridDB) UpdateBrandAlias(ctx context.Context, alias *models.BrandAlias) error {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return b.UpdateBrandAlias(ctx, alias)
+}
+
+func (h *HybridDB) DeleteBrandAlias(ctx context.Context, id string) error {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return b.DeleteBrandAlias(ctx, id)
+}
+
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)
 }

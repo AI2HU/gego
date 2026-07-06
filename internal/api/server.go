@@ -37,6 +37,7 @@ type Server struct {
 	statsService         *services.StatsService
 	searchService        *services.SearchService
 	exclusionWordsService *services.ExclusionWordsService
+	brandsService         *services.BrandsService
 	authService          *services.AuthService
 	authMiddleware   *auth.Middleware
 	authConfig       auth.Config
@@ -50,7 +51,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server
-func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, appCfg *config.Config, configPath string, exclusionWordsService *services.ExclusionWordsService) (*Server, error) {
+func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, appCfg *config.Config, configPath string, exclusionWordsService *services.ExclusionWordsService, brandsService *services.BrandsService) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
@@ -105,6 +106,7 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, 
 		statsService:          services.NewStatsService(database),
 		searchService:         services.NewSearchService(database),
 		exclusionWordsService: exclusionWordsService,
+		brandsService:         brandsService,
 		authService:           services.NewAuthService(database, authConfig),
 		authMiddleware:   authMW,
 		authConfig:       authConfig,
@@ -175,10 +177,19 @@ func (s *Server) setupRoutes() {
 	protected.GET("/stats/query-urls", s.requirePerm(auth.PermStatsRead), s.getQueryURLStats)
 	protected.GET("/stats/keyword-domains", s.requirePerm(auth.PermStatsRead), s.getKeywordDomainMatrix)
 
-	protected.GET("/exclusion-words/suggestions", s.requirePerm(auth.PermExclusionWordsRead), s.listSuggestedBrandWords)
 	protected.GET("/exclusion-words", s.requirePerm(auth.PermExclusionWordsRead), s.listExclusionWords)
 	protected.POST("/exclusion-words", s.requirePerm(auth.PermExclusionWordsWrite), s.createExclusionWord)
 	protected.DELETE("/exclusion-words/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteExclusionWord)
+
+	protected.GET("/brands/suggestions", s.requirePerm(auth.PermExclusionWordsRead), s.listSuggestedBrandWords)
+	protected.GET("/brands", s.requirePerm(auth.PermExclusionWordsRead), s.listBrands)
+	protected.POST("/brands", s.requirePerm(auth.PermExclusionWordsWrite), s.createBrand)
+	protected.POST("/brands/map", s.requirePerm(auth.PermExclusionWordsWrite), s.mapBrandFromDetection)
+	protected.PUT("/brands/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.updateBrand)
+	protected.DELETE("/brands/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteBrand)
+	protected.POST("/brands/:id/aliases", s.requirePerm(auth.PermExclusionWordsWrite), s.createBrandAlias)
+	protected.PUT("/brands/:id/aliases/:aliasId", s.requirePerm(auth.PermExclusionWordsWrite), s.updateBrandAlias)
+	protected.DELETE("/brands/:id/aliases/:aliasId", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteBrandAlias)
 
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
 	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)
