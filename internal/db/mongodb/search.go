@@ -2,7 +2,6 @@ package mongodb
 
 import (
 	"context"
-	"regexp"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,27 +12,14 @@ import (
 
 // SearchKeyword searches for a keyword in all responses and calculates stats on-the-fly
 func (m *MongoDB) SearchKeyword(ctx context.Context, keyword string, startTime, endTime *time.Time, promptIDs []string) (*models.KeywordStats, error) {
-	pattern := regexp.QuoteMeta(keyword)
-	regex := bson.M{"$regex": pattern, "$options": "i"}
-
-	query := bson.M{
-		"response_text": regex,
+	searchTerms := shared.ExpandBrandSearchTerms(keyword)
+	filter := shared.ResponseFilter{
+		Keyword:   keyword,
+		PromptIDs: promptIDs,
+		StartTime: startTime,
+		EndTime:   endTime,
 	}
-
-	if len(promptIDs) > 0 {
-		query["prompt_id"] = bson.M{"$in": promptIDs}
-	}
-
-	if startTime != nil || endTime != nil {
-		timeQuery := bson.M{}
-		if startTime != nil {
-			timeQuery["$gte"] = *startTime
-		}
-		if endTime != nil {
-			timeQuery["$lte"] = *endTime
-		}
-		query["created_at"] = timeQuery
-	}
+	query := buildResponseFilterQuery(filter)
 
 	cursor, err := m.database.Collection(collResponses).Find(ctx, query)
 	if err != nil {
@@ -63,7 +49,8 @@ func (m *MongoDB) SearchKeyword(ctx context.Context, keyword string, startTime, 
 		llmProvider := getString(doc, "llm_provider")
 		createdAt := getTime(doc, "created_at")
 
-		count := shared.CountOccurrences(responseText, keyword)
+		count := shared.CountBrandOccurrences(responseText, searchTerms)
+		stats.MatchingResponses++
 		stats.TotalMentions += count
 
 		stats.ByPrompt[promptID] += count

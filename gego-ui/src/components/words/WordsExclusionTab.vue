@@ -12,8 +12,8 @@ import {
   useCreateExclusionWordMutation,
   useDeleteExclusionWordMutation,
   useExclusionWordsQuery,
-  useSuggestedBrandWordsQuery,
 } from '@/queries/exclusion-words'
+import { useSuggestedBrandWordsQuery } from '@/queries/brands'
 import { usePromptsQuery } from '@/queries/prompts'
 
 const newWord = ref('')

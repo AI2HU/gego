@@ -137,6 +137,11 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize exclusion words: %w", err)
 	}
 
+	brandsService := services.NewBrandsService(database)
+	if err := brandsService.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize brands: %w", err)
+	}
+
 	fmt.Println("\n🔐 Checking API users...")
 	bootstrappedUser, err := services.BootstrapAdminFromEnv(ctx, database)
 	if err != nil {
@@ -153,7 +158,7 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	server, err := api.NewServer(database, selectedCORSOrigin, authConfig, cfg, configPath, exclusionWordsService)
+	server, err := api.NewServer(database, selectedCORSOrigin, authConfig, cfg, configPath, exclusionWordsService, brandsService)
 	if err != nil {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
+import BrandMapSelection from '@/components/search/BrandMapSelection.vue'
 import ResponseMarkdown from '@/components/search/ResponseMarkdown.vue'
 import { card } from '@/design/classes'
 import { linkCitationMarkers } from '@/lib/search-matches'
@@ -9,6 +10,8 @@ import type { SearchMatch } from '@/types/search'
 
 const props = defineProps<{
   match: SearchMatch
+  highlightTerms: string[]
+  searchKeyword: string
   caseSensitive?: boolean
 }>()
 
@@ -82,11 +85,14 @@ function formatTemperature(value: number): string {
       <div>
         <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700 mb-2">Response</p>
         <div :class="card.inset">
-          <ResponseMarkdown
-            :text="responseText"
-            :keyword="match.keyword"
-            :case-sensitive="caseSensitive"
-          />
+          <BrandMapSelection>
+            <ResponseMarkdown
+              :text="responseText"
+              :highlight-terms="highlightTerms"
+              :search-keyword="searchKeyword"
+              :case-sensitive="caseSensitive"
+            />
+          </BrandMapSelection>
         </div>
       </div>
 

@@ -6,12 +6,18 @@ import { parseMarkdownBlocks } from '@/lib/response-text'
 
 const props = defineProps<{
   text: string
-  keyword: string
+  highlightTerms: string[]
+  searchKeyword: string
   caseSensitive?: boolean
 }>()
 
 const blocks = computed(() =>
-  parseMarkdownBlocks(props.text, props.keyword, props.caseSensitive),
+  parseMarkdownBlocks(
+    props.text,
+    props.highlightTerms,
+    props.caseSensitive,
+    props.searchKeyword,
+  ),
 )
 
 function headingClass(level: number): string {

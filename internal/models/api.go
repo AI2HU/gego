@@ -28,14 +28,14 @@ type Pagination struct {
 
 // CreateLLMRequest represents the request to create a new LLM
 type CreateLLMRequest struct {
-	Name               string            `json:"name" binding:"required"`
-	Provider           string            `json:"provider" binding:"required"`
-	Model              string            `json:"model" binding:"required"`
-	APIKey             string            `json:"api_key,omitempty"`
-	ExistingKeyIndex   *int              `json:"existing_key_index,omitempty"`
-	BaseURL            string            `json:"base_url,omitempty"`
-	Config             map[string]string `json:"config,omitempty"`
-	Enabled            bool              `json:"enabled"`
+	Name             string            `json:"name" binding:"required"`
+	Provider         string            `json:"provider" binding:"required"`
+	Model            string            `json:"model" binding:"required"`
+	APIKey           string            `json:"api_key,omitempty"`
+	ExistingKeyIndex *int              `json:"existing_key_index,omitempty"`
+	BaseURL          string            `json:"base_url,omitempty"`
+	Config           map[string]string `json:"config,omitempty"`
+	Enabled          bool              `json:"enabled"`
 }
 
 // UpdateLLMRequest represents the request to update an existing LLM
@@ -66,9 +66,9 @@ type ProviderAPIKeyResponse struct {
 
 // ListProviderModelsRequest represents credentials for listing provider models
 type ListProviderModelsRequest struct {
-	APIKey             string `json:"api_key,omitempty"`
-	ExistingKeyIndex   *int   `json:"existing_key_index,omitempty"`
-	BaseURL            string `json:"base_url,omitempty"`
+	APIKey           string `json:"api_key,omitempty"`
+	ExistingKeyIndex *int   `json:"existing_key_index,omitempty"`
+	BaseURL          string `json:"base_url,omitempty"`
 }
 
 // ModelInfoResponse represents an available model from a provider
@@ -225,7 +225,7 @@ type ScheduleRunListResponse struct {
 }
 
 type ScheduleRunDetailResponse struct {
-	Run  ScheduleRunResponse  `json:"run"`
+	Run  ScheduleRunResponse   `json:"run"`
 	Jobs []ScheduleJobResponse `json:"jobs"`
 }
 
@@ -245,16 +245,16 @@ type ScheduleResponse struct {
 
 // StatsResponse represents the response for statistics
 type StatsResponse struct {
-	TotalResponses int64             `json:"total_responses"`
-	TotalPrompts   int64             `json:"total_prompts"`
-	TotalLLMs      int64             `json:"total_llms"`
-	TotalSchedules int64             `json:"total_schedules"`
-	TopKeywords    []KeywordCount      `json:"top_keywords"`
-	BrandTrends    []BrandTrendSeries  `json:"brand_trends"`
-	PromptStats    []*PromptStats      `json:"prompt_stats"`
-	LLMStats       []*LLMStats       `json:"llm_stats"`
-	ResponseTrends []TimeSeriesPoint `json:"response_trends"`
-	LastUpdated    time.Time         `json:"last_updated"`
+	TotalResponses int64              `json:"total_responses"`
+	TotalPrompts   int64              `json:"total_prompts"`
+	TotalLLMs      int64              `json:"total_llms"`
+	TotalSchedules int64              `json:"total_schedules"`
+	TopKeywords    []KeywordCount     `json:"top_keywords"`
+	BrandTrends    []BrandTrendSeries `json:"brand_trends"`
+	PromptStats    []*PromptStats     `json:"prompt_stats"`
+	LLMStats       []*LLMStats        `json:"llm_stats"`
+	ResponseTrends []TimeSeriesPoint  `json:"response_trends"`
+	LastUpdated    time.Time          `json:"last_updated"`
 }
 
 // SearchRequest represents the request to search responses
@@ -268,17 +268,18 @@ type SearchRequest struct {
 
 // SearchResponse represents the response for search operations
 type SearchResponse struct {
-	Keyword         string         `json:"keyword"`
-	TotalResponses  int64          `json:"total_responses"`
-	TotalMentions   int            `json:"total_mentions"`
-	UniquePrompts   int            `json:"unique_prompts"`
-	UniqueLLMs      int            `json:"unique_llms"`
-	ByPrompt        map[string]int `json:"by_prompt"`
-	ByLLM           map[string]int `json:"by_llm"`
-	ByProvider      map[string]int `json:"by_provider"`
-	FirstSeen       time.Time      `json:"first_seen"`
-	LastSeen        time.Time      `json:"last_seen"`
-	Responses       []*Response    `json:"responses,omitempty"`
+	Keyword        string         `json:"keyword"`
+	SearchTerms    []string       `json:"search_terms,omitempty"`
+	TotalResponses int64          `json:"total_responses"`
+	TotalMentions  int            `json:"total_mentions"`
+	UniquePrompts  int            `json:"unique_prompts"`
+	UniqueLLMs     int            `json:"unique_llms"`
+	ByPrompt       map[string]int `json:"by_prompt"`
+	ByLLM          map[string]int `json:"by_llm"`
+	ByProvider     map[string]int `json:"by_provider"`
+	FirstSeen      time.Time      `json:"first_seen"`
+	LastSeen       time.Time      `json:"last_seen"`
+	Responses      []*Response    `json:"responses,omitempty"`
 }
 
 // ErrorLogResponse represents a failed LLM call stored in responses
@@ -297,7 +298,7 @@ type ErrorLogResponse struct {
 }
 
 type UpgradeItem struct {
-	Code   string `json:"code"`
+	Code     string `json:"code"`
 	Severity string `json:"severity"`
 }
 
@@ -329,4 +330,59 @@ type ExclusionWordResponse struct {
 type SuggestedBrandWordResponse struct {
 	Word  string `json:"word"`
 	Count int    `json:"count"`
+}
+
+// BrandAliasRequest represents an alias in create/update requests
+type BrandAliasRequest struct {
+	Alias         string `json:"alias" binding:"required"`
+	CaseSensitive bool   `json:"case_sensitive"`
+}
+
+// CreateBrandRequest represents the request to create a brand
+type CreateBrandRequest struct {
+	Name    string              `json:"name" binding:"required"`
+	Aliases []BrandAliasRequest `json:"aliases,omitempty"`
+}
+
+// UpdateBrandRequest represents the request to update a brand name
+type UpdateBrandRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// CreateBrandAliasRequest represents the request to add an alias
+type CreateBrandAliasRequest struct {
+	Alias         string `json:"alias" binding:"required"`
+	CaseSensitive bool   `json:"case_sensitive"`
+}
+
+// UpdateBrandAliasRequest represents the request to update an alias
+type UpdateBrandAliasRequest struct {
+	Alias         string `json:"alias" binding:"required"`
+	CaseSensitive bool   `json:"case_sensitive"`
+}
+
+// MapBrandRequest maps a detected word to a canonical brand name
+type MapBrandRequest struct {
+	Alias         string `json:"alias" binding:"required"`
+	Name          string `json:"name" binding:"required"`
+	CaseSensitive bool   `json:"case_sensitive"`
+}
+
+// BrandAliasResponse represents a brand alias in API responses
+type BrandAliasResponse struct {
+	ID            string    `json:"id"`
+	BrandID       string    `json:"brand_id"`
+	Alias         string    `json:"alias"`
+	CaseSensitive bool      `json:"case_sensitive"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// BrandResponse represents a brand in API responses
+type BrandResponse struct {
+	ID        string               `json:"id"`
+	Name      string               `json:"name"`
+	Aliases   []BrandAliasResponse `json:"aliases"`
+	CreatedAt time.Time            `json:"created_at"`
+	UpdatedAt time.Time            `json:"updated_at"`
 }

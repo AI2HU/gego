@@ -4,5 +4,6 @@ package db
 type Database interface {
 	SQLDatabase
 	ExclusionWordDatabase
+	BrandDatabase
 	NoSQLDatabase
 }

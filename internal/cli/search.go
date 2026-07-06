@@ -57,16 +57,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	var regex *regexp.Regexp
-	if searchCaseSensitive {
-		regex = regexp.MustCompile(regexp.QuoteMeta(keyword))
-	} else {
-		regex = regexp.MustCompile("(?i)" + regexp.QuoteMeta(keyword))
-	}
-
 	var matches []SearchMatch
+	searchTerms := shared.GetBrandSearchTermStrings(keyword)
 	for _, response := range responses {
-		matches = append(matches, findMatches(response, regex, keyword)...)
+		matches = append(matches, findMatches(response, searchTerms, searchCaseSensitive)...)
 	}
 
 	if len(matches) == 0 {
@@ -125,44 +119,56 @@ type SearchMatch struct {
 	CreatedAt   time.Time
 }
 
-func findMatches(response *models.Response, regex *regexp.Regexp, keyword string) []SearchMatch {
+func findMatches(response *models.Response, searchTerms []string, caseSensitive bool) []SearchMatch {
 	var matches []SearchMatch
 
-	indices := regex.FindAllStringIndex(response.ResponseText, -1)
-
-	for _, index := range indices {
-		start := index[0]
-		end := index[1]
-
-		contextStart := start - 100
-		if contextStart < 0 {
-			contextStart = 0
-		}
-		contextEnd := end + 100
-		if contextEnd > len(response.ResponseText) {
-			contextEnd = len(response.ResponseText)
+	for _, term := range searchTerms {
+		if term == "" {
+			continue
 		}
 
-		contextText := response.ResponseText[contextStart:contextEnd]
-
-		highlightedContext := strings.ReplaceAll(contextText, keyword, FormatHighlight(keyword))
-
-		promptName := "Unknown Prompt"
-		if prompt, err := database.GetPrompt(context.Background(), response.PromptID); err == nil {
-			promptName = prompt.Template
+		var regex *regexp.Regexp
+		if caseSensitive {
+			regex = regexp.MustCompile(regexp.QuoteMeta(term))
+		} else {
+			regex = regexp.MustCompile("(?i)" + regexp.QuoteMeta(term))
 		}
 
-		matches = append(matches, SearchMatch{
-			ResponseID:  response.ID,
-			PromptID:    response.PromptID,
-			PromptName:  promptName,
-			FullPrompt:  response.PromptText,
-			LLMName:     response.LLMName,
-			LLMProvider: response.LLMProvider,
-			Temperature: response.Temperature,
-			Context:     highlightedContext,
-			CreatedAt:   response.CreatedAt,
-		})
+		indices := regex.FindAllStringIndex(response.ResponseText, -1)
+		for _, index := range indices {
+			start := index[0]
+			end := index[1]
+
+			contextStart := start - 100
+			if contextStart < 0 {
+				contextStart = 0
+			}
+			contextEnd := end + 100
+			if contextEnd > len(response.ResponseText) {
+				contextEnd = len(response.ResponseText)
+			}
+
+			contextText := response.ResponseText[contextStart:contextEnd]
+			matched := response.ResponseText[start:end]
+			highlightedContext := strings.ReplaceAll(contextText, matched, FormatHighlight(matched))
+
+			promptName := "Unknown Prompt"
+			if prompt, err := database.GetPrompt(context.Background(), response.PromptID); err == nil {
+				promptName = prompt.Template
+			}
+
+			matches = append(matches, SearchMatch{
+				ResponseID:  response.ID,
+				PromptID:    response.PromptID,
+				PromptName:  promptName,
+				FullPrompt:  response.PromptText,
+				LLMName:     response.LLMName,
+				LLMProvider: response.LLMProvider,
+				Temperature: response.Temperature,
+				Context:     highlightedContext,
+				CreatedAt:   response.CreatedAt,
+			})
+		}
 	}
 
 	return matches

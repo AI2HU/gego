@@ -303,6 +303,10 @@ func (m *MongoDB) GetResponse(ctx context.Context, id string) (*models.Response,
 		return nil, err
 	}
 
+	return decodeResponseFromDoc(doc), nil
+}
+
+func decodeResponseFromDoc(doc bson.M) *models.Response {
 	response := &models.Response{
 		ID:           getString(doc, "_id"),
 		PromptID:     getString(doc, "prompt_id"),
@@ -336,7 +340,7 @@ func (m *MongoDB) GetResponse(ctx context.Context, id string) (*models.Response,
 		}
 	}
 
-	return response, nil
+	return response
 }
 
 // ListResponses lists responses with filtering
@@ -359,7 +363,14 @@ func (m *MongoDB) ListResponses(ctx context.Context, filter shared.ResponseFilte
 	defer cursor.Close(ctx)
 
 	var responses []*models.Response
-	if err := cursor.All(ctx, &responses); err != nil {
+	for cursor.Next(ctx) {
+		var doc bson.M
+		if err := cursor.Decode(&doc); err != nil {
+			continue
+		}
+		responses = append(responses, decodeResponseFromDoc(doc))
+	}
+	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
 
@@ -392,10 +403,7 @@ func buildResponseFilterQuery(filter shared.ResponseFilter) bson.M {
 		query["error"] = bson.M{"$exists": true, "$ne": ""}
 	}
 	if filter.Keyword != "" {
-		query["response_text"] = bson.M{
-			"$regex":   filter.Keyword,
-			"$options": "i",
-		}
+		applyKeywordFilter(query, filter.Keyword)
 	}
 	if filter.StartTime != nil || filter.EndTime != nil {
 		timeQuery := bson.M{}
@@ -419,8 +427,13 @@ func (m *MongoDB) GetDatabase() *mongo.Database {
 // Helper functions for safe field extraction
 func getString(doc bson.M, key string) string {
 	if val, ok := doc[key]; ok && val != nil {
-		if str, ok := val.(string); ok {
-			return str
+		switch value := val.(type) {
+		case string:
+			return value
+		case []byte:
+			return string(value)
+		default:
+			return fmt.Sprint(value)
 		}
 	}
 	return ""
@@ -494,24 +507,6 @@ func getInt(doc bson.M, key string) int {
 		}
 		if f, ok := val.(float64); ok {
 			return int(f)
-		}
-	}
-	return 0
-}
-
-func getInt64(doc bson.M, key string) int64 {
-	if val, ok := doc[key]; ok && val != nil {
-		if i, ok := val.(int64); ok {
-			return i
-		}
-		if i, ok := val.(int32); ok {
-			return int64(i)
-		}
-		if i, ok := val.(int); ok {
-			return int64(i)
-		}
-		if f, ok := val.(float64); ok {
-			return int64(f)
 		}
 	}
 	return 0

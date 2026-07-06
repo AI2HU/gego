@@ -29,6 +29,7 @@ export interface SearchResponseItem {
 
 export interface SearchResponse {
   keyword: string
+  search_terms?: string[]
   total_responses: number
   total_mentions: number
   unique_prompts: number

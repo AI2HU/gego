@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import SearchMatchCard from '@/components/search/SearchMatchCard.vue'
+import BrandMapPopover from '@/components/search/BrandMapPopover.vue'
 import TopBrandsQuickSearch from '@/components/search/TopBrandsQuickSearch.vue'
 import AppAlert from '@/components/ui/AppAlert.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -11,12 +12,18 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import TagFilter from '@/components/ui/TagFilter.vue'
 import { searchQueryFromRoute } from '@/lib/search-navigation'
-import { filterResponsesByTags, findSearchMatches } from '@/lib/search-matches'
+import {
+  filterResponsesByTags,
+  resolveSearchMatches,
+  uniqueSearchTerms,
+} from '@/lib/search-matches'
 import { usePromptsQuery } from '@/queries/prompts'
 import { useSearchMutation } from '@/queries/search'
-import type { SearchMatch } from '@/types/search'
+import { useAuthStore } from '@/stores/auth'
+import type { SearchMatch, SearchResponseItem } from '@/types/search'
 
 const route = useRoute()
+const authStore = useAuthStore()
 
 const keyword = ref('')
 const caseSensitive = ref(false)
@@ -28,7 +35,9 @@ const promptsQuery = usePromptsQuery()
 
 const hasSearched = ref(false)
 const lastKeyword = ref('')
+const lastSearchTerms = ref<string[]>([])
 const lastTags = ref<string[]>([])
+const lastResponses = ref<SearchResponseItem[]>([])
 const allMatches = ref<SearchMatch[]>([])
 const totalResponses = ref(0)
 const totalMentions = ref(0)
@@ -73,11 +82,21 @@ const hiddenMatchCount = computed(() =>
   Math.max(0, allMatches.value.length - displayLimit.value),
 )
 
+const lastAliasTerms = computed(() =>
+  lastSearchTerms.value.filter(
+    (term) => term.toLowerCase() !== lastKeyword.value.toLowerCase(),
+  ),
+)
+
 const statsHintSuffix = computed(() => {
+  const aliasHint =
+    lastAliasTerms.value.length > 0
+      ? ` · including aliases: ${lastAliasTerms.value.join(', ')}`
+      : ''
   if (lastTags.value.length === 0) {
-    return ''
+    return aliasHint
   }
-  return ` · tags: ${lastTags.value.join(', ')}`
+  return ` · tags: ${lastTags.value.join(', ')}${aliasHint}`
 })
 
 const errorMessage = computed(() => {
@@ -86,7 +105,24 @@ const errorMessage = computed(() => {
   return error instanceof Error ? error.message : 'Search failed'
 })
 
+const canMapBrands = computed(() => authStore.hasPermission('words'))
+
 const canSearch = computed(() => keyword.value.trim().length >= 2)
+
+function buildMatches(responses: SearchResponseItem[], trimmed: string) {
+  const prompts = promptsQuery.data.value ?? []
+  const scopedResponses = filterResponsesByTags(responses, selectedTags.value, prompts)
+
+  return {
+    scopedResponses,
+    matches: resolveSearchMatches(scopedResponses, trimmed, {
+      caseSensitive: caseSensitive.value,
+      searchTerms: lastSearchTerms.value,
+      promptNames: promptNameMap.value,
+      promptTags: promptTagsMap.value,
+    }),
+  }
+}
 
 function toggleTag(tag: string) {
   const index = selectedTags.value.indexOf(tag)
@@ -119,16 +155,13 @@ async function runSearch(searchKeyword?: string) {
     limit: fetchLimit,
   })
 
-  const prompts = promptsQuery.data.value ?? []
-  const scopedResponses = filterResponsesByTags(result.responses ?? [], selectedTags.value, prompts)
+  lastSearchTerms.value = uniqueSearchTerms(trimmed, result.search_terms)
+  lastResponses.value = result.responses ?? []
 
-  allMatches.value = findSearchMatches(scopedResponses, trimmed, {
-    caseSensitive: caseSensitive.value,
-    promptNames: promptNameMap.value,
-    promptTags: promptTagsMap.value,
-  })
+  const { scopedResponses, matches } = buildMatches(lastResponses.value, trimmed)
+  allMatches.value = matches
 
-  totalResponses.value = result.total_responses ?? scopedResponses.length
+  totalResponses.value = Math.max(result.total_responses ?? 0, scopedResponses.length)
   totalMentions.value = result.total_mentions ?? allMatches.value.length
 }
 
@@ -147,7 +180,8 @@ watch(caseSensitive, () => {
   if (!hasSearched.value || lastKeyword.value.trim().length < 2) {
     return
   }
-  void runSearch(lastKeyword.value)
+  const { matches } = buildMatches(lastResponses.value, lastKeyword.value)
+  allMatches.value = matches
 })
 
 function applyRouteSearch() {
@@ -273,10 +307,34 @@ watch(() => route.query.q, applyRouteSearch)
       />
 
       <div v-else class="space-y-6">
+        <div
+          v-if="lastAliasTerms.length > 0"
+          class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-gray-200/60 bg-white/60 px-4 py-3 text-xs text-gray-600"
+        >
+          <span class="font-medium text-gray-700">Highlights:</span>
+          <span class="inline-flex items-center gap-1.5">
+            <mark class="rounded bg-amber-100 px-1 font-medium text-amber-900">term</mark>
+            search — {{ lastKeyword }}
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <mark class="rounded bg-sky-100 px-1 font-medium text-sky-900">alias</mark>
+            brand {{ lastAliasTerms.length === 1 ? 'alias' : 'aliases' }} — {{ lastAliasTerms.join(', ') }}
+          </span>
+        </div>
+
+        <p
+          v-if="canMapBrands"
+          class="text-sm text-gray-600"
+        >
+          Select text in a response to map it to a canonical brand name.
+        </p>
+
         <SearchMatchCard
           v-for="(match, index) in visibleMatches"
-          :key="`${match.responseId}-${index}`"
+          :key="`${match.responseId}-${match.keyword}-${index}`"
           :match="match"
+          :highlight-terms="lastSearchTerms"
+          :search-keyword="lastKeyword"
           :case-sensitive="caseSensitive"
         />
 
@@ -288,5 +346,7 @@ watch(() => route.query.q, applyRouteSearch)
         </p>
       </div>
     </template>
+
+    <BrandMapPopover />
   </div>
 </template>

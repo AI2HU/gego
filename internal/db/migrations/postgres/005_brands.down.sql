@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS brand_aliases;
+DROP TABLE IF EXISTS brands;

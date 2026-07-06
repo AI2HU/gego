@@ -22,15 +22,16 @@ import (
 )
 
 var (
-	cfgFile      string
-	logLevel     string
-	logFile      string
-	cfg          *config.Config
-	database     db.Database
+	cfgFile               string
+	logLevel              string
+	logFile               string
+	cfg                   *config.Config
+	database              db.Database
 	exclusionWordsService *services.ExclusionWordsService
-	llmRegistry  *llm.Registry
-	runtime      *services.Runtime
-	statsService *services.StatsService
+	brandsService         *services.BrandsService
+	llmRegistry           *llm.Registry
+	runtime               *services.Runtime
+	statsService          *services.StatsService
 )
 
 // rootCmd represents the base command
@@ -128,6 +129,11 @@ and compare performance across different LLM providers.`,
 		exclusionWordsService = services.NewExclusionWordsService(database)
 		if err := exclusionWordsService.Initialize(context.Background(), cfg.ResolveKeywordsExclusionPath(cfgFile)); err != nil {
 			return fmt.Errorf("failed to initialize exclusion words: %w", err)
+		}
+
+		brandsService = services.NewBrandsService(database)
+		if err := brandsService.Initialize(context.Background()); err != nil {
+			return fmt.Errorf("failed to initialize brands: %w", err)
 		}
 
 		statsService = services.NewStatsService(database)

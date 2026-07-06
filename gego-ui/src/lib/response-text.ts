@@ -1,6 +1,12 @@
-import { splitHighlightedText } from '@/lib/search-matches'
+import { splitHighlightedTextMulti, type HighlightSegment } from '@/lib/search-matches'
 
-export type TextSegment = { text: string; highlight: boolean }
+export type { HighlightSegment as TextSegment }
+
+type HighlightContext = {
+  terms: string[]
+  searchKeyword: string
+  caseSensitive: boolean
+}
 
 export type InlinePart =
   | { type: 'text'; segments: TextSegment[] }
@@ -26,27 +32,52 @@ function isSafeUrl(url: string): boolean {
   }
 }
 
-function toTextPart(text: string, keyword: string, caseSensitive: boolean): InlinePart {
-  const segments = keyword
-    ? splitHighlightedText(text, keyword, caseSensitive)
-    : [{ text, highlight: false }]
+function normalizeHighlightContext(
+  highlightTerms: string | string[],
+  caseSensitive: boolean,
+  searchKeyword?: string,
+): HighlightContext {
+  const terms = Array.isArray(highlightTerms)
+    ? highlightTerms
+    : highlightTerms
+      ? [highlightTerms]
+      : []
+
+  return {
+    terms,
+    searchKeyword: searchKeyword?.trim() ?? '',
+    caseSensitive,
+  }
+}
+
+function toTextPart(text: string, context: HighlightContext): InlinePart {
+  const segments =
+    context.terms.length > 0
+      ? splitHighlightedTextMulti(
+          text,
+          context.terms,
+          context.caseSensitive,
+          context.searchKeyword,
+        )
+      : [{ text }]
 
   return { type: 'text', segments }
 }
 
-function appendTextPart(
-  parts: InlinePart[],
-  text: string,
-  keyword: string,
-  caseSensitive: boolean,
-): void {
+function appendTextPart(parts: InlinePart[], text: string, context: HighlightContext): void {
   if (!text) {
     return
   }
-  parts.push(toTextPart(text, keyword, caseSensitive))
+  parts.push(toTextPart(text, context))
 }
 
-export function parseInline(text: string, keyword: string, caseSensitive = false): InlinePart[] {
+export function parseInline(
+  text: string,
+  highlightTerms: string | string[],
+  caseSensitive = false,
+  searchKeyword = '',
+): InlinePart[] {
+  const context = normalizeHighlightContext(highlightTerms, caseSensitive, searchKeyword)
   const parts: InlinePart[] = []
   let lastIndex = 0
   let foundToken = false
@@ -56,35 +87,45 @@ export function parseInline(text: string, keyword: string, caseSensitive = false
     const start = match.index ?? 0
 
     if (start > lastIndex) {
-      appendTextPart(parts, text.slice(lastIndex, start), keyword, caseSensitive)
+      appendTextPart(parts, text.slice(lastIndex, start), context)
     }
 
     if (match[2] !== undefined && match[3] !== undefined) {
       const label = match[2]
       const url = match[3].trim()
       if (isSafeUrl(url)) {
-        parts.push({ type: 'link', url, parts: parseInline(label, keyword, caseSensitive) })
+        parts.push({
+          type: 'link',
+          url,
+          parts: parseInline(label, context.terms, context.caseSensitive, context.searchKeyword),
+        })
       } else {
-        appendTextPart(parts, match[0], keyword, caseSensitive)
+        appendTextPart(parts, match[0], context)
       }
     } else if (match[4] !== undefined || match[5] !== undefined) {
       const inner = match[4] ?? match[5] ?? ''
-      parts.push({ type: 'bold', parts: parseInline(inner, keyword, caseSensitive) })
+      parts.push({
+        type: 'bold',
+        parts: parseInline(inner, context.terms, context.caseSensitive, context.searchKeyword),
+      })
     } else if (match[6] !== undefined || match[7] !== undefined) {
       const inner = match[6] ?? match[7] ?? ''
-      parts.push({ type: 'italic', parts: parseInline(inner, keyword, caseSensitive) })
+      parts.push({
+        type: 'italic',
+        parts: parseInline(inner, context.terms, context.caseSensitive, context.searchKeyword),
+      })
     }
 
     lastIndex = start + match[0].length
   }
 
   if (!foundToken) {
-    appendTextPart(parts, text, keyword, caseSensitive)
+    appendTextPart(parts, text, context)
     return parts
   }
 
   if (lastIndex < text.length) {
-    appendTextPart(parts, text.slice(lastIndex), keyword, caseSensitive)
+    appendTextPart(parts, text.slice(lastIndex), context)
   }
 
   return parts
@@ -92,8 +133,9 @@ export function parseInline(text: string, keyword: string, caseSensitive = false
 
 export function parseMarkdownBlocks(
   text: string,
-  keyword: string,
+  highlightTerms: string | string[],
   caseSensitive = false,
+  searchKeyword = '',
 ): MarkdownBlock[] {
   const lines = text.split('\n')
   const blocks: MarkdownBlock[] = []
@@ -109,7 +151,7 @@ export function parseMarkdownBlocks(
       blocks.push({
         type: 'heading',
         level: headingMatch[1].length,
-        parts: parseInline(headingMatch[2], keyword, caseSensitive),
+        parts: parseInline(headingMatch[2], highlightTerms, caseSensitive, searchKeyword),
       })
       continue
     }
@@ -118,25 +160,16 @@ export function parseMarkdownBlocks(
     if (listMatch?.[1]) {
       blocks.push({
         type: 'list-item',
-        parts: parseInline(listMatch[1], keyword, caseSensitive),
+        parts: parseInline(listMatch[1], highlightTerms, caseSensitive, searchKeyword),
       })
       continue
     }
 
     blocks.push({
       type: 'paragraph',
-      parts: parseInline(line, keyword, caseSensitive),
+      parts: parseInline(line, highlightTerms, caseSensitive, searchKeyword),
     })
   }
 
   return blocks
-}
-
-// Backward-compatible alias used by older imports.
-export function parseResponseText(
-  text: string,
-  keyword: string,
-  caseSensitive = false,
-): MarkdownBlock[] {
-  return parseMarkdownBlocks(text, keyword, caseSensitive)
 }

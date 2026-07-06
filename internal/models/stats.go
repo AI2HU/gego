@@ -44,13 +44,14 @@ type LLMStats struct {
 
 // KeywordStats represents on-demand calculated statistics for a keyword search
 type KeywordStats struct {
-	Keyword       string         `json:"keyword"`
-	TotalMentions int            `json:"total_mentions"`
-	UniquePrompts int            `json:"unique_prompts"`
-	UniqueLLMs    int            `json:"unique_llms"`
-	ByPrompt      map[string]int `json:"by_prompt"`   // prompt_id -> count
-	ByLLM         map[string]int `json:"by_llm"`      // llm_id -> count
-	ByProvider    map[string]int `json:"by_provider"` // provider -> count
-	FirstSeen     time.Time      `json:"first_seen"`
-	LastSeen      time.Time      `json:"last_seen"`
+	Keyword            string         `json:"keyword"`
+	TotalMentions      int            `json:"total_mentions"`
+	MatchingResponses  int            `json:"matching_responses"`
+	UniquePrompts      int            `json:"unique_prompts"`
+	UniqueLLMs         int            `json:"unique_llms"`
+	ByPrompt           map[string]int `json:"by_prompt"`   // prompt_id -> count
+	ByLLM              map[string]int `json:"by_llm"`      // llm_id -> count
+	ByProvider         map[string]int `json:"by_provider"` // provider -> count
+	FirstSeen          time.Time      `json:"first_seen"`
+	LastSeen           time.Time      `json:"last_seen"`
 }
