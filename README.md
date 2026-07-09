@@ -108,6 +108,23 @@ docker run -d \
 
 ### Production-like local run (API + UI on one port)
 
+Copy [`.env.dev.example`](.env.dev.example) to `.env.dev`, start PostgreSQL and MongoDB, then:
+
+```bash
+make dev
+```
+
+This builds the UI, loads [dev database fixtures](CONTRIBUTING.md#local-development-with-fixtures) (sample LLMs, prompts, responses, brands), and starts the API with the embedded dashboard.
+
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:8989 |
+| API | http://localhost:8989/api/v1 |
+
+Sign in with your bootstrap admin credentials (default username: `admin`; default dev password when using `make dev`: `admin1234`).
+
+For manual setup without fixtures, or hot-reload UI development:
+
 ```bash
 # 1. Initialize Gego (first time only)
 ./build/gego init
@@ -120,16 +137,9 @@ make ui-build
 export GEGO_JWT_SECRET="your-secret-at-least-32-characters-long"
 export GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password"
 
-# 4. Start API with embedded UI
-make dev
+# 4. Start API with embedded UI (no fixture reload)
+make dev-api
 ```
-
-| Service | URL |
-|---------|-----|
-| Dashboard | http://localhost:8989 |
-| API | http://localhost:8989/api/v1 |
-
-Sign in with your bootstrap admin credentials (default username: `admin`; default dev password when using `make dev`: `admin1234`).
 
 ### Hot-reload development (separate UI dev server)
 
@@ -386,8 +396,9 @@ Optional provider-specific system prompts in `config.yaml`:
 | `make ui-install` | Install `gego-ui` npm dependencies |
 | `make ui-build` | Build the dashboard to `gego-ui/dist` |
 | `make ui-dev` | Vite dev server with hot reload (port 5173) |
-| `make dev` | Build UI + start API with embedded static UI (port 8989) |
-| `make dev-api` | Start API only (port 8989) |
+| `make dev` | Build UI, load dev fixtures, start API with embedded static UI (port 8989) |
+| `make fixtures-dev` | Reset and load dev database fixtures only (see [CONTRIBUTING.md](CONTRIBUTING.md#local-development-with-fixtures)) |
+| `make dev-api` | Start API only (port 8989); does not load fixtures |
 | `make test` | Run Go tests |
 | `make build-all` | Cross-platform binaries |
 
