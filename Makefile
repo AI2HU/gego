@@ -1,5 +1,5 @@
 .PHONY: build run clean install test fmt vet help deps build-all \
-	ui-install ui-build ui-dev dev dev-api dev-worker etcd-dev dev-up
+	ui-install ui-build ui-dev dev dev-api dev-worker etcd-dev dev-up fixtures-dev
 
 # Build variables
 BINARY_NAME=gego
@@ -115,7 +115,11 @@ etcd-dev:
 dev-up:
 	docker compose up --build
 
-dev: build ui-build
+fixtures-dev:
+	@echo "Loading dev database fixtures..."
+	GEGO_FIXTURES=dev go run ./cmd/fixtures-dev
+
+dev: build ui-build fixtures-dev
 	@echo "Starting Gego on http://localhost:$(API_PORT) (requires etcd + worker)"
 	GEGO_ETCD_ENDPOINTS=$(GEGO_ETCD_ENDPOINTS) \
 	GEGO_JWT_SECRET=$(GEGO_JWT_SECRET) \
@@ -139,7 +143,8 @@ help:
 	@echo "  ui-install - Install gego-ui npm dependencies"
 	@echo "  ui-build   - Build gego-ui for static serving"
 	@echo "  ui-dev     - Start Vite dev server with hot reload (port $(UI_PORT))"
-	@echo "  dev        - Build UI and serve API + static UI (port $(API_PORT))"
+	@echo "  dev        - Build UI, load dev fixtures, and serve API + static UI (port $(API_PORT))"
+	@echo "  fixtures-dev - Reset and load dev database fixtures (PostgreSQL + MongoDB)"
 	@echo "  dev-api    - Start API only (port $(API_PORT), requires etcd)"
 	@echo "  dev-worker - Start schedule worker (requires etcd)"
 	@echo "  etcd-dev   - Run local etcd in Docker on port 2379"

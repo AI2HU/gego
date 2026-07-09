@@ -263,3 +263,15 @@ func (p *Postgres) DeleteBrandAlias(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+func (p *Postgres) DeleteAllBrands(ctx context.Context) (int, error) {
+	result, err := p.db.ExecContext(ctx, `DELETE FROM brands`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete all brands: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(rows), nil
+}

@@ -109,3 +109,15 @@ func (p *Postgres) CountExclusionWords(ctx context.Context) (int, error) {
 	err := p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM exclusion_words`).Scan(&count)
 	return count, err
 }
+
+func (p *Postgres) DeleteAllExclusionWords(ctx context.Context) (int, error) {
+	result, err := p.db.ExecContext(ctx, `DELETE FROM exclusion_words`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete all exclusion words: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(rows), nil
+}

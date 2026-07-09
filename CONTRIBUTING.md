@@ -18,7 +18,8 @@ Thank you for your interest in contributing to Gego! We welcome contributions fr
 ### Prerequisites
 
 - Go 1.21 or higher
-- MongoDB (or Docker to run MongoDB)
+- PostgreSQL (active SQL store for development)
+- MongoDB (prompts, responses, analytics)
 - Make (optional but recommended)
 
 ### Setup
@@ -31,12 +32,122 @@ cd gego
 # Install dependencies
 go mod download
 
+# Copy dev environment variables (database URIs, auth, fixtures flag)
+cp .env.dev.example .env.dev
+
 # Build
 make build
 
 # Run
 ./build/gego --help
 ```
+
+### Running databases for development
+
+Gego uses a hybrid store: **PostgreSQL** for LLMs, schedules, users, brands, and exclusion words; **MongoDB** for prompts and responses.
+
+```bash
+# PostgreSQL (example with Docker)
+docker run -d -p 5432:5432 \
+  -e POSTGRES_USER=gego \
+  -e POSTGRES_PASSWORD=gego \
+  -e POSTGRES_DB=gego \
+  --name gego-postgres postgres:16
+
+# MongoDB
+docker run -d -p 27017:27017 --name gego-mongo mongo:latest
+```
+
+Adjust `GEGO_POSTGRES_URI` and `GEGO_MONGODB_URI` in `.env.dev` if your connection strings differ. See [`.env.dev.example`](.env.dev.example).
+
+### Local development with fixtures
+
+For dashboard and API work, use the **dev fixture system** to get predictable sample data without manual setup or real LLM API keys.
+
+#### Quick start
+
+```bash
+cp .env.dev.example .env.dev   # first time only
+make dev                       # build UI, load fixtures, start API on :8989
+```
+
+Sign in at http://localhost:8989 with the bootstrap admin from `.env.dev` (default: `admin` / `admin1234`).
+
+`make dev` runs, in order:
+
+1. `make build` — compile the CLI
+2. `make ui-build` — build the dashboard
+3. `make fixtures-dev` — clean and seed PostgreSQL + MongoDB
+4. Start the API with the embedded UI
+
+#### What fixtures provide
+
+| Store | Data |
+|-------|------|
+| PostgreSQL | 3 LLMs, 2 schedules, 5 brands (with aliases), 10 exclusion words |
+| MongoDB | 5 prompts (with tags), ~60 generated responses (30-day spread, search URLs) |
+
+This is enough to exercise keyword stats, brand trends, domain citations, tag filters, and the scheduler UI without running the worker or etcd.
+
+#### How fixtures work
+
+- **Entry point:** [`cmd/fixtures-dev/main.go`](cmd/fixtures-dev/main.go) — invoked only from Make, not a `gego` subcommand
+- **Loader:** [`internal/fixtures/`](internal/fixtures/) — reset, YAML load, synthetic response generation
+- **YAML files:** [`internal/fixtures/dev/`](internal/fixtures/dev/) — stable IDs for cross-store references (`llms.yaml`, `prompts.yaml`, etc.)
+- **Safety guard:** fixtures run only when `GEGO_FIXTURES=dev` is set (the Makefile sets this)
+
+Before loading, fixtures **fully clean** both databases:
+
+- **PostgreSQL:** truncates all application tables (`users`, `llms`, `schedules`, `brands`, …); schema migrations are preserved
+- **MongoDB:** drops the configured database and recreates indexes
+
+The API recreates the bootstrap admin on startup if no users exist.
+
+#### Makefile targets
+
+| Target | Fixtures | Use when |
+|--------|----------|----------|
+| `make dev` | Yes (reset + load) | Full local run with dashboard data |
+| `make fixtures-dev` | Yes (reset + load) | Reload data without starting the API |
+| `make dev-api` | No | API only; use your own data or load fixtures separately |
+| `make dev-worker` | No | Worker only |
+
+#### Editing fixture data
+
+**Static entities** — edit YAML under `internal/fixtures/dev/`:
+
+```yaml
+# internal/fixtures/dev/prompts.yaml
+- id: prompt-fashion-001
+  template: "What are the top luxury fashion brands in 2025?"
+  tags: [fashion, luxury]
+  enabled: true
+```
+
+Use stable `id` values when referencing prompts or LLMs from schedules. Brand aliases must be unique when lowercased (PostgreSQL enforces `LOWER(alias)` uniqueness).
+
+**Responses** — generated in [`internal/fixtures/responses.go`](internal/fixtures/responses.go) (~60 rows, varied timestamps, brand mentions, `search_urls`). Change this file when you need different trend shapes or volume.
+
+After editing fixtures, run:
+
+```bash
+make fixtures-dev   # or make dev
+```
+
+YAML is embedded at build time via `//go:embed`; no separate install step is required.
+
+#### Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GEGO_POSTGRES_URI` | PostgreSQL connection string |
+| `GEGO_MONGODB_URI` | MongoDB connection string |
+| `GEGO_MONGODB_DATABASE` | MongoDB database name (default: `gego`) |
+| `GEGO_FIXTURES` | Must be `dev` for fixture loading (set by Makefile) |
+| `GEGO_BOOTSTRAP_ADMIN_USERNAME` | Admin username recreated after clean |
+| `GEGO_BOOTSTRAP_ADMIN_PASSWORD` | Admin password recreated after clean |
+
+You do not need `gego init` if `.env.dev` provides database URIs and auth variables.
 
 ### Running MongoDB for Development
 
@@ -47,6 +158,8 @@ docker run -d -p 27017:27017 --name gego-mongo mongo:latest
 # Or install MongoDB locally
 # https://www.mongodb.com/docs/manual/installation/
 ```
+
+> **Note:** PostgreSQL is also required for local development. See [Running databases for development](#running-databases-for-development) above.
 
 ## What to Contribute
 

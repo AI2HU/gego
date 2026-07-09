@@ -19,6 +19,7 @@ type ExclusionWordDatabase interface {
 	ListExclusionWords(ctx context.Context) ([]*models.ExclusionWord, error)
 	DeleteExclusionWord(ctx context.Context, id string) error
 	CountExclusionWords(ctx context.Context) (int, error)
+	DeleteAllExclusionWords(ctx context.Context) (int, error)
 }
 
 func exclusionWordBackend(sqlDB SQLBackend) (ExclusionWordDatabase, error) {

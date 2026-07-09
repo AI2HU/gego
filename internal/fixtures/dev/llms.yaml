@@ -1,0 +1,20 @@
+- id: llm-openai-001
+  name: OpenAI GPT-4o
+  provider: openai
+  model: gpt-4o
+  api_key: fixture-key
+  enabled: true
+
+- id: llm-anthropic-001
+  name: Anthropic Claude
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  api_key: fixture-key
+  enabled: true
+
+- id: llm-google-001
+  name: Google Gemini
+  provider: google
+  model: gemini-2.0-flash
+  api_key: fixture-key
+  enabled: true

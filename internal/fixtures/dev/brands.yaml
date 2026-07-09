@@ -1,0 +1,43 @@
+- id: brand-nike-001
+  name: Nike
+  aliases:
+    - id: alias-nike-001
+      alias: Nike
+      case_sensitive: false
+    - id: alias-nike-002
+      alias: Swoosh
+      case_sensitive: false
+
+- id: brand-adidas-001
+  name: Adidas
+  aliases:
+    - id: alias-adidas-001
+      alias: Adidas
+      case_sensitive: false
+    - id: alias-adidas-002
+      alias: Three Stripes
+      case_sensitive: false
+
+- id: brand-apple-001
+  name: Apple
+  aliases:
+    - id: alias-apple-001
+      alias: Apple
+      case_sensitive: false
+
+- id: brand-samsung-001
+  name: Samsung
+  aliases:
+    - id: alias-samsung-001
+      alias: Samsung
+      case_sensitive: false
+    - id: alias-samsung-002
+      alias: Galaxy
+      case_sensitive: false
+
+- id: brand-zara-001
+  name: Zara
+  aliases:
+    - id: alias-zara-001
+      alias: Zara
+      case_sensitive: false
