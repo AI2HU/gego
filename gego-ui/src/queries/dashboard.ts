@@ -3,6 +3,10 @@ import type { MaybeRefOrGetter } from 'vue'
 import { computed, toValue } from 'vue'
 
 import { fetchHealth, fetchBrandCitationDomains, fetchLLMs, fetchStats, fetchURLStats } from '@/api/dashboard'
+import {
+  brandCitationTargetKey,
+  type BrandCitationTarget,
+} from '@/lib/brand-citation-target'
 
 export const dashboardQueryKeys = {
   all: ['dashboard'] as const,
@@ -81,25 +85,28 @@ export function useLLMsQuery() {
 }
 
 export function useBrandCitationDomainsQuery(
-  brandId: MaybeRefOrGetter<string | null | undefined>,
+  target: MaybeRefOrGetter<BrandCitationTarget | null | undefined>,
   tags: MaybeRefOrGetter<string[]> = () => [],
 ) {
   return useQuery({
     queryKey: computed(() => {
-      const id = toValue(brandId)
+      const value = toValue(target)
       return [
         ...dashboardQueryKeys.brandCitationDomains,
-        { brandId: id ?? '', tags: sortedTags(toValue(tags)) },
+        {
+          target: value ? brandCitationTargetKey(value) : '',
+          tags: sortedTags(toValue(tags)),
+        },
       ] as const
     }),
     queryFn: () => {
-      const id = toValue(brandId)
-      if (!id) {
-        throw new Error('brand_id is required')
+      const value = toValue(target)
+      if (!value) {
+        throw new Error('brand citation target is required')
       }
-      return fetchBrandCitationDomains(id, undefined, sortedTags(toValue(tags)))
+      return fetchBrandCitationDomains(value, undefined, sortedTags(toValue(tags)))
     },
-    enabled: () => Boolean(toValue(brandId)),
+    enabled: () => Boolean(toValue(target)),
     staleTime: 60_000,
   })
 }

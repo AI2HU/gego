@@ -608,19 +608,38 @@ const brandCitationDomainsBatchSize = 500
 func (s *StatsService) GetBrandCitationDomains(
 	ctx context.Context,
 	brandID string,
+	keyword string,
 	limit int,
 	promptIDs []string,
 ) (*BrandCitationDomainsResult, error) {
-	brand, err := s.db.GetBrand(ctx, brandID)
-	if err != nil {
-		return nil, err
+	if brandID != "" {
+		brand, err := s.db.GetBrand(ctx, brandID)
+		if err != nil {
+			return nil, err
+		}
+		return s.getBrandCitationDomainsForKeyword(ctx, brand.ID, brand.Name, limit, promptIDs)
 	}
 
-	searchTerms := shared.ExpandBrandSearchTerms(brand.Name)
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return nil, fmt.Errorf("brand_id or keyword is required")
+	}
+
+	return s.getBrandCitationDomainsForKeyword(ctx, "", keyword, limit, promptIDs)
+}
+
+func (s *StatsService) getBrandCitationDomainsForKeyword(
+	ctx context.Context,
+	brandID string,
+	keyword string,
+	limit int,
+	promptIDs []string,
+) (*BrandCitationDomainsResult, error) {
+	searchTerms := shared.ExpandBrandSearchTerms(keyword)
 	if len(searchTerms) == 0 {
 		return &BrandCitationDomainsResult{
-			BrandID:   brand.ID,
-			BrandName: brand.Name,
+			BrandID:   brandID,
+			BrandName: keyword,
 			Domains:   []*BrandCitationDomainStats{},
 		}, nil
 	}
@@ -636,7 +655,7 @@ func (s *StatsService) GetBrandCitationDomains(
 		}
 
 		batch, err := s.db.ListResponses(ctx, shared.ResponseFilter{
-			Keyword:       brand.Name,
+			Keyword:       keyword,
 			HasSearchURLs: true,
 			PromptIDs:     promptIDs,
 			Limit:         brandCitationDomainsBatchSize,
@@ -707,8 +726,8 @@ func (s *StatsService) GetBrandCitationDomains(
 	}
 
 	return &BrandCitationDomainsResult{
-		BrandID:   brand.ID,
-		BrandName: brand.Name,
+		BrandID:   brandID,
+		BrandName: keyword,
 		TotalHits: totalHits,
 		Domains:   results,
 	}, nil

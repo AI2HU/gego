@@ -126,8 +126,13 @@ func (s *Server) getKeywordDomainMatrix(c *gin.Context) {
 
 func (s *Server) getBrandCitationDomains(c *gin.Context) {
 	brandID := strings.TrimSpace(c.Query("brand_id"))
-	if brandID == "" {
-		s.errorResponse(c, http.StatusBadRequest, "brand_id is required")
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if brandID == "" && keyword == "" {
+		s.errorResponse(c, http.StatusBadRequest, "brand_id or keyword is required")
+		return
+	}
+	if brandID != "" && keyword != "" {
+		s.errorResponse(c, http.StatusBadRequest, "provide either brand_id or keyword, not both")
 		return
 	}
 
@@ -145,14 +150,25 @@ func (s *Server) getBrandCitationDomains(c *gin.Context) {
 	}
 
 	if len(tags) > 0 && len(promptIDs) == 0 {
-		s.successResponse(c, &services.BrandCitationDomainsResult{
-			BrandID: brandID,
+		empty := &services.BrandCitationDomainsResult{
 			Domains: []*services.BrandCitationDomainStats{},
-		})
+		}
+		if brandID != "" {
+			empty.BrandID = brandID
+		} else {
+			empty.BrandName = keyword
+		}
+		s.successResponse(c, empty)
 		return
 	}
 
-	stats, err := s.statsService.GetBrandCitationDomains(c.Request.Context(), brandID, limit, promptIDs)
+	stats, err := s.statsService.GetBrandCitationDomains(
+		c.Request.Context(),
+		brandID,
+		keyword,
+		limit,
+		promptIDs,
+	)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			s.errorResponse(c, http.StatusNotFound, err.Error())

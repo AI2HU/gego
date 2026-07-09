@@ -8,21 +8,21 @@ import AppCard from '@/components/ui/AppCard.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
-import BrandSelectCombobox from '@/components/brands/BrandSelectCombobox.vue'
+import BrandCitationTargetCombobox from '@/components/dashboard/BrandCitationTargetCombobox.vue'
 import { chartColors, horizontalBarChartOptions } from '@/design/chartTheme'
 import { searchRouteFor } from '@/lib/search-navigation'
-import type { Brand } from '@/types/brand'
+import type { BrandCitationTarget } from '@/lib/brand-citation-target'
 import type { BrandCitationDomainsResponse } from '@/types/stats'
 
 const props = defineProps<{
-  brands: Brand[]
-  selectedBrandId: string | null
+  targets: BrandCitationTarget[]
+  selectedTarget: BrandCitationTarget | null
   data: BrandCitationDomainsResponse | undefined
   isLoading: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:selectedBrandId': [value: string | null]
+  'update:selectedTarget': [value: BrandCitationTarget | null]
 }>()
 
 const router = useRouter()
@@ -92,24 +92,24 @@ const chipClass =
         />
 
         <div class="w-full sm:w-72">
-          <BrandSelectCombobox
-            :model-value="selectedBrandId"
-            :brands="brands"
+          <BrandCitationTargetCombobox
+            :model-value="selectedTarget"
+            :targets="targets"
             label="Filter by brand"
-            placeholder="Search brands..."
-            @update:model-value="emit('update:selectedBrandId', $event)"
+            placeholder="Search brands or detected words..."
+            @update:model-value="emit('update:selectedTarget', $event)"
           />
         </div>
       </div>
     </template>
 
     <LoadingState
-      v-if="isLoading && selectedBrandId"
+      v-if="isLoading && selectedTarget"
       title="Loading citation sources"
       description="Analyzing brand mentions and nearby citations..."
     />
 
-    <template v-else-if="selectedBrandId && domains.length">
+    <template v-else-if="selectedTarget && domains.length">
       <p class="mb-4 text-sm text-gray-500">
         <span class="font-medium text-gray-700">{{ brandName }}</span>
         was linked to
@@ -143,9 +143,9 @@ const chipClass =
     </template>
 
     <EmptyState
-      v-else-if="!selectedBrandId"
-      title="Select a brand"
-      description="Choose a brand to see which domains are cited closest to its mentions"
+      v-else-if="!selectedTarget"
+      title="Select a brand or detected word"
+      description="Choose a configured brand or a detected word to see which domains are cited closest to its mentions"
       icon="external-link"
     />
 

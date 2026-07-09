@@ -2,6 +2,7 @@ import { apiRequest } from '@/api/client'
 import type { HealthResponse } from '@/types/health'
 import type { ModelResponse } from '@/types/model'
 import type { BrandCitationDomainsResponse, StatsResponse, URLStatsResponse } from '@/types/stats'
+import type { BrandCitationTarget } from '@/lib/brand-citation-target'
 
 const STATS_LIMIT = 20
 
@@ -28,14 +29,16 @@ export function fetchURLStats(limit = STATS_LIMIT, tags: string[] = []): Promise
 }
 
 export function fetchBrandCitationDomains(
-  brandId: string,
+  target: BrandCitationTarget,
   limit = STATS_LIMIT,
   tags: string[] = [],
 ): Promise<BrandCitationDomainsResponse> {
-  const params = new URLSearchParams({
-    brand_id: brandId,
-    limit: String(limit),
-  })
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (target.kind === 'brand') {
+    params.set('brand_id', target.brandId)
+  } else {
+    params.set('keyword', target.keyword)
+  }
   appendTags(params, tags)
   return apiRequest<BrandCitationDomainsResponse>(`/stats/brand-citation-domains?${params.toString()}`)
 }
