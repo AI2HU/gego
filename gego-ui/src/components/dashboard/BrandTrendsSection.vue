@@ -25,7 +25,7 @@ const emptyDescription = computed(() => {
   if (props.brandTrends.length === 0) {
     return 'Trend data is not available from the API yet. Restart the server to pick up the latest backend changes.'
   }
-  return 'No keyword mentions were recorded in the last 30 days.'
+  return 'No keyword mentions were recorded across prompt executions.'
 })
 </script>
 
@@ -34,7 +34,7 @@ const emptyDescription = computed(() => {
     <template #header>
       <CardHeader
         title="Brand Mentions Over Time"
-        subtitle="Daily mentions for your top keywords over the last 30 days"
+        subtitle="Mention counts per prompt execution for your top keywords"
         icon="chart-line"
       />
     </template>
@@ -42,7 +42,7 @@ const emptyDescription = computed(() => {
     <div v-if="hasTrends" class="h-72">
       <LineChart
         :data="chartData"
-        aria-label="Daily keyword mention trends over the last 30 days"
+        aria-label="Keyword mention trends across prompt executions"
       />
     </div>
 

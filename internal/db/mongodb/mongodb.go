@@ -265,10 +265,19 @@ func (m *MongoDB) CreateResponse(ctx context.Context, response *models.Response)
 		"llm_provider":  response.LLMProvider,
 		"llm_model":     response.LLMModel,
 		"response_text": response.ResponseText,
-		"schedule_id":   response.ScheduleID,
 		"tokens_used":   response.TokensUsed,
 		"temperature":   response.Temperature,
 		"created_at":    response.CreatedAt,
+	}
+
+	if response.ScheduleID != "" {
+		doc["schedule_id"] = response.ScheduleID
+	}
+	if response.RunID != "" {
+		doc["run_id"] = response.RunID
+	}
+	if response.JobID != "" {
+		doc["job_id"] = response.JobID
 	}
 
 	if response.Metadata != nil {
@@ -318,6 +327,8 @@ func decodeResponseFromDoc(doc bson.M) *models.Response {
 		ResponseText: getString(doc, "response_text"),
 		Temperature:  getFloat64(doc, "temperature"),
 		ScheduleID:   getString(doc, "schedule_id"),
+		RunID:        getString(doc, "run_id"),
+		JobID:        getString(doc, "job_id"),
 		TokensUsed:   getInt(doc, "tokens_used"),
 		Error:        getString(doc, "error"),
 		CreatedAt:    getTime(doc, "created_at"),
@@ -327,20 +338,57 @@ func decodeResponseFromDoc(doc bson.M) *models.Response {
 		response.Metadata = metadata
 	}
 
-	if searchURLs, ok := doc["search_urls"].([]interface{}); ok {
-		for _, urlDoc := range searchURLs {
-			if urlMap, ok := urlDoc.(bson.M); ok {
-				response.SearchURLs = append(response.SearchURLs, models.SearchURL{
-					SearchQuery:   getString(urlMap, "search_query"),
-					URL:           getString(urlMap, "url"),
-					Title:         getString(urlMap, "title"),
-					CitationIndex: getInt(urlMap, "citation_index"),
-				})
-			}
-		}
+	if raw, ok := doc["search_urls"]; ok && raw != nil {
+		response.SearchURLs = decodeSearchURLs(raw)
 	}
 
 	return response
+}
+
+func decodeSearchURLs(raw interface{}) []models.SearchURL {
+	items := asInterfaceSlice(raw)
+	if len(items) == 0 {
+		return nil
+	}
+
+	urls := make([]models.SearchURL, 0, len(items))
+	for _, item := range items {
+		urlMap, ok := asBSONMap(item)
+		if !ok {
+			continue
+		}
+
+		urls = append(urls, models.SearchURL{
+			SearchQuery:   getString(urlMap, "search_query"),
+			URL:           getString(urlMap, "url"),
+			Title:         getString(urlMap, "title"),
+			CitationIndex: getInt(urlMap, "citation_index"),
+		})
+	}
+
+	return urls
+}
+
+func asInterfaceSlice(raw interface{}) []interface{} {
+	switch value := raw.(type) {
+	case []interface{}:
+		return value
+	case primitive.A:
+		return []interface{}(value)
+	default:
+		return nil
+	}
+}
+
+func asBSONMap(raw interface{}) (bson.M, bool) {
+	switch value := raw.(type) {
+	case bson.M:
+		return value, true
+	case map[string]interface{}:
+		return bson.M(value), true
+	default:
+		return nil, false
+	}
 }
 
 // ListResponses lists responses with filtering

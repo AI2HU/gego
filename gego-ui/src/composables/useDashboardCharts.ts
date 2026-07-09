@@ -127,7 +127,7 @@ export function useDashboardCharts(
     }
 
     const labels = series[0].points.map((point) =>
-      format(new Date(point.timestamp), 'MMM d'),
+      format(new Date(point.timestamp), 'MMM d, yyyy'),
     )
 
     return {
@@ -137,9 +137,10 @@ export function useDashboardCharts(
         data: item.points.map((point) => point.count),
         borderColor: chartColors.line[index % chartColors.line.length],
         backgroundColor: 'transparent',
-        tension: 0.3,
-        pointRadius: 2,
-        pointHoverRadius: 4,
+        stepped: 'after',
+        tension: 0,
+        pointRadius: 3,
+        pointHoverRadius: 5,
       })),
     }
   })

@@ -10,7 +10,7 @@ type TimeSeriesPoint struct {
 	Count     int       `json:"count"`
 }
 
-// BrandTrendSeries represents daily mention counts for a keyword over time
+// BrandTrendSeries represents mention counts for a keyword across prompt executions
 type BrandTrendSeries struct {
 	Keyword string            `json:"keyword"`
 	Points  []TimeSeriesPoint `json:"points"`

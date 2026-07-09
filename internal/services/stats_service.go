@@ -305,6 +305,10 @@ func (s *StatsService) GetTopURLsByCitations(ctx context.Context, limit int, pro
 		results = results[:limit]
 	}
 
+	if results == nil {
+		return []*URLMentionStats{}, nil
+	}
+
 	return results, nil
 }
 
@@ -399,6 +403,10 @@ func (s *StatsService) GetTopDomainsByCitations(ctx context.Context, limit int, 
 
 	if limit > 0 && len(results) > limit {
 		results = results[:limit]
+	}
+
+	if results == nil {
+		return []*DomainMentionStats{}, nil
 	}
 
 	return results, nil
@@ -758,8 +766,7 @@ func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStat
 		}
 
 		trendResponses, err := s.db.ListResponses(ctx, shared.ResponseFilter{
-			StartTime: &startTime,
-			Limit:     10000,
+			Limit: 10000,
 		})
 		if err != nil {
 			return nil, err
@@ -863,19 +870,85 @@ func aggregateTopKeywordsFromResponses(responses []*models.Response, limit int) 
 	return results
 }
 
-func truncateToDay(t time.Time) time.Time {
-	utc := t.UTC()
-	return time.Date(utc.Year(), utc.Month(), utc.Day(), 0, 0, 0, 0, time.UTC)
+const executionBatchGap = 30 * time.Minute
+
+type executionEvent struct {
+	runID     string
+	timestamp time.Time
+	responses []*models.Response
+}
+
+func groupResponsesByExecution(responses []*models.Response) []executionEvent {
+	if len(responses) == 0 {
+		return nil
+	}
+
+	sorted := append([]*models.Response(nil), responses...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].CreatedAt.Before(sorted[j].CreatedAt)
+	})
+
+	runIndex := make(map[string]int)
+	events := make([]executionEvent, 0, len(sorted))
+
+	for _, response := range sorted {
+		if response.RunID != "" {
+			if idx, ok := runIndex[response.RunID]; ok {
+				events[idx].responses = append(events[idx].responses, response)
+				if response.CreatedAt.Before(events[idx].timestamp) {
+					events[idx].timestamp = response.CreatedAt
+				}
+				continue
+			}
+
+			runIndex[response.RunID] = len(events)
+			events = append(events, executionEvent{
+				runID:     response.RunID,
+				timestamp: response.CreatedAt,
+				responses: []*models.Response{response},
+			})
+			continue
+		}
+
+		if len(events) > 0 {
+			last := &events[len(events)-1]
+			if last.runID == "" && response.CreatedAt.Sub(latestResponseTime(last.responses)) <= executionBatchGap {
+				last.responses = append(last.responses, response)
+				continue
+			}
+		}
+
+		events = append(events, executionEvent{
+			timestamp: response.CreatedAt,
+			responses: []*models.Response{response},
+		})
+	}
+
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].timestamp.Before(events[j].timestamp)
+	})
+
+	return events
+}
+
+func latestResponseTime(responses []*models.Response) time.Time {
+	latest := responses[0].CreatedAt
+	for _, response := range responses[1:] {
+		if response.CreatedAt.After(latest) {
+			latest = response.CreatedAt
+		}
+	}
+	return latest
 }
 
 func aggregateBrandTrendsFromResponses(
 	responses []*models.Response,
 	topKeywords []models.KeywordCount,
-	days int,
+	maxExecutions int,
 	seriesLimit int,
 ) []models.BrandTrendSeries {
-	if days <= 0 {
-		days = 30
+	if maxExecutions <= 0 {
+		maxExecutions = 30
 	}
 	if seriesLimit <= 0 {
 		seriesLimit = 10
@@ -894,36 +967,36 @@ func aggregateBrandTrendsFromResponses(
 		tracked[keyword.Keyword] = true
 	}
 
-	endDay := truncateToDay(time.Now())
-	startDay := endDay.AddDate(0, 0, -(days - 1))
-
-	buckets := make(map[string]map[string]int, seriesLimit)
-	for _, keyword := range keywords {
-		buckets[keyword.Keyword] = make(map[string]int)
+	events := groupResponsesByExecution(responses)
+	if len(events) > maxExecutions {
+		events = events[len(events)-maxExecutions:]
+	}
+	if len(events) == 0 {
+		return []models.BrandTrendSeries{}
 	}
 
-	for _, response := range responses {
-		day := truncateToDay(response.CreatedAt)
-		if day.Before(startDay) || day.After(endDay) {
-			continue
-		}
+	buckets := make(map[string][]int, seriesLimit)
+	for _, keyword := range keywords {
+		buckets[keyword.Keyword] = make([]int, len(events))
+	}
 
-		dayKey := day.Format("2006-01-02")
-		for _, word := range shared.ExtractCapitalizedWords(response.ResponseText) {
-			if tracked[word] {
-				buckets[word][dayKey]++
+	for eventIdx, event := range events {
+		for _, response := range event.responses {
+			for _, word := range shared.ExtractCapitalizedWords(response.ResponseText) {
+				if tracked[word] {
+					buckets[word][eventIdx]++
+				}
 			}
 		}
 	}
 
 	result := make([]models.BrandTrendSeries, 0, seriesLimit)
 	for _, keyword := range keywords {
-		points := make([]models.TimeSeriesPoint, 0, days)
-		for day := startDay; !day.After(endDay); day = day.AddDate(0, 0, 1) {
-			dayKey := day.Format("2006-01-02")
+		points := make([]models.TimeSeriesPoint, 0, len(events))
+		for eventIdx, event := range events {
 			points = append(points, models.TimeSeriesPoint{
-				Timestamp: day,
-				Count:     buckets[keyword.Keyword][dayKey],
+				Timestamp: event.timestamp,
+				Count:     buckets[keyword.Keyword][eventIdx],
 			})
 		}
 
