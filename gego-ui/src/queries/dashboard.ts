@@ -2,13 +2,14 @@ import { queryOptions, useQuery } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { computed, toValue } from 'vue'
 
-import { fetchHealth, fetchLLMs, fetchStats, fetchURLStats } from '@/api/dashboard'
+import { fetchHealth, fetchBrandCitationDomains, fetchLLMs, fetchStats, fetchURLStats } from '@/api/dashboard'
 
 export const dashboardQueryKeys = {
   all: ['dashboard'] as const,
   health: ['dashboard', 'health'] as const,
   stats: ['dashboard', 'stats'] as const,
   urlStats: ['dashboard', 'url-stats'] as const,
+  brandCitationDomains: ['dashboard', 'brand-citation-domains'] as const,
   llms: ['dashboard', 'llms'] as const,
 }
 
@@ -77,4 +78,28 @@ export function useURLStatsQuery(tags: MaybeRefOrGetter<string[]> = () => []) {
 
 export function useLLMsQuery() {
   return useQuery(llmsQueryOptions())
+}
+
+export function useBrandCitationDomainsQuery(
+  brandId: MaybeRefOrGetter<string | null | undefined>,
+  tags: MaybeRefOrGetter<string[]> = () => [],
+) {
+  return useQuery({
+    queryKey: computed(() => {
+      const id = toValue(brandId)
+      return [
+        ...dashboardQueryKeys.brandCitationDomains,
+        { brandId: id ?? '', tags: sortedTags(toValue(tags)) },
+      ] as const
+    }),
+    queryFn: () => {
+      const id = toValue(brandId)
+      if (!id) {
+        throw new Error('brand_id is required')
+      }
+      return fetchBrandCitationDomains(id, undefined, sortedTags(toValue(tags)))
+    },
+    enabled: () => Boolean(toValue(brandId)),
+    staleTime: 60_000,
+  })
 }

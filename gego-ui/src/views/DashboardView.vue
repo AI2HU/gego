@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
+import BrandCitationDomainsSection from '@/components/dashboard/BrandCitationDomainsSection.vue'
 import ProviderDistributionSection from '@/components/dashboard/ProviderDistributionSection.vue'
 import BrandTrendsSection from '@/components/dashboard/BrandTrendsSection.vue'
 import TopDomainsSection from '@/components/dashboard/TopDomainsSection.vue'
@@ -11,20 +12,26 @@ import StatCard from '@/components/ui/StatCard.vue'
 import TagFilter from '@/components/ui/TagFilter.vue'
 import { useDashboardCharts } from '@/composables/useDashboardCharts'
 import { useDashboardStatus } from '@/composables/useDashboardStatus'
-import { useLLMsQuery, useStatsQuery, useURLStatsQuery } from '@/queries/dashboard'
+import { useBrandCitationDomainsQuery, useLLMsQuery, useStatsQuery, useURLStatsQuery } from '@/queries/dashboard'
+import { useBrandsQuery } from '@/queries/brands'
 import { usePromptsQuery } from '@/queries/prompts'
 
 const selectedTags = ref<string[]>([])
+const selectedBrandId = ref<string | null>(null)
 
 const { refresh, loading: isRefreshing } = useDashboardStatus()
 
 const statsQuery = useStatsQuery(selectedTags)
 const urlStatsQuery = useURLStatsQuery(selectedTags)
+const brandCitationDomainsQuery = useBrandCitationDomainsQuery(selectedBrandId, selectedTags)
+const brandsQuery = useBrandsQuery()
 const llmsQuery = useLLMsQuery()
 const promptsQuery = usePromptsQuery()
 
 const stats = computed(() => statsQuery.data.value)
 const urlStats = computed(() => urlStatsQuery.data.value)
+const brandCitationDomains = computed(() => brandCitationDomainsQuery.data.value)
+const brands = computed(() => brandsQuery.data.value ?? [])
 const llms = computed(() => llmsQuery.data.value)
 
 const allTags = computed(() => {
@@ -68,6 +75,17 @@ const errorMessage = computed(() => {
 const topKeywords = computed(() => stats.value?.top_keywords ?? [])
 const brandTrends = computed(() => stats.value?.brand_trends ?? [])
 const topDomains = computed(() => urlStats.value?.top_domains ?? [])
+
+watch(
+  brands,
+  (items) => {
+    if (selectedBrandId.value || items.length === 0) {
+      return
+    }
+    selectedBrandId.value = items[0]?.id ?? null
+  },
+  { immediate: true },
+)
 
 function toggleTag(tag: string) {
   const index = selectedTags.value.indexOf(tag)
@@ -150,6 +168,15 @@ function clearTagFilters() {
           :brand-trends="brandTrends"
           :chart-data="brandTrendsChartData"
           :has-keywords="topKeywords.length > 0"
+        />
+      </div>
+
+      <div class="mb-6 md:mb-8">
+        <BrandCitationDomainsSection
+          v-model:selected-brand-id="selectedBrandId"
+          :brands="brands"
+          :data="brandCitationDomains"
+          :is-loading="brandCitationDomainsQuery.isPending.value"
         />
       </div>
 

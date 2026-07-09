@@ -10,8 +10,11 @@ type ResponseFilter struct {
 	PromptIDs  []string
 	LLMID      string
 	ScheduleID string
-	Keyword    string
-	ErrorsOnly bool
+	RunID      string
+	JobID      string
+	Keyword        string
+	HasSearchURLs  bool
+	ErrorsOnly     bool
 	StartTime  *time.Time
 	EndTime    *time.Time
 	Limit      int

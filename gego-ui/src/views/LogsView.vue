@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 
 import ErrorLogsTable from '@/components/logs/ErrorLogsTable.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 import AppAlert from '@/components/ui/AppAlert.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
@@ -87,10 +88,7 @@ function refresh() {
 
       <AppButton variant="secondary" class="shrink-0 self-start" @click="refresh">
         <span class="inline-flex items-center gap-2">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-            <path d="M21 3v6h-6" />
-          </svg>
+          <AppIcon name="refresh" size="sm" />
           Refresh
         </span>
       </AppButton>

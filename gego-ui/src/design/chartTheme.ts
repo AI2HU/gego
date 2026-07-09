@@ -3,6 +3,7 @@ import type { ChartOptions } from 'chart.js'
 export const chartColors = {
   primary: 'rgba(15, 23, 42, 0.7)',
   blue: 'rgba(37, 99, 235, 0.7)',
+  emerald: 'rgba(5, 150, 105, 0.75)',
   doughnut: ['#0f172a', '#1f2937', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db'],
   line: ['#0f172a', '#2563eb', '#059669', '#d97706', '#7c3aed'],
   tick: '#4b5563',
@@ -59,6 +60,50 @@ export const barChartOptions: ChartOptions<'bar'> = {
       ticks: {
         color: chartColors.tick,
         precision: 0,
+      },
+    },
+  },
+}
+
+export const horizontalBarChartOptions: ChartOptions<'bar'> = {
+  ...barChartOptions,
+  indexAxis: 'y',
+  plugins: {
+    ...barChartOptions.plugins,
+    tooltip: {
+      ...barChartOptions.plugins?.tooltip,
+      callbacks: {
+        title(items) {
+          return items[0]?.label ?? ''
+        },
+        label(context) {
+          const value = context.parsed.x
+          if (value == null) {
+            return ''
+          }
+          return value.toLocaleString()
+        },
+      },
+    },
+  },
+  scales: {
+    x: {
+      beginAtZero: true,
+      grid: {
+        color: chartColors.grid,
+      },
+      ticks: {
+        color: chartColors.tick,
+        precision: 0,
+      },
+    },
+    y: {
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: chartColors.tick,
+        autoSkip: false,
       },
     },
   },

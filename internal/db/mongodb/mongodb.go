@@ -97,6 +97,15 @@ func (m *MongoDB) createIndexes(ctx context.Context) error {
 				{Key: "created_at", Value: -1},
 			},
 		},
+		{
+			Keys: bson.D{
+				{Key: "prompt_id", Value: 1},
+				{Key: "created_at", Value: -1},
+			},
+			Options: options.Index().SetPartialFilterExpression(bson.M{
+				"search_urls.0": bson.M{"$exists": true},
+			}),
+		},
 	}
 
 	_, err := m.database.Collection(collResponses).Indexes().CreateMany(ctx, responseIndexes)
@@ -460,11 +469,20 @@ func buildResponseFilterQuery(filter shared.ResponseFilter) bson.M {
 	if filter.ScheduleID != "" {
 		query["schedule_id"] = filter.ScheduleID
 	}
+	if filter.RunID != "" {
+		query["run_id"] = filter.RunID
+	}
+	if filter.JobID != "" {
+		query["job_id"] = filter.JobID
+	}
 	if filter.ErrorsOnly {
 		query["error"] = bson.M{"$exists": true, "$ne": ""}
 	}
 	if filter.Keyword != "" {
 		applyKeywordFilter(query, filter.Keyword)
+	}
+	if filter.HasSearchURLs {
+		query["search_urls.0"] = bson.M{"$exists": true}
 	}
 	if filter.StartTime != nil || filter.EndTime != nil {
 		timeQuery := bson.M{}

@@ -176,6 +176,7 @@ func (s *Server) setupRoutes() {
 	protected.GET("/stats/urls", s.requirePerm(auth.PermStatsRead), s.getURLStats)
 	protected.GET("/stats/query-urls", s.requirePerm(auth.PermStatsRead), s.getQueryURLStats)
 	protected.GET("/stats/keyword-domains", s.requirePerm(auth.PermStatsRead), s.getKeywordDomainMatrix)
+	protected.GET("/stats/brand-citation-domains", s.requirePerm(auth.PermStatsRead), s.getBrandCitationDomains)
 
 	protected.GET("/exclusion-words", s.requirePerm(auth.PermExclusionWordsRead), s.listExclusionWords)
 	protected.POST("/exclusion-words", s.requirePerm(auth.PermExclusionWordsWrite), s.createExclusionWord)

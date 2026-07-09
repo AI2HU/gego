@@ -51,7 +51,7 @@ func TestEnqueueClaimComplete(t *testing.T) {
 		ID:          jobID,
 		RunID:       runID,
 		ScheduleID:  scheduleID,
-		PromptID:    uuid.New().String(),
+		PromptIDs:   []string{uuid.New().String()},
 		LLMID:       uuid.New().String(),
 		Temperature: 0.7,
 		Status:      models.ScheduleJobStatusPending,
@@ -79,7 +79,7 @@ func TestEnqueueClaimComplete(t *testing.T) {
 		t.Fatalf("claim: %v", err)
 	}
 
-	if err := store.CompleteJob(ctx, claimed.ID, uuid.New().String()); err != nil {
+	if err := store.CompleteJob(ctx, claimed.ID, []string{uuid.New().String()}); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
 
@@ -99,14 +99,14 @@ func TestCronDedup(t *testing.T) {
 	dedupKey := keys.Dedup("sched-1", "slot-1")
 
 	run := &models.ScheduleRun{ID: uuid.New().String(), ScheduleID: "sched-1", Trigger: models.ScheduleRunTriggerCron, TotalJobs: 1}
-	job := &models.ScheduleJob{ID: uuid.New().String(), RunID: run.ID, ScheduleID: "sched-1", PromptID: "p1", LLMID: "l1", Temperature: 0.5, MaxAttempts: 3}
+	job := &models.ScheduleJob{ID: uuid.New().String(), RunID: run.ID, ScheduleID: "sched-1", PromptIDs: []string{"p1"}, LLMID: "l1", Temperature: 0.5, MaxAttempts: 3}
 
 	if err := store.CreateRun(ctx, run, []*models.ScheduleJob{job}, dedupKey, time.Minute); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
 
 	run2 := &models.ScheduleRun{ID: uuid.New().String(), ScheduleID: "sched-1", Trigger: models.ScheduleRunTriggerCron, TotalJobs: 1}
-	job2 := &models.ScheduleJob{ID: uuid.New().String(), RunID: run2.ID, ScheduleID: "sched-1", PromptID: "p1", LLMID: "l1", Temperature: 0.5, MaxAttempts: 3}
+	job2 := &models.ScheduleJob{ID: uuid.New().String(), RunID: run2.ID, ScheduleID: "sched-1", PromptIDs: []string{"p1"}, LLMID: "l1", Temperature: 0.5, MaxAttempts: 3}
 	if err := store.CreateRun(ctx, run2, []*models.ScheduleJob{job2}, dedupKey, time.Minute); err == nil {
 		t.Fatal("expected dedup failure")
 	}

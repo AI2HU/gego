@@ -34,7 +34,7 @@ func generateResponses(set *fixtureSet) []*models.Response {
 		primaryBrand := brandNames[i%len(brandNames)]
 		secondaryBrand := brandNames[(i+1)%len(brandNames)]
 		responseText := fmt.Sprintf(
-			"Based on current market trends, %s and %s are among the leading brands mentioned by analysts. %s continues to innovate while %s expands its global footprint.",
+			"Based on current market trends, %s [1] and %s [2] are among the leading brands mentioned by analysts. %s [1] continues to innovate while %s [2] expands its global footprint.",
 			primaryBrand, secondaryBrand, primaryBrand, secondaryBrand,
 		)
 
@@ -64,13 +64,13 @@ func generateResponses(set *fixtureSet) []*models.Response {
 					SearchQuery:   prompt.Template,
 					URL:           fmt.Sprintf("https://www.example.com/articles/%s-%d", primaryBrand, i+1),
 					Title:         fmt.Sprintf("%s market analysis", primaryBrand),
-					CitationIndex: 1,
+					CitationIndex: 0,
 				},
 				{
 					SearchQuery:   prompt.Template,
 					URL:           fmt.Sprintf("https://news.example.org/brands/%s", secondaryBrand),
 					Title:         fmt.Sprintf("Why %s matters in 2025", secondaryBrand),
-					CitationIndex: 2,
+					CitationIndex: 1,
 				},
 			},
 			CreatedAt: createdAt,

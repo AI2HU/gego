@@ -1,7 +1,7 @@
 import { apiRequest } from '@/api/client'
 import type { HealthResponse } from '@/types/health'
 import type { ModelResponse } from '@/types/model'
-import type { StatsResponse, URLStatsResponse } from '@/types/stats'
+import type { BrandCitationDomainsResponse, StatsResponse, URLStatsResponse } from '@/types/stats'
 
 const STATS_LIMIT = 20
 
@@ -25,6 +25,19 @@ export function fetchURLStats(limit = STATS_LIMIT, tags: string[] = []): Promise
   const params = new URLSearchParams({ limit: String(limit) })
   appendTags(params, tags)
   return apiRequest<URLStatsResponse>(`/stats/urls?${params.toString()}`)
+}
+
+export function fetchBrandCitationDomains(
+  brandId: string,
+  limit = STATS_LIMIT,
+  tags: string[] = [],
+): Promise<BrandCitationDomainsResponse> {
+  const params = new URLSearchParams({
+    brand_id: brandId,
+    limit: String(limit),
+  })
+  appendTags(params, tags)
+  return apiRequest<BrandCitationDomainsResponse>(`/stats/brand-citation-domains?${params.toString()}`)
 }
 
 export function fetchLLMs(): Promise<ModelResponse[]> {

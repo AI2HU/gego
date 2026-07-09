@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 
 import RunDetailDrawer from '@/components/scheduler/RunDetailDrawer.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 import AddScheduleWizard from '@/components/scheduler/AddScheduleWizard.vue'
 import SchedulesTable from '@/components/scheduler/SchedulesTable.vue'
 import AppAlert from '@/components/ui/AppAlert.vue'
@@ -195,9 +196,7 @@ function handleViewRun(runId: string) {
     <div class="flex justify-end mb-6">
       <AppButton class="shrink-0 self-start sm:self-auto" @click="openWizard">
         <span class="inline-flex items-center gap-2">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <AppIcon name="plus" size="sm" />
           Add schedule
         </span>
       </AppButton>

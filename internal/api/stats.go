@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -117,6 +118,47 @@ func (s *Server) getKeywordDomainMatrix(c *gin.Context) {
 	stats, err := s.statsService.GetKeywordDomainMatrix(c.Request.Context(), keywordLimit, domainLimit)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to get keyword-domain matrix: "+err.Error())
+		return
+	}
+
+	s.successResponse(c, stats)
+}
+
+func (s *Server) getBrandCitationDomains(c *gin.Context) {
+	brandID := strings.TrimSpace(c.Query("brand_id"))
+	if brandID == "" {
+		s.errorResponse(c, http.StatusBadRequest, "brand_id is required")
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "15")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 || limit > 100 {
+		limit = 15
+	}
+
+	tags := parseTagsFromQuery(c)
+	promptIDs, err := s.resolvePromptIDsByTags(c.Request.Context(), tags)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to resolve prompt tags: "+err.Error())
+		return
+	}
+
+	if len(tags) > 0 && len(promptIDs) == 0 {
+		s.successResponse(c, &services.BrandCitationDomainsResult{
+			BrandID: brandID,
+			Domains: []*services.BrandCitationDomainStats{},
+		})
+		return
+	}
+
+	stats, err := s.statsService.GetBrandCitationDomains(c.Request.Context(), brandID, limit, promptIDs)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			s.errorResponse(c, http.StatusNotFound, err.Error())
+			return
+		}
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to get brand citation domains: "+err.Error())
 		return
 	}
 

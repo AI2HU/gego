@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 
 import AddModelWizard from '@/components/models/AddModelWizard.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 import ModelCard from '@/components/models/ModelCard.vue'
 import AppAlert from '@/components/ui/AppAlert.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -65,9 +66,7 @@ function onModelsAdded() {
     <div class="flex justify-end mb-6">
       <AppButton class="shrink-0 self-start sm:self-auto" @click="openWizard">
         <span class="inline-flex items-center gap-2">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <AppIcon name="plus" size="sm" />
           Add models
         </span>
       </AppButton>

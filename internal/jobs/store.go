@@ -18,7 +18,7 @@ type Store interface {
 	CreateRun(ctx context.Context, run *models.ScheduleRun, jobs []*models.ScheduleJob, dedupKey string, dedupTTL time.Duration) error
 	WatchPendingJobs(ctx context.Context) (<-chan *models.ScheduleJob, error)
 	ClaimJob(ctx context.Context, job *models.ScheduleJob, workerID string, lease time.Duration) (*models.ScheduleJob, error)
-	CompleteJob(ctx context.Context, jobID string, responseID string) error
+	CompleteJob(ctx context.Context, jobID string, responseIDs []string) error
 	FailJob(ctx context.Context, jobID string, jobErr error) error
 	RetryJob(ctx context.Context, jobID string) error
 	CancelRun(ctx context.Context, runID string) error
