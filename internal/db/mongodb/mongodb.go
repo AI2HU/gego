@@ -72,6 +72,17 @@ func (m *MongoDB) Ping(ctx context.Context) error {
 	return m.client.Ping(ctx, nil)
 }
 
+func (m *MongoDB) CleanAll(ctx context.Context) error {
+	if m.database == nil {
+		return fmt.Errorf("not connected to database")
+	}
+	if err := m.database.Drop(ctx); err != nil {
+		return fmt.Errorf("failed to drop database %q: %w", m.config.Database, err)
+	}
+	m.database = m.client.Database(m.config.Database)
+	return m.createIndexes(ctx)
+}
+
 // createIndexes creates necessary indexes for optimal query performance
 func (m *MongoDB) createIndexes(ctx context.Context) error {
 	responseIndexes := []mongo.IndexModel{
@@ -254,7 +265,9 @@ func (m *MongoDB) DeleteAllPrompts(ctx context.Context) (int, error) {
 
 // CreateResponse creates a new response
 func (m *MongoDB) CreateResponse(ctx context.Context, response *models.Response) error {
-	response.CreatedAt = time.Now()
+	if response.CreatedAt.IsZero() {
+		response.CreatedAt = time.Now()
+	}
 
 	doc := bson.M{
 		"_id":           response.ID,

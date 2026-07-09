@@ -25,6 +25,7 @@ type BrandDatabase interface {
 	ListBrandAliasesByBrandID(ctx context.Context, brandID string) ([]*models.BrandAlias, error)
 	UpdateBrandAlias(ctx context.Context, alias *models.BrandAlias) error
 	DeleteBrandAlias(ctx context.Context, id string) error
+	DeleteAllBrands(ctx context.Context) (int, error)
 }
 
 func brandBackend(sqlDB SQLBackend) (BrandDatabase, error) {

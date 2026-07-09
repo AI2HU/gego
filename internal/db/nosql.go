@@ -14,6 +14,7 @@ type NoSQLDatabase interface {
 	Connect(ctx context.Context) error
 	Disconnect(ctx context.Context) error
 	Ping(ctx context.Context) error
+	CleanAll(ctx context.Context) error
 
 	// Prompt operations
 	CreatePrompt(ctx context.Context, prompt *models.Prompt) error

@@ -1,0 +1,24 @@
+- id: prompt-fashion-001
+  template: "What are the top luxury fashion brands in 2025?"
+  tags: [fashion, luxury]
+  enabled: true
+
+- id: prompt-fashion-002
+  template: "Which sneaker brands dominate streetwear culture?"
+  tags: [fashion, sneakers]
+  enabled: true
+
+- id: prompt-tech-001
+  template: "What are the best smartphone brands for battery life?"
+  tags: [tech, mobile]
+  enabled: true
+
+- id: prompt-tech-002
+  template: "Which tech companies lead in AI assistants?"
+  tags: [tech, ai]
+  enabled: true
+
+- id: prompt-travel-001
+  template: "What are the most recommended travel brands for luggage?"
+  tags: [travel, lifestyle]
+  enabled: true

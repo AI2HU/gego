@@ -1,0 +1,15 @@
+- id: schedule-daily-fashion
+  name: Daily Fashion Scan
+  prompt_ids: [prompt-fashion-001, prompt-fashion-002]
+  llm_ids: [llm-openai-001, llm-anthropic-001]
+  cron_expr: "0 9 * * *"
+  temperature: 0.7
+  enabled: true
+
+- id: schedule-weekly-tech
+  name: Weekly Tech Review
+  prompt_ids: [prompt-tech-001, prompt-tech-002]
+  llm_ids: [llm-google-001, llm-openai-001]
+  cron_expr: "0 10 * * 1"
+  temperature: 0.6
+  enabled: true

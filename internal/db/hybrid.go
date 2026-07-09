@@ -132,6 +132,10 @@ func (h *HybridDB) GetSQLBackend() SQLBackend {
 	return h.sqlDB
 }
 
+func (h *HybridDB) CleanAll(ctx context.Context) error {
+	return h.nosqlDB.CleanAll(ctx)
+}
+
 func (h *HybridDB) CreateLLM(ctx context.Context, llm *models.LLMConfig) error {
 	return h.sqlDB.CreateLLM(ctx, llm)
 }
@@ -256,6 +260,14 @@ func (h *HybridDB) CountExclusionWords(ctx context.Context) (int, error) {
 	return ew.CountExclusionWords(ctx)
 }
 
+func (h *HybridDB) DeleteAllExclusionWords(ctx context.Context) (int, error) {
+	ew, err := exclusionWordBackend(h.sqlDB)
+	if err != nil {
+		return 0, err
+	}
+	return ew.DeleteAllExclusionWords(ctx)
+}
+
 func (h *HybridDB) CreateBrand(ctx context.Context, brand *models.Brand) error {
 	b, err := brandBackend(h.sqlDB)
 	if err != nil {
@@ -350,6 +362,14 @@ func (h *HybridDB) DeleteBrandAlias(ctx context.Context, id string) error {
 		return err
 	}
 	return b.DeleteBrandAlias(ctx, id)
+}
+
+func (h *HybridDB) DeleteAllBrands(ctx context.Context) (int, error) {
+	b, err := brandBackend(h.sqlDB)
+	if err != nil {
+		return 0, err
+	}
+	return b.DeleteAllBrands(ctx)
 }
 
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
