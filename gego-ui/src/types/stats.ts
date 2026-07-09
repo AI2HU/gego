@@ -53,3 +53,16 @@ export interface URLStatsResponse {
   top_urls: unknown[]
   top_domains: DomainMentionStats[]
 }
+
+export interface BrandCitationDomainStats {
+  domain: string
+  citations: number
+  unique_url_count: number
+}
+
+export interface BrandCitationDomainsResponse {
+  brand_id: string
+  brand_name: string
+  total_hits: number
+  domains: BrandCitationDomainStats[]
+}

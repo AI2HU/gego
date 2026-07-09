@@ -18,6 +18,8 @@ import (
 	"github.com/AI2HU/gego/internal/models"
 )
 
+const maxEtcdTxnOps = 124
+
 type Store struct {
 	client   *clientv3.Client
 	keys     *Keys
@@ -172,19 +174,63 @@ func (s *Store) CreateRun(ctx context.Context, run *models.ScheduleRun, jobList 
 		ops = append(ops, clientv3.OpPut(dedupKey, run.ID, clientv3.WithLease(lease.ID)))
 	}
 
-	txn := s.client.Txn(ctx)
-	if dedupKey != "" {
-		txn = txn.If(clientv3.Compare(clientv3.CreateRevision(dedupKey), "=", 0))
-	}
-	resp, err := txn.Then(ops...).Commit()
-	if err != nil {
+	var committed bool
+	defer func() {
+		if committed {
+			return
+		}
+		s.rollbackCreateRun(ctx, run, jobList, dedupKey)
+	}()
+
+	if err := s.commitBatchedOps(ctx, ops, dedupKey); err != nil {
 		return err
 	}
-	if !resp.Succeeded {
-		return fmt.Errorf("run already enqueued for this cron slot")
-	}
-
+	committed = true
 	return nil
+}
+
+func (s *Store) commitBatchedOps(ctx context.Context, ops []clientv3.Op, dedupKey string) error {
+	for i := 0; i < len(ops); i += maxEtcdTxnOps {
+		end := i + maxEtcdTxnOps
+		if end > len(ops) {
+			end = len(ops)
+		}
+
+		txn := s.client.Txn(ctx)
+		if i == 0 && dedupKey != "" {
+			txn = txn.If(clientv3.Compare(clientv3.CreateRevision(dedupKey), "=", 0))
+		}
+
+		resp, err := txn.Then(ops[i:end]...).Commit()
+		if err != nil {
+			return err
+		}
+		if i == 0 && dedupKey != "" && !resp.Succeeded {
+			return fmt.Errorf("run already enqueued for this cron slot")
+		}
+	}
+	return nil
+}
+
+func (s *Store) rollbackCreateRun(ctx context.Context, run *models.ScheduleRun, jobList []*models.ScheduleJob, dedupKey string) {
+	ops := []clientv3.Op{
+		clientv3.OpDelete(s.keys.Run(run.ID)),
+		clientv3.OpDelete(s.keys.RunIndex(run.CreatedAt, run.ID)),
+		clientv3.OpDelete(s.keys.RunJobIDs(run.ID)),
+	}
+	if run.ScheduleID != "" {
+		ops = append(ops, clientv3.OpDelete(s.keys.RunBySchedule(run.ScheduleID, run.CreatedAt, run.ID)))
+	}
+	if dedupKey != "" {
+		ops = append(ops, clientv3.OpDelete(dedupKey))
+	}
+	for _, job := range jobList {
+		ops = append(ops, clientv3.OpDelete(s.keys.JobData(job.ID)))
+		if job.PendingKey != "" {
+			ops = append(ops, clientv3.OpDelete(job.PendingKey))
+		}
+	}
+	_ = s.commitBatchedOps(ctx, ops, "")
 }
 
 func (s *Store) getJob(ctx context.Context, jobID string) (*models.ScheduleJob, error) {
@@ -360,7 +406,7 @@ func (s *Store) ClaimJob(ctx context.Context, job *models.ScheduleJob, workerID 
 	return job, nil
 }
 
-func (s *Store) CompleteJob(ctx context.Context, jobID string, responseID string) error {
+func (s *Store) CompleteJob(ctx context.Context, jobID string, responseIDs []string) error {
 	job, err := s.getJob(ctx, jobID)
 	if err != nil {
 		return err
@@ -368,7 +414,7 @@ func (s *Store) CompleteJob(ctx context.Context, jobID string, responseID string
 
 	now := time.Now().UTC()
 	job.Status = models.ScheduleJobStatusCompleted
-	job.ResponseID = responseID
+	job.ResponseIDs = append([]string(nil), responseIDs...)
 	job.CompletedAt = &now
 	job.Error = ""
 
@@ -437,7 +483,7 @@ func (s *Store) RetryJob(ctx context.Context, jobID string) error {
 	job.WorkerID = ""
 	job.ClaimedAt = nil
 	job.CompletedAt = nil
-	job.ResponseID = ""
+	job.ResponseIDs = nil
 
 	now := time.Now().UTC()
 	pendingKey := s.keys.QueuePending(now, job.ID)
@@ -488,7 +534,7 @@ func (s *Store) CancelRun(ctx context.Context, runID string) error {
 	ops = append(ops, clientv3.OpPut(s.keys.Run(runID), string(runBytes)))
 
 	if len(ops) > 0 {
-		_, err = s.client.Txn(ctx).Then(ops...).Commit()
+		err = s.commitBatchedOps(ctx, ops, "")
 	}
 	return err
 }
@@ -764,7 +810,7 @@ func (s *Store) CompactExpiredRuns(ctx context.Context, retention time.Duration)
 				clientv3.OpDelete(s.keys.QueueDead(job.ID)),
 			)
 		}
-		_, _ = s.client.Txn(ctx).Then(ops...).Commit()
+		_ = s.commitBatchedOps(ctx, ops, "")
 		removed++
 	}
 	return removed, nil

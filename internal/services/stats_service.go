@@ -590,6 +590,130 @@ func (s *StatsService) GetKeywordDomainMatrix(ctx context.Context, keywordLimit,
 	return results, nil
 }
 
+type BrandCitationDomainStats struct {
+	Domain         string `json:"domain"`
+	Citations      int    `json:"citations"`
+	UniqueURLCount int    `json:"unique_url_count"`
+}
+
+type BrandCitationDomainsResult struct {
+	BrandID   string                      `json:"brand_id"`
+	BrandName string                      `json:"brand_name"`
+	TotalHits int                         `json:"total_hits"`
+	Domains   []*BrandCitationDomainStats `json:"domains"`
+}
+
+const brandCitationDomainsBatchSize = 500
+
+func (s *StatsService) GetBrandCitationDomains(
+	ctx context.Context,
+	brandID string,
+	limit int,
+	promptIDs []string,
+) (*BrandCitationDomainsResult, error) {
+	brand, err := s.db.GetBrand(ctx, brandID)
+	if err != nil {
+		return nil, err
+	}
+
+	searchTerms := shared.ExpandBrandSearchTerms(brand.Name)
+	if len(searchTerms) == 0 {
+		return &BrandCitationDomainsResult{
+			BrandID:   brand.ID,
+			BrandName: brand.Name,
+			Domains:   []*BrandCitationDomainStats{},
+		}, nil
+	}
+
+	attributor := shared.NewBrandCitationAttributor(searchTerms)
+	domainStats := make(map[string]*BrandCitationDomainStats)
+	domainURLs := make(map[string]map[string]bool)
+	totalHits := 0
+
+	for offset := 0; ; offset += brandCitationDomainsBatchSize {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		batch, err := s.db.ListResponses(ctx, shared.ResponseFilter{
+			Keyword:       brand.Name,
+			HasSearchURLs: true,
+			PromptIDs:     promptIDs,
+			Limit:         brandCitationDomainsBatchSize,
+			Offset:        offset,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get responses: %w", err)
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		for _, response := range batch {
+			if len(response.SearchURLs) == 0 || response.ResponseText == "" {
+				continue
+			}
+
+			urlInputs := make([]shared.SearchURLInput, len(response.SearchURLs))
+			for i, source := range response.SearchURLs {
+				urlInputs[i] = shared.SearchURLInput{
+					URL:           source.URL,
+					CitationIndex: source.CitationIndex,
+				}
+			}
+
+			hits := attributor.Attribute(response.ResponseText, urlInputs)
+			for _, hit := range hits {
+				if hit.Domain == "" {
+					continue
+				}
+
+				if domainStats[hit.Domain] == nil {
+					domainStats[hit.Domain] = &BrandCitationDomainStats{Domain: hit.Domain}
+					domainURLs[hit.Domain] = make(map[string]bool)
+				}
+
+				domainStats[hit.Domain].Citations++
+				if hit.URL != "" {
+					domainURLs[hit.Domain][hit.URL] = true
+				}
+				totalHits++
+			}
+		}
+
+		if len(batch) < brandCitationDomainsBatchSize {
+			break
+		}
+	}
+
+	results := make([]*BrandCitationDomainStats, 0, len(domainStats))
+	for domain, stats := range domainStats {
+		stats.UniqueURLCount = len(domainURLs[domain])
+		results = append(results, stats)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Citations == results[j].Citations {
+			return results[i].Domain < results[j].Domain
+		}
+		return results[i].Citations > results[j].Citations
+	})
+
+	if limit > 0 && len(results) > limit {
+		results = results[:limit]
+	}
+	if results == nil {
+		results = []*BrandCitationDomainStats{}
+	}
+
+	return &BrandCitationDomainsResult{
+		BrandID:   brand.ID,
+		BrandName: brand.Name,
+		TotalHits: totalHits,
+		Domains:   results,
+	}, nil
+}
+
 func extractDomain(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {

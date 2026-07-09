@@ -204,7 +204,7 @@ type ScheduleJobResponse struct {
 	ID          string     `json:"id"`
 	RunID       string     `json:"run_id"`
 	ScheduleID  string     `json:"schedule_id"`
-	PromptID    string     `json:"prompt_id"`
+	PromptIDs   []string   `json:"prompt_ids"`
 	LLMID       string     `json:"llm_id"`
 	Provider    string     `json:"provider"`
 	Temperature float64    `json:"temperature"`
@@ -212,7 +212,7 @@ type ScheduleJobResponse struct {
 	Attempts    int        `json:"attempts"`
 	MaxAttempts int        `json:"max_attempts"`
 	WorkerID    string     `json:"worker_id,omitempty"`
-	ResponseID  string     `json:"response_id,omitempty"`
+	ResponseIDs []string   `json:"response_ids,omitempty"`
 	Error       string     `json:"error,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ClaimedAt   *time.Time `json:"claimed_at,omitempty"`

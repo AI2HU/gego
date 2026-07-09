@@ -14,17 +14,18 @@ import (
 	"github.com/AI2HU/gego/internal/jobs"
 	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
+	"github.com/AI2HU/gego/internal/shared"
 )
 
 type WorkerService struct {
-	db         db.Database
-	store      jobs.Store
-	executor   *PromptExecutor
-	cfg        jobs.Config
-	hostname   string
-	shutdown   chan struct{}
+	db           db.Database
+	store        jobs.Store
+	executor     *PromptExecutor
+	cfg          jobs.Config
+	hostname     string
+	shutdown     chan struct{}
 	shutdownOnce sync.Once
-	shutdownWg sync.WaitGroup
+	shutdownWg   sync.WaitGroup
 }
 
 func NewWorkerService(database db.Database, store jobs.Store, executor *PromptExecutor, cfg jobs.Config) *WorkerService {
@@ -180,23 +181,7 @@ func (w *WorkerService) processJob(ctx context.Context, workerID string, job *mo
 		return nil
 	}
 
-	prompt, err := w.db.GetPrompt(ctx, claimed.PromptID)
-	if err != nil {
-		return w.store.FailJob(ctx, claimed.ID, err)
-	}
-
-	llmConfig, err := w.db.GetLLM(ctx, claimed.LLMID)
-	if err != nil {
-		return w.store.FailJob(ctx, claimed.ID, err)
-	}
-
-	responseID, err := w.executor.Execute(ctx, PromptExecutionParams{
-		ScheduleID:  claimed.ScheduleID,
-		RunID:       claimed.RunID,
-		JobID:       claimed.ID,
-		Temperature: claimed.Temperature,
-	}, prompt, llmConfig)
-
+	responseIDs, err := w.executeModelJob(ctx, claimed)
 	if err != nil {
 		if failErr := w.store.FailJob(ctx, claimed.ID, err); failErr != nil {
 			logger.Error("fail job %s: %v", claimed.ID, failErr)
@@ -205,11 +190,62 @@ func (w *WorkerService) processJob(ctx context.Context, workerID string, job *mo
 		return err
 	}
 
-	if err := w.store.CompleteJob(ctx, claimed.ID, responseID); err != nil {
+	if err := w.store.CompleteJob(ctx, claimed.ID, responseIDs); err != nil {
 		return err
 	}
 
 	return w.finalizeRunIfNeeded(ctx, claimed.RunID)
+}
+
+func (w *WorkerService) executeModelJob(ctx context.Context, job *models.ScheduleJob) ([]string, error) {
+	if len(job.PromptIDs) == 0 {
+		return nil, fmt.Errorf("job has no prompts")
+	}
+
+	llmConfig, err := w.db.GetLLM(ctx, job.LLMID)
+	if err != nil {
+		return nil, err
+	}
+
+	responseIDs := make([]string, 0, len(job.PromptIDs))
+	params := PromptExecutionParams{
+		ScheduleID:  job.ScheduleID,
+		RunID:       job.RunID,
+		JobID:       job.ID,
+		Temperature: job.Temperature,
+	}
+
+	for _, promptID := range job.PromptIDs {
+		if w.hasSuccessfulResponse(ctx, job.RunID, job.ID, promptID) {
+			continue
+		}
+
+		prompt, err := w.db.GetPrompt(ctx, promptID)
+		if err != nil {
+			return nil, err
+		}
+
+		responseID, err := w.executor.Execute(ctx, params, prompt, llmConfig)
+		if err != nil {
+			return nil, err
+		}
+		responseIDs = append(responseIDs, responseID)
+	}
+
+	return responseIDs, nil
+}
+
+func (w *WorkerService) hasSuccessfulResponse(ctx context.Context, runID, jobID, promptID string) bool {
+	responses, err := w.db.ListResponses(ctx, shared.ResponseFilter{
+		PromptID: promptID,
+		RunID:    runID,
+		JobID:    jobID,
+		Limit:    1,
+	})
+	if err != nil || len(responses) == 0 {
+		return false
+	}
+	return responses[0].Error == ""
 }
 
 func (w *WorkerService) finalizeRunIfNeeded(ctx context.Context, runID string) error {

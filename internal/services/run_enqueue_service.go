@@ -14,20 +14,18 @@ import (
 )
 
 type RunEnqueueService struct {
-	db         interface {
-		GetSchedule(ctx context.Context, id string) (*models.Schedule, error)
-		GetPrompt(ctx context.Context, id string) (*models.Prompt, error)
-		GetLLM(ctx context.Context, id string) (*models.LLMConfig, error)
-	}
+	db    scheduleEnqueueDB
 	store jobs.Store
 	keys  *etcdstore.Keys
 }
 
-func NewRunEnqueueService(database interface {
+type scheduleEnqueueDB interface {
 	GetSchedule(ctx context.Context, id string) (*models.Schedule, error)
 	GetPrompt(ctx context.Context, id string) (*models.Prompt, error)
 	GetLLM(ctx context.Context, id string) (*models.LLMConfig, error)
-}, store jobs.Store, keys *etcdstore.Keys) *RunEnqueueService {
+}
+
+func NewRunEnqueueService(database scheduleEnqueueDB, store jobs.Store, keys *etcdstore.Keys) *RunEnqueueService {
 	return &RunEnqueueService{db: database, store: store, keys: keys}
 }
 
@@ -37,29 +35,13 @@ func (s *RunEnqueueService) EnqueueSchedule(ctx context.Context, scheduleID stri
 		return "", fmt.Errorf("get schedule: %w", err)
 	}
 
-	prompts := make([]*models.Prompt, 0, len(schedule.PromptIDs))
-	for _, promptID := range schedule.PromptIDs {
-		prompt, err := s.db.GetPrompt(ctx, promptID)
-		if err != nil {
-			return "", fmt.Errorf("get prompt %s: %w", promptID, err)
-		}
-		prompts = append(prompts, prompt)
+	if err := s.validateScheduleTargets(ctx, schedule); err != nil {
+		return "", err
 	}
 
-	llms := make([]*models.LLMConfig, 0, len(schedule.LLMIDs))
-	for _, llmID := range schedule.LLMIDs {
-		llmConfig, err := s.db.GetLLM(ctx, llmID)
-		if err != nil {
-			return "", fmt.Errorf("get llm %s: %w", llmID, err)
-		}
-		if !llmConfig.Enabled {
-			continue
-		}
-		llms = append(llms, llmConfig)
-	}
-
-	if len(prompts) == 0 {
-		return "", fmt.Errorf("no prompts found for schedule")
+	llms, err := s.loadEnabledLLMs(ctx, schedule.LLMIDs)
+	if err != nil {
+		return "", err
 	}
 	if len(llms) == 0 {
 		return "", fmt.Errorf("no enabled LLMs found for schedule")
@@ -74,28 +56,7 @@ func (s *RunEnqueueService) EnqueueSchedule(ctx context.Context, scheduleID stri
 		CronSlot:   cronSlot,
 	}
 
-	jobList := make([]*models.ScheduleJob, 0, len(prompts)*len(llms))
-	for _, prompt := range prompts {
-		for _, llmConfig := range llms {
-			temperature := schedule.Temperature
-			if schedule.Temperature == -1.0 {
-				temperature = rand.Float64()
-			}
-
-			jobList = append(jobList, &models.ScheduleJob{
-				ID:          uuid.New().String(),
-				RunID:       runID,
-				ScheduleID:  scheduleID,
-				PromptID:    prompt.ID,
-				LLMID:       llmConfig.ID,
-				Provider:    llmConfig.Provider,
-				Temperature: temperature,
-				Status:      models.ScheduleJobStatusPending,
-				MaxAttempts: 3,
-			})
-		}
-	}
-
+	jobList := buildModelJobs(runID, scheduleID, schedule.PromptIDs, llms, schedule.Temperature)
 	run.TotalJobs = len(jobList)
 
 	dedupKey := ""
@@ -108,6 +69,58 @@ func (s *RunEnqueueService) EnqueueSchedule(ctx context.Context, scheduleID stri
 	}
 
 	return runID, nil
+}
+
+func (s *RunEnqueueService) validateScheduleTargets(ctx context.Context, schedule *models.Schedule) error {
+	if len(schedule.PromptIDs) == 0 {
+		return fmt.Errorf("no prompts found for schedule")
+	}
+	for _, promptID := range schedule.PromptIDs {
+		if _, err := s.db.GetPrompt(ctx, promptID); err != nil {
+			return fmt.Errorf("get prompt %s: %w", promptID, err)
+		}
+	}
+	return nil
+}
+
+func (s *RunEnqueueService) loadEnabledLLMs(ctx context.Context, llmIDs []string) ([]*models.LLMConfig, error) {
+	llms := make([]*models.LLMConfig, 0, len(llmIDs))
+	for _, llmID := range llmIDs {
+		llmConfig, err := s.db.GetLLM(ctx, llmID)
+		if err != nil {
+			return nil, fmt.Errorf("get llm %s: %w", llmID, err)
+		}
+		if llmConfig.Enabled {
+			llms = append(llms, llmConfig)
+		}
+	}
+	return llms, nil
+}
+
+func buildModelJobs(runID, scheduleID string, promptIDs []string, llms []*models.LLMConfig, scheduleTemperature float64) []*models.ScheduleJob {
+	promptIDs = append([]string(nil), promptIDs...)
+	jobs := make([]*models.ScheduleJob, 0, len(llms))
+
+	for _, llmConfig := range llms {
+		temperature := scheduleTemperature
+		if scheduleTemperature == -1.0 {
+			temperature = rand.Float64()
+		}
+
+		jobs = append(jobs, &models.ScheduleJob{
+			ID:          uuid.New().String(),
+			RunID:       runID,
+			ScheduleID:  scheduleID,
+			PromptIDs:   append([]string(nil), promptIDs...),
+			LLMID:       llmConfig.ID,
+			Provider:    llmConfig.Provider,
+			Temperature: temperature,
+			Status:      models.ScheduleJobStatusPending,
+			MaxAttempts: 3,
+		})
+	}
+
+	return jobs
 }
 
 func (s *RunEnqueueService) CancelRunsForSchedule(ctx context.Context, scheduleID string) error {

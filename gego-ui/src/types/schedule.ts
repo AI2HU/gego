@@ -69,7 +69,7 @@ export interface ScheduleJobResponse {
   id: string
   run_id: string
   schedule_id: string
-  prompt_id: string
+  prompt_ids: string[]
   llm_id: string
   provider: string
   temperature: number
@@ -77,7 +77,7 @@ export interface ScheduleJobResponse {
   attempts: number
   max_attempts: number
   worker_id?: string
-  response_id?: string
+  response_ids?: string[]
   error?: string
   created_at: string
   claimed_at?: string

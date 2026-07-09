@@ -67,8 +67,19 @@ function isRunning(status: string): boolean {
   return status === 'pending' || status === 'running'
 }
 
-function promptLabel(job: ScheduleJobResponse): string {
-  return promptLabels.value.get(job.prompt_id) ?? job.prompt_id
+function promptLabelsForJob(job: ScheduleJobResponse): string {
+  const labels = job.prompt_ids.map((id) => promptLabels.value.get(id) ?? id)
+  if (labels.length === 0) {
+    return 'No prompts'
+  }
+  if (labels.length === 1) {
+    return labels[0]!
+  }
+  return `${labels.length} prompts`
+}
+
+function promptDetailsForJob(job: ScheduleJobResponse): string[] {
+  return job.prompt_ids.map((id) => promptLabels.value.get(id) ?? id)
 }
 
 function modelLabel(job: ScheduleJobResponse): string {
@@ -150,7 +161,7 @@ async function handleRetry(jobId: string) {
               <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-gray-200">
                 <ProviderLogo :provider="provider" class="h-5 w-5" />
                 <span class="text-sm font-medium text-gray-900">{{ formatProviderName(provider) }}</span>
-                <span class="text-xs text-gray-500">{{ providerJobs.length }} prompt{{ providerJobs.length === 1 ? '' : 's' }}</span>
+                <span class="text-xs text-gray-500">{{ providerJobs.length }} model{{ providerJobs.length === 1 ? '' : 's' }}</span>
               </div>
               <ul class="divide-y divide-gray-100">
                 <li
@@ -174,7 +185,15 @@ async function handleRetry(jobId: string) {
                       Retry
                     </AppButton>
                   </div>
-                  <p class="text-sm text-gray-800 mt-1">{{ promptLabel(job) }}</p>
+                  <p class="text-sm text-gray-800 mt-1">{{ promptLabelsForJob(job) }}</p>
+                  <ul
+                    v-if="job.prompt_ids.length > 1"
+                    class="mt-1 space-y-0.5 text-xs text-gray-600 list-disc list-inside"
+                  >
+                    <li v-for="(label, index) in promptDetailsForJob(job)" :key="`${job.id}-${index}`">
+                      {{ label }}
+                    </li>
+                  </ul>
                   <p class="text-xs text-gray-500 mt-0.5">{{ modelLabel(job) }}</p>
                   <p v-if="job.error" class="text-xs text-red-600 mt-1">{{ job.error }}</p>
                 </li>
