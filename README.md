@@ -3,17 +3,19 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/)
 
-Gego is an open-source GEO (Generative Engine Optimization) tracker. It schedules prompts across multiple Large Language Models (LLMs), captures web-search citations from their responses, and surfaces keyword and domain analytics through a built-in dashboard and CLI.
+Gego is an open-source GEO (Generative Engine Optimization) tracker. It schedules prompts across multiple Large Language Models (LLMs), captures web-search citations from their responses, tracks brand mentions with aliases, and surfaces keyword and domain analytics through a built-in dashboard and CLI.
 
 ## Features
 
 - **Multi-LLM support**: OpenAI, Anthropic, Ollama, Google, Perplexity (Sonar), and pluggable custom providers
-- **Built-in web dashboard** (`gego-ui`): Vue 3 dashboard for stats, search, models, prompts, scheduler, and error logs
+- **Built-in web dashboard** (`gego-ui`): Vue 3 dashboard for stats, search, models, prompts, scheduler, words, and error logs
+- **Brand tracking**: Canonical brands with aliases; brand trends and citation-domain analytics on the dashboard
 - **Citation tracking**: Extracts cited URLs and domains from provider web-search results (OpenAI, Anthropic, Google, Perplexity)
-- **Keyword analytics**: Automatic keyword extraction from responses with configurable exclusion lists
-- **Hybrid database**: SQLite for configuration and auth; MongoDB for prompts, responses, and analytics
+- **Keyword analytics**: Automatic keyword extraction with exclusion words managed in the database and UI
+- **Hybrid database**: PostgreSQL for configuration, auth, brands, and schedules; MongoDB for prompts, responses, and analytics (SQLite supported for legacy deployments only)
+- **Distributed scheduling**: Cron-based scheduler enqueues jobs to **etcd**; separate **worker** processes execute LLM calls
 - **JWT authentication**: Role-based access (`admin`, `member`) with session refresh
-- **Flexible scheduling**: Cron-based scheduler for automated prompt execution
+- **Flexible scheduling**: Cron schedules, manual runs, run history, job retry, and cancellation
 - **Prompt generation**: AI-assisted prompt creation via the API
 - **Tag-based filtering**: Organize prompts with tags and filter dashboard/search stats
 - **Error logs**: Review failed scheduled LLM calls (rate limits, provider errors)
@@ -26,6 +28,7 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker. It schedule
 
 - **GEO / brand visibility**: Track how your brand and competitors appear in AI-generated answers
 - **Citation analysis**: See which domains and URLs LLMs cite most often for your prompts
+- **Brand mapping**: Normalize detected brand spellings and aliases to canonical names
 - **SEO and marketing research**: Monitor keyword mentions across AI assistants
 - **Competitive analysis**: Compare visibility across providers and models
 - **Prompt engineering**: Identify which prompts drive the most mentions and citations
@@ -34,19 +37,24 @@ Gego is an open-source GEO (Generative Engine Optimization) tracker. It schedule
 
 ```
 gego/
-├── cmd/gego/           # CLI entrypoint
+├── cmd/
+│   ├── gego/           # CLI entrypoint
+│   └── fixtures-dev/   # Dev database seeding (make fixtures-dev)
 ├── gego-ui/            # Vue 3 + Vite dashboard (served by the API in production)
 ├── internal/
 │   ├── api/            # Gin REST API and static UI serving
 │   ├── auth/           # JWT middleware, permissions, sessions
 │   ├── cli/            # Cobra commands
-│   ├── db/             # SQLite + MongoDB hybrid layer and migrations
+│   ├── config/         # YAML and environment-based configuration
+│   ├── db/             # PostgreSQL + MongoDB hybrid layer and migrations
+│   ├── fixtures/       # Dev fixture loader
+│   ├── jobs/           # etcd job queue types and store
 │   ├── llm/            # Provider implementations (openai, anthropic, google, …)
 │   ├── models/         # Domain and API types
-│   └── services/       # Business logic (scheduler, stats, search, auth, …)
+│   └── services/       # Business logic (scheduler, stats, brands, worker, …)
 ├── docs/               # Deployment and usage guides
 ├── Dockerfile          # Production image (API + UI)
-└── Makefile            # build, dev, ui-* targets
+└── Makefile            # build, dev, ui-*, etcd-dev, worker targets
 ```
 
 ## Installation
@@ -55,7 +63,9 @@ gego/
 
 - Go 1.25 or higher
 - Node.js 20.19+ or 22.12+ (for UI development)
-- MongoDB (analytics data)
+- PostgreSQL (relational data: LLMs, schedules, users, brands, exclusion words)
+- MongoDB (prompts, responses, analytics)
+- etcd (job queue for scheduled and manual runs; required when starting the API)
 - API keys for LLM providers (OpenAI, Anthropic, etc.)
 
 ### Build from Source
@@ -86,7 +96,9 @@ docker build -t gego:latest .
 docker run -d \
   --name gego \
   -p 8989:8989 \
-  -e MONGODB_URI=mongodb://your-mongodb-host:27017 \
+  -e GEGO_POSTGRES_URI=postgres://user:pass@your-postgres-host:5432/gego?sslmode=disable \
+  -e GEGO_MONGODB_URI=mongodb://your-mongodb-host:27017 \
+  -e GEGO_MONGODB_DATABASE=gego \
   -e GEGO_JWT_SECRET="your-secret-at-least-32-characters-long" \
   -e GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password" \
   gego:latest
@@ -97,8 +109,12 @@ docker run -d \
 | Variable | Description |
 |----------|-------------|
 | `GEGO_CONFIG_PATH` | Config file path (default: `/app/config/config.yaml`) |
-| `GEGO_DATA_PATH` | SQLite data directory (default: `/app/data`) |
+| `GEGO_DATA_PATH` | Legacy SQLite data directory (default: `/app/data`) |
 | `GEGO_LOG_PATH` | Log directory (default: `/app/logs`) |
+| `GEGO_POSTGRES_URI` | PostgreSQL connection string |
+| `GEGO_MONGODB_URI` | MongoDB connection string |
+| `GEGO_MONGODB_DATABASE` | MongoDB database name (default: `gego`) |
+| `GEGO_ETCD_ENDPOINTS` | Comma-separated etcd endpoints (default: `127.0.0.1:2379`) |
 | `GEGO_JWT_SECRET` | JWT signing secret (min 32 characters, **required**) |
 | `GEGO_BOOTSTRAP_ADMIN_USERNAME` | First admin username (default: `admin`) |
 | `GEGO_BOOTSTRAP_ADMIN_PASSWORD` | First admin password (min 8 characters, **required** on first run) |
@@ -108,13 +124,25 @@ docker run -d \
 
 ### Production-like local run (API + UI on one port)
 
-Copy [`.env.dev.example`](.env.dev.example) to `.env.dev`, start PostgreSQL and MongoDB, then:
+Copy [`.env.dev.example`](.env.dev.example) to `.env.dev`, start PostgreSQL, MongoDB, and etcd, then:
 
 ```bash
+# Terminal 1 — local etcd
+make etcd-dev
+
+# Terminal 2 — API + embedded UI with dev fixtures
+cp .env.dev.example .env.dev   # first time only
 make dev
 ```
 
-This builds the UI, loads [dev database fixtures](CONTRIBUTING.md#local-development-with-fixtures) (sample LLMs, prompts, responses, brands), and starts the API with the embedded dashboard.
+`make dev` builds the UI, loads [dev database fixtures](CONTRIBUTING.md#local-development-with-fixtures) (sample LLMs, prompts, responses, brands), and starts the API with the embedded dashboard. Fixtures are enough to exercise the dashboard and search UI without running a worker.
+
+To execute scheduled or manual prompt runs, also start a worker:
+
+```bash
+# Terminal 3 — schedule worker (requires etcd)
+make dev-worker
+```
 
 | Service | URL |
 |---------|-----|
@@ -137,15 +165,18 @@ make ui-build
 export GEGO_JWT_SECRET="your-secret-at-least-32-characters-long"
 export GEGO_BOOTSTRAP_ADMIN_PASSWORD="your-admin-password"
 
-# 4. Start API with embedded UI (no fixture reload)
+# 4. Start etcd, then API with embedded UI (no fixture reload)
+make etcd-dev    # separate terminal
 make dev-api
 ```
 
 ### Hot-reload development (separate UI dev server)
 
 ```bash
-make dev-api   # Terminal 1 — API on http://localhost:8989
-make ui-dev    # Terminal 2 — Vite on http://localhost:5173 (proxies /api to the API)
+make etcd-dev    # Terminal 1 — etcd on :2379
+make dev-api     # Terminal 2 — API on http://localhost:8989
+make ui-dev      # Terminal 3 — Vite on http://localhost:5173 (proxies /api to the API)
+make dev-worker  # Terminal 4 — optional, for schedule execution
 ```
 
 See `gego-ui/.env.example` for optional UI environment variables.
@@ -156,18 +187,19 @@ The dashboard lives in `gego-ui/` and is included in the repository.
 
 | Page | Path | Description |
 |------|------|-------------|
-| Dashboard | `/` | Keyword trends, provider distribution, top cited domains |
+| Dashboard | `/` | Brand trends, keyword stats, provider distribution, top cited domains, brand citation domains |
 | Search | `/search` | Full-text keyword search across stored responses |
 | Models | `/admin/models` | Manage LLM provider configurations |
 | Prompts | `/admin/prompts` | Create, tag, and filter prompt templates |
-| Scheduler | `/admin/scheduler` | Cron schedules and background scheduler control |
+| Scheduler | `/admin/scheduler` | Cron schedules, run history, and background scheduler control |
+| Words | `/admin/words` | Manage exclusion words and map detected brand words to canonical names |
 | Logs | `/admin/logs` | Failed LLM executions from scheduled runs |
 
 Admin pages require the `admin` role. Members can access dashboard and search.
 
 ## Authentication
 
-The API uses JWT access tokens with refresh-token rotation stored in SQLite.
+The API uses JWT access tokens with refresh-token rotation stored in PostgreSQL.
 
 **Bootstrap the first admin** (when no users exist):
 
@@ -188,7 +220,7 @@ Or create users manually:
 
 | Role | Access |
 |------|--------|
-| `admin` | Full read/write on models, prompts, schedules, stats, search, logs |
+| `admin` | Full read/write on models, prompts, schedules, words/brands, stats, search, logs |
 | `member` | Read-only on models/prompts/schedules; dashboard, stats, and search |
 
 **Auth endpoints** (public unless noted)
@@ -208,7 +240,7 @@ All other `/api/v1/*` routes require a valid `Authorization: Bearer <token>` hea
 gego init
 ```
 
-Interactive setup for SQLite and MongoDB connections.
+Interactive setup for PostgreSQL and MongoDB connections.
 
 ### 2. Add LLM providers
 
@@ -250,12 +282,6 @@ make dev-worker           # Terminal 2: job worker
 gego scheduler start      # Terminal 3: cron enqueuer (requires etcd)
 ```
 
-Or run everything with Docker:
-
-```bash
-make dev-up               # etcd + api + worker
-```
-
 Required env: `GEGO_ETCD_ENDPOINTS` (default `127.0.0.1:2379`).
 
 ### 7. Start the API server
@@ -267,6 +293,14 @@ gego api --cors-origin "https://myapp.com"
 ```
 
 When `gego-ui/dist` exists (or `/app/ui` in Docker), the API also serves the dashboard as static files.
+
+### 8. Migrate from legacy SQLite (optional)
+
+```bash
+gego db upgrade-from-sqlite --postgres-uri "postgres://localhost:5432/gego?sslmode=disable"
+```
+
+Or use the in-app upgrade flow at `/upgrade` when the API detects a pending migration.
 
 ## API Reference
 
@@ -280,6 +314,11 @@ Base URL: `http://localhost:8989/api/v1`
 
 - `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
 - `GET /auth/me`
+
+### Upgrades
+
+- `GET /upgrades` — list required database upgrades (public)
+- `POST /upgrades` — run a pending upgrade (public)
 
 ### Models and providers
 
@@ -303,11 +342,20 @@ Base URL: `http://localhost:8989/api/v1`
 
 ### Analytics and search
 
-- `GET /stats` — dashboard stats (keywords, trends, provider breakdown)
+- `GET /stats` — dashboard stats (keywords, brand trends, provider breakdown)
 - `GET /stats/urls` — top cited URLs and domains
 - `GET /stats/query-urls` — URLs grouped by search query
 - `GET /stats/keyword-domains` — keyword × domain matrix
+- `GET /stats/brand-citation-domains` — domains cited near selected brand mentions
 - `POST /search` — keyword search across responses
+
+### Words and brands
+
+- `GET /exclusion-words`, `POST /exclusion-words`, `DELETE /exclusion-words/:id`
+- `GET /brands`, `POST /brands`, `PUT /brands/:id`, `DELETE /brands/:id`
+- `GET /brands/suggestions` — detected brand word suggestions
+- `POST /brands/map` — map a detected word to a canonical brand
+- `POST /brands/:id/aliases`, `PUT /brands/:id/aliases/:aliasId`, `DELETE /brands/:id/aliases/:aliasId`
 
 ### Logs
 
@@ -335,6 +383,7 @@ curl http://localhost:8989/api/v1/stats \
 ```bash
 gego stats keywords --limit 20
 gego stats keyword Dior
+gego stats refresh    # reload exclusion words cache from the database
 ```
 
 ### Manage LLMs, prompts, schedules
@@ -345,16 +394,17 @@ gego prompt list
 gego schedule list
 gego schedule run <id>
 gego scheduler status
+gego worker start
 ```
 
 ## Configuration
 
-Configuration is stored in `~/.gego/config.yaml`:
+Configuration is stored in `~/.gego/config.yaml` (or via environment variables):
 
 ```yaml
 sql_database:
-  provider: sqlite
-  uri: ~/.gego/gego.db
+  provider: postgres
+  uri: postgres://localhost:5432/gego?sslmode=disable
   database: gego
 
 nosql_database:
@@ -369,16 +419,26 @@ auth:
   refresh_token_ttl: 168h
 ```
 
+**Environment overrides** (commonly used in Docker and `make dev`):
+
+| Variable | Purpose |
+|----------|---------|
+| `GEGO_POSTGRES_URI` | PostgreSQL connection string |
+| `GEGO_MONGODB_URI` | MongoDB connection string |
+| `GEGO_MONGODB_DATABASE` | MongoDB database name |
+| `GEGO_ETCD_ENDPOINTS` | etcd endpoints for the job queue |
+
 **Database architecture**
 
 | Store | Contents |
 |-------|----------|
-| SQLite | LLM configs, schedules, users, sessions |
+| PostgreSQL | LLM configs, schedules, users, sessions, brands, exclusion words |
 | MongoDB | Prompts, responses (including `search_urls` citations), analytics |
+| SQLite | Legacy deployments only — migrate with `gego db upgrade-from-sqlite` |
 
-### Keywords exclusion
+### Exclusion words
 
-Gego filters common words from keyword extraction. Customize the list in `~/.gego/keywords_exclusion` (one word per line; `#` for comments). Restart the application after changes.
+Exclusion words are stored in PostgreSQL and managed from the **Words** admin page or the API. On first startup, Gego can import words from the legacy file at `~/.gego/keywords_exclusion` (one word per line; `#` for comments) when the database table is empty.
 
 ### System instructions
 
@@ -398,7 +458,9 @@ Optional provider-specific system prompts in `config.yaml`:
 | `make ui-dev` | Vite dev server with hot reload (port 5173) |
 | `make dev` | Build UI, load dev fixtures, start API with embedded static UI (port 8989) |
 | `make fixtures-dev` | Reset and load dev database fixtures only (see [CONTRIBUTING.md](CONTRIBUTING.md#local-development-with-fixtures)) |
-| `make dev-api` | Start API only (port 8989); does not load fixtures |
+| `make dev-api` | Start API only (port 8989); requires etcd |
+| `make dev-worker` | Start schedule worker (requires etcd) |
+| `make etcd-dev` | Run local etcd in Docker on port 2379 |
 | `make test` | Run Go tests |
 | `make build-all` | Cross-platform binaries |
 
@@ -428,21 +490,27 @@ Failed prompt executions are retried up to 3 times with a 30-second delay betwee
            │   (Gin)     │
            └──────┬──────┘
                   │
-     ┌────────────┼────────────┐
-     │            │            │
-┌────┴────┐  ┌────┴────┐  ┌────┴─────────┐
-│ SQLite  │  │ MongoDB │  │ LLM Registry │
-│ users   │  │ prompts │  │ OpenAI       │
-│ llms    │  │ responses│ │ Anthropic    │
-│ schedules│ │ citations│ │ Google …     │
-└─────────┘  └─────────┘  └──────────────┘
-                  │
-           ┌──────┴──────┐
-           │  Scheduler  │
-           └─────────────┘
+     ┌────────────┼────────────┬────────────┐
+     │            │            │            │
+┌────┴─────┐ ┌────┴────┐ ┌────┴────┐ ┌─────┴──────┐
+│PostgreSQL│ │ MongoDB │ │  etcd   │ │ LLM Registry│
+│ users    │ │ prompts │ │ job     │ │ OpenAI      │
+│ llms     │ │ responses│ │ queue   │ │ Anthropic   │
+│ brands   │ │ citations│ └────┬───┘ │ Google …    │
+│ schedules│ └─────────┘      │     └─────────────┘
+└──────────┘                   │
+                        ┌──────┴──────┐
+                        │   Worker    │
+                        │  (executor) │
+                        └──────┬──────┘
+                               │
+                        ┌──────┴──────┐
+                        │  Scheduler  │
+                        │   (cron)    │
+                        └─────────────┘
 ```
 
-LLM providers return `SearchURLs` alongside response text. Citations are stored on each response and aggregated for domain/URL stats.
+LLM providers return `SearchURLs` alongside response text. Citations are stored on each response and aggregated for domain/URL stats. Brand aliases normalize detected mentions before stats are computed.
 
 ## Adding Custom LLM Providers
 
@@ -474,11 +542,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ## Roadmap
 
 - [ ] Persona embedding to simulate chat-style model behavior
-- [ ] System prompts per model for chat simulation
 - [ ] Schedule run-time estimation and cost forecasting
 - [ ] Prompt batches to optimize costs
 - [ ] Provider-specific prompt threading for speed
-- [ ] Additional NoSQL database support (Cassandra, etc.)
 - [ ] Export statistics to CSV/JSON
 - [ ] Webhook notifications
 - [ ] Custom keyword extraction rules
@@ -493,8 +559,9 @@ This project is licensed under the GNU General Public License v3.0 — see the [
 - [Cobra](https://github.com/spf13/cobra) — CLI framework
 - [Gin](https://github.com/gin-gonic/gin) — HTTP API
 - [Vue](https://vuejs.org/) — dashboard UI
+- [etcd](https://etcd.io/) — distributed job queue
 - [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) — analytics database
-- [go-sqlite3](https://github.com/mattn/go-sqlite3) — configuration database
+- [pgx](https://github.com/jackc/pgx) — PostgreSQL driver
 - [robfig/cron](https://github.com/robfig/cron) — scheduling
 
 ## Support
