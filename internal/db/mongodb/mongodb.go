@@ -102,9 +102,11 @@ func (m *MongoDB) createIndexes(ctx context.Context) error {
 				{Key: "prompt_id", Value: 1},
 				{Key: "created_at", Value: -1},
 			},
-			Options: options.Index().SetPartialFilterExpression(bson.M{
-				"search_urls.0": bson.M{"$exists": true},
-			}),
+			Options: options.Index().
+				SetName("prompt_id_1_created_at_-1_has_search_urls").
+				SetPartialFilterExpression(bson.M{
+					"search_urls.0": bson.M{"$exists": true},
+				}),
 		},
 	}
 
