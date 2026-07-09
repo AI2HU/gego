@@ -68,10 +68,16 @@ export const barChartOptions: ChartOptions<'bar'> = {
 export const horizontalBarChartOptions: ChartOptions<'bar'> = {
   ...barChartOptions,
   indexAxis: 'y',
+  interaction: {
+    mode: 'index',
+    axis: 'y',
+    intersect: false,
+  },
   plugins: {
     ...barChartOptions.plugins,
     tooltip: {
       ...barChartOptions.plugins?.tooltip,
+      position: 'nearest',
       callbacks: {
         title(items) {
           return items[0]?.label ?? ''

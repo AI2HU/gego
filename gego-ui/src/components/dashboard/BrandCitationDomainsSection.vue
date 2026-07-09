@@ -31,7 +31,7 @@ const domains = computed(() => props.data?.domains ?? [])
 const brandName = computed(() => props.data?.brand_name ?? '')
 const totalHits = computed(() => props.data?.total_hits ?? 0)
 
-const chartItems = computed(() => [...domains.value].reverse())
+const chartItems = computed(() => domains.value)
 
 const chartData = computed<ChartData<'bar'>>(() => {
   if (!chartItems.value.length) {
@@ -60,6 +60,13 @@ function goToSearch(term: string) {
 
 const chartOptions = computed<ChartOptions<'bar'>>(() => ({
   ...horizontalBarChartOptions,
+  scales: {
+    ...horizontalBarChartOptions.scales,
+    y: {
+      ...horizontalBarChartOptions.scales?.y,
+      reverse: true,
+    },
+  },
   onClick(_event, elements, chart) {
     if (elements.length === 0) {
       return
