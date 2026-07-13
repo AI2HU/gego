@@ -81,9 +81,9 @@ export const status = {
 } as const
 
 export const iconBox = {
-  sm: 'w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center',
-  md: 'w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center',
-  lg: 'w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center',
+  sm: 'w-8 h-8 shrink-0 bg-slate-100 rounded-lg flex items-center justify-center',
+  md: 'w-10 h-10 shrink-0 bg-slate-200 rounded-lg flex items-center justify-center',
+  lg: 'w-12 h-12 shrink-0 bg-slate-100 rounded-lg flex items-center justify-center',
 } as const
 
 export const typography = {

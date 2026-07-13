@@ -205,8 +205,8 @@ watch(() => route.query.q, applyRouteSearch)
     <div
       class="mb-6 space-y-4 rounded-xl border border-gray-200/60 bg-white/60 backdrop-blur-sm p-4"
     >
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end">
-        <div class="flex-1">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div class="min-w-0 flex-1">
           <label class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-400">
             Keyword
           </label>
@@ -216,15 +216,9 @@ watch(() => route.query.q, applyRouteSearch)
             :disabled="searchMutation.isPending.value"
             @enter="runSearch"
           />
-          <TopBrandsQuickSearch
-            :disabled="searchMutation.isPending.value"
-            :active-keyword="lastKeyword"
-            :tags="selectedTags"
-            @select="runSearch"
-          />
         </div>
 
-        <div class="w-full lg:w-32">
+        <div class="w-full sm:w-32">
           <label class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-400">
             Limit
           </label>
@@ -236,15 +230,30 @@ watch(() => route.query.q, applyRouteSearch)
           />
         </div>
 
-        <AppButton
-          icon="search"
-          class="shrink-0"
-          :disabled="!canSearch || searchMutation.isPending.value"
-          @click="runSearch"
-        >
-          {{ searchMutation.isPending.value ? 'Searching...' : 'Search' }}
-        </AppButton>
+        <div class="w-full shrink-0 sm:w-auto">
+          <span
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider opacity-0 select-none"
+            aria-hidden="true"
+          >
+            Search
+          </span>
+          <AppButton
+            icon="search"
+            class="w-full"
+            :disabled="!canSearch || searchMutation.isPending.value"
+            @click="runSearch"
+          >
+            {{ searchMutation.isPending.value ? 'Searching...' : 'Search' }}
+          </AppButton>
+        </div>
       </div>
+
+      <TopBrandsQuickSearch
+        :disabled="searchMutation.isPending.value"
+        :active-keyword="lastKeyword"
+        :tags="selectedTags"
+        @select="runSearch"
+      />
 
       <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
         <input

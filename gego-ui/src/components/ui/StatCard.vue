@@ -13,8 +13,8 @@ defineProps<{
 
 <template>
   <div :class="[card.interactive, 'p-6']">
-    <div class="flex items-center justify-between">
-      <div>
+    <div class="flex items-center justify-between gap-4">
+      <div class="min-w-0">
         <p :class="typography.label">{{ label }}</p>
         <p :class="[typography.value, 'mt-1']">{{ value }}</p>
         <p v-if="hint" :class="[typography.hint, 'mt-1']">{{ hint }}</p>

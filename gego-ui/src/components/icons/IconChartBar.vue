@@ -1,6 +1,5 @@
 <template>
-  <path d="M4 20V10" />
-  <path d="M10 20V4" />
-  <path d="M16 20v-6" />
-  <path d="M22 20V8" />
+  <path d="M6 20V12" />
+  <path d="M12 20V6" />
+  <path d="M18 20V14" />
 </template>
