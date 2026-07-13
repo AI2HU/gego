@@ -11,7 +11,7 @@ import AppCard from '@/components/ui/AppCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { getCronHint, getCronLabel } from '@/types/schedule'
+import { getCronHint, getCronLabel, isCronPreset } from '@/types/schedule'
 import type { ScheduleRunResponse, ScheduleResponse } from '@/types/schedule'
 import {
   useDeleteScheduleMutation,
@@ -294,7 +294,7 @@ function handleViewRun(runId: string) {
               <li v-for="schedule in enabledSchedules" :key="schedule.id">
                 {{ schedule.name }}
                 <span
-                  class="text-gray-400 text-xs ml-1"
+                  :class="isCronPreset(schedule.cron_expr) ? 'text-gray-400 text-xs ml-1' : 'font-mono text-gray-500 text-xs ml-1'"
                   :title="getCronHint(schedule.cron_expr)"
                 >
                   {{ getCronLabel(schedule.cron_expr) }}

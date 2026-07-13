@@ -93,6 +93,9 @@ func (s *Store) StartElection(ctx context.Context) error {
 				s.leaderMu.Unlock()
 				logger.Info("scheduler lost leadership")
 			case <-ctx.Done():
+				s.leaderMu.Lock()
+				s.isLeader = false
+				s.leaderMu.Unlock()
 				return
 			}
 		}

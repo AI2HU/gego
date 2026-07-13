@@ -4,7 +4,7 @@ import { ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { ScheduleResponse, ScheduleRunResponse } from '@/types/schedule'
-import { formatRunStatus, getCronHint, getCronLabel } from '@/types/schedule'
+import { formatRunStatus, getCronHint, getCronLabel, isCronPreset } from '@/types/schedule'
 
 withDefaults(
   defineProps<{
@@ -97,7 +97,7 @@ function confirmDelete(id: string) {
             </td>
             <td class="px-4 py-3 text-gray-700">
               <span
-                class="text-sm"
+                :class="isCronPreset(schedule.cron_expr) ? 'text-sm' : 'font-mono text-xs text-gray-600'"
                 :title="getCronHint(schedule.cron_expr)"
               >
                 {{ getCronLabel(schedule.cron_expr) }}

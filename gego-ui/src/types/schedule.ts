@@ -122,14 +122,19 @@ const CRON_EXPR_TO_PRESET = Object.fromEntries(
   Object.entries(CRON_PRESETS).map(([preset, expr]) => [expr, preset]),
 ) as Record<string, Exclude<CronPreset, 'custom'>>
 
+export function isCronPreset(cronExpr: string): boolean {
+  return cronExpr.trim() in CRON_EXPR_TO_PRESET
+}
+
 export function getCronLabel(cronExpr: string): string {
-  const preset = CRON_EXPR_TO_PRESET[cronExpr.trim()]
-  return preset ? CRON_PRESET_LABELS[preset] : 'Custom'
+  const trimmed = cronExpr.trim()
+  const preset = CRON_EXPR_TO_PRESET[trimmed]
+  return preset ? CRON_PRESET_LABELS[preset] : trimmed || 'Custom'
 }
 
 export function getCronHint(cronExpr: string): string | undefined {
   const preset = CRON_EXPR_TO_PRESET[cronExpr.trim()]
-  return preset ? CRON_PRESET_HINTS[preset] : cronExpr.trim() || undefined
+  return preset ? CRON_PRESET_HINTS[preset] : undefined
 }
 
 export function getCronPreset(cronExpr: string): { preset: CronPreset; customExpr: string } {

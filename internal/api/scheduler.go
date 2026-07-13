@@ -74,7 +74,7 @@ func (s *Server) getSchedulerHealth(c *gin.Context) {
 }
 
 func (s *Server) startScheduler(c *gin.Context) {
-	ctx := c.Request.Context()
+	ctx := context.Background()
 
 	if err := s.initializeLLMProviders(ctx); err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to initialize LLM providers: "+err.Error())
@@ -100,7 +100,7 @@ func (s *Server) stopScheduler(c *gin.Context) {
 }
 
 func (s *Server) reloadScheduler(c *gin.Context) {
-	ctx := c.Request.Context()
+	ctx := context.Background()
 
 	if err := s.initializeLLMProviders(ctx); err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to initialize LLM providers: "+err.Error())
