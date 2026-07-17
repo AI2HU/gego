@@ -26,7 +26,7 @@ docker-compose ps
 ```
 
 This will:
-- Pull the `slals/gego:latest` image from Docker Hub
+- Pull the `ouai2h/gego:latest` image from Docker Hub
 - Pull the `mongo:latest` image
 - Create and start both containers
 - Set up persistent volumes for data
@@ -53,7 +53,7 @@ If you prefer to run containers manually:
 ### 1. Pull the Image
 
 ```bash
-docker pull slals/gego:latest
+docker pull ouai2h/gego:latest
 ```
 
 ### 2. Start MongoDB
@@ -111,7 +111,7 @@ docker run -d \
   -e GEGO_CONFIG_PATH=/app/config/config.yaml \
   -e GEGO_DATA_PATH=/app/data \
   -e GEGO_LOG_PATH=/app/logs \
-  slals/gego:latest
+  ouai2h/gego:latest
 ```
 
 ### 5. Verify Deployment
@@ -155,7 +155,7 @@ docker run -d \
   -e GEGO_CONFIG_PATH=/app/config/config.yaml \
   -e GEGO_DATA_PATH=/app/data \
   -e GEGO_LOG_PATH=/app/logs \
-  slals/gego:latest
+  ouai2h/gego:latest
 ```
 
 In your config, use the container name for MongoDB URI:
@@ -230,7 +230,7 @@ docker stop gego gego-mongodb
 
 ```bash
 # Pull latest image
-docker pull slals/gego:latest
+docker pull ouai2h/gego:latest
 
 # Stop current container
 docker stop gego
