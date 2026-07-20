@@ -303,6 +303,9 @@ func (m *MongoDB) CreateResponse(ctx context.Context, response *models.Response)
 	if response.JobID != "" {
 		doc["job_id"] = response.JobID
 	}
+	if response.Error != "" {
+		doc["error"] = response.Error
+	}
 
 	if response.Metadata != nil {
 		doc["metadata"] = response.Metadata

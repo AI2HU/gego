@@ -35,30 +35,6 @@ Website: [getgego.org](https://getgego.org)
 - **Competitive analysis**: Compare visibility across providers and models
 - **Prompt engineering**: Identify which prompts drive the most mentions and citations
 
-## Project Structure
-
-```
-gego/
-├── cmd/
-│   ├── gego/           # CLI entrypoint
-│   └── fixtures-dev/   # Dev database seeding (make fixtures-dev)
-├── gego-ui/            # Vue 3 + Vite dashboard (served by the API in production)
-├── internal/
-│   ├── api/            # Gin REST API and static UI serving
-│   ├── auth/           # JWT middleware, permissions, sessions
-│   ├── cli/            # Cobra commands
-│   ├── config/         # YAML and environment-based configuration
-│   ├── db/             # PostgreSQL + MongoDB hybrid layer and migrations
-│   ├── fixtures/       # Dev fixture loader
-│   ├── jobs/           # etcd job queue types and store
-│   ├── llm/            # Provider implementations (openai, anthropic, google, …)
-│   ├── models/         # Domain and API types
-│   └── services/       # Business logic (scheduler, stats, brands, worker, …)
-├── docs/               # Deployment and usage guides
-├── Dockerfile          # Production image (API + UI)
-└── Makefile            # build, dev, ui-*, etcd-dev, worker targets
-```
-
 ## Installation
 
 ### Prerequisites
@@ -479,38 +455,28 @@ Failed prompt executions are retried up to 3 times with a 30-second delay betwee
 
 ## Architecture
 
+Minimum runtime stack (API + worker + data stores):
+
+```mermaid
+flowchart LR
+  UI["gego-ui"] --> API["API + scheduler"]
+  API --> PG[(PostgreSQL)]
+  API --> Mongo[(MongoDB)]
+  API --> Etcd[(etcd)]
+  Worker["Worker"] --> Etcd
+  Worker --> PG
+  Worker --> Mongo
+  Worker --> LLMs["LLM providers"]
 ```
-┌──────────────┐     ┌─────────────────┐
-│  gego-ui     │     │   CLI (Cobra)   │
-│  (Vue 3)     │     └────────┬────────┘
-└──────┬───────┘              │
-       │                      │
-       └──────────┬───────────┘
-                  │
-           ┌──────┴──────┐
-           │  REST API   │
-           │   (Gin)     │
-           └──────┬──────┘
-                  │
-     ┌────────────┼────────────┬────────────┐
-     │            │            │            │
-┌────┴─────┐ ┌────┴────┐ ┌────┴────┐ ┌─────┴──────┐
-│PostgreSQL│ │ MongoDB │ │  etcd   │ │ LLM Registry│
-│ users    │ │ prompts │ │ job     │ │ OpenAI      │
-│ llms     │ │ responses│ │ queue   │ │ Anthropic   │
-│ brands   │ │ citations│ └────┬───┘ │ Google …    │
-│ schedules│ └─────────┘      │     └─────────────┘
-└──────────┘                   │
-                        ┌──────┴──────┐
-                        │   Worker    │
-                        │  (executor) │
-                        └──────┬──────┘
-                               │
-                        ┌──────┴──────┐
-                        │  Scheduler  │
-                        │   (cron)    │
-                        └─────────────┘
-```
+
+| Component | Role |
+|-----------|------|
+| **gego-ui** | Dashboard (served by the API, or Vite in local UI-only mode) |
+| **API + scheduler** | REST API, auth, cron enqueue into etcd |
+| **Worker** | Pulls jobs from etcd and runs LLM calls |
+| **PostgreSQL** | Users, LLMs, schedules, brands, sessions |
+| **MongoDB** | Prompts, responses, citations, analytics |
+| **etcd** | Job queue between scheduler and workers |
 
 LLM providers return `SearchURLs` alongside response text. Citations are stored on each response and aggregated for domain/URL stats. Brand aliases normalize detected mentions before stats are computed.
 
