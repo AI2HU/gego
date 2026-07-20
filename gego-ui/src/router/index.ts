@@ -78,6 +78,13 @@ const router = createRouter({
           beforeEnter: [permissionGuard],
         },
         {
+          path: 'admin/users',
+          name: 'users',
+          component: () => import('@/views/UsersView.vue'),
+          meta: { permissions: ['users'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
           path: 'forbidden',
           name: 'forbidden',
           component: () => import('@/views/ForbiddenView.vue'),

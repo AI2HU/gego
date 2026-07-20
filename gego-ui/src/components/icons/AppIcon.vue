@@ -26,6 +26,7 @@ import IconSettings from '@/components/icons/IconSettings.vue'
 import IconSpinner from '@/components/icons/IconSpinner.vue'
 import IconTag from '@/components/icons/IconTag.vue'
 import IconTrash from '@/components/icons/IconTrash.vue'
+import IconUsers from '@/components/icons/IconUsers.vue'
 
 export type AppIconName =
   | 'desktop'
@@ -52,6 +53,7 @@ export type AppIconName =
   | 'settings'
   | 'journal'
   | 'chevron-down'
+  | 'users'
 
 const props = withDefaults(
   defineProps<{
@@ -100,5 +102,6 @@ const isFilled = computed(() => props.name === 'chevron-down')
     <IconSettings v-else-if="name === 'settings'" />
     <IconJournal v-else-if="name === 'journal'" />
     <IconChevronDown v-else-if="name === 'chevron-down'" />
+    <IconUsers v-else-if="name === 'users'" />
   </IconBase>
 </template>

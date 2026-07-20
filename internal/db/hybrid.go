@@ -200,6 +200,18 @@ func (h *HybridDB) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return h.sqlDB.ListUsers(ctx)
 }
 
+func (h *HybridDB) UpdateUser(ctx context.Context, user *models.User) error {
+	return h.sqlDB.UpdateUser(ctx, user)
+}
+
+func (h *HybridDB) DeleteUser(ctx context.Context, id string) error {
+	return h.sqlDB.DeleteUser(ctx, id)
+}
+
+func (h *HybridDB) CountUsersByRole(ctx context.Context, role models.Role) (int, error) {
+	return h.sqlDB.CountUsersByRole(ctx, role)
+}
+
 func (h *HybridDB) CreateSession(ctx context.Context, session *models.UserSession) error {
 	return h.sqlDB.CreateSession(ctx, session)
 }
@@ -210,6 +222,10 @@ func (h *HybridDB) GetSessionByTokenHash(ctx context.Context, tokenHash string) 
 
 func (h *HybridDB) RevokeSession(ctx context.Context, id string) error {
 	return h.sqlDB.RevokeSession(ctx, id)
+}
+
+func (h *HybridDB) RevokeSessionsByUserID(ctx context.Context, userID string) error {
+	return h.sqlDB.RevokeSessionsByUserID(ctx, userID)
 }
 
 func (h *HybridDB) CreateExclusionWord(ctx context.Context, word *models.ExclusionWord) error {

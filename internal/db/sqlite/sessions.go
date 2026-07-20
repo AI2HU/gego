@@ -83,3 +83,17 @@ func (s *SQLite) RevokeSession(ctx context.Context, id string) error {
 
 	return nil
 }
+
+func (s *SQLite) RevokeSessionsByUserID(ctx context.Context, userID string) error {
+	now := time.Now()
+	query := `
+		UPDATE user_sessions
+		SET revoked_at = ?, updated_at = ?
+		WHERE user_id = ? AND revoked_at IS NULL`
+
+	_, err := s.db.ExecContext(ctx, query, now, now, userID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke user sessions: %w", err)
+	}
+	return nil
+}

@@ -86,3 +86,53 @@ func (p *Postgres) ListUsers(ctx context.Context) ([]*models.User, error) {
 	}
 	return users, rows.Err()
 }
+
+func (p *Postgres) UpdateUser(ctx context.Context, user *models.User) error {
+	user.UpdatedAt = time.Now()
+
+	query := `
+		UPDATE users
+		SET username = $1, password_hash = $2, role = $3, updated_at = $4
+		WHERE id = $5`
+
+	result, err := p.db.ExecContext(ctx, query,
+		user.Username, user.PasswordHash, user.Role, user.UpdatedAt, user.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", user.ID)
+	}
+	return nil
+}
+
+func (p *Postgres) DeleteUser(ctx context.Context, id string) error {
+	result, err := p.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", id)
+	}
+	return nil
+}
+
+func (p *Postgres) CountUsersByRole(ctx context.Context, role models.Role) (int, error) {
+	var count int
+	err := p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = $1`, role).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count users by role: %w", err)
+	}
+	return count, nil
+}

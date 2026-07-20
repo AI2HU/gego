@@ -60,6 +60,17 @@ type AuthUserResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type CreateUserRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Role     Role   `json:"role" binding:"required"`
+}
+
+type UpdateUserRequest struct {
+	Role     *Role   `json:"role"`
+	Password *string `json:"password"`
+}
+
 func ToAuthUserResponse(user *User) AuthUserResponse {
 	return AuthUserResponse{
 		ID:        user.ID,

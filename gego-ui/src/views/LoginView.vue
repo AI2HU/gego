@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import AppIcon from '@/components/icons/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -10,6 +9,7 @@ import { ApiError } from '@/api/client'
 import { useAuth } from '@/composables/useAuth'
 import { appMeta } from '@/design/navigation'
 import { header, page, typography } from '@/design/classes'
+import gegoLogo from '@/assets/gego_logo.svg'
 
 const router = useRouter()
 const route = useRoute()
@@ -54,7 +54,7 @@ async function submit() {
     <div class="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div class="mb-8 flex items-center space-x-3">
         <div :class="header.logoBox">
-          <AppIcon name="desktop" size="lg" class="text-white" />
+          <img :src="gegoLogo" alt="Gego" class="h-full w-full" />
         </div>
         <div>
           <h1 :class="header.title">{{ appMeta.title }}</h1>

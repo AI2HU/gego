@@ -7,6 +7,17 @@ export interface AuthUser {
   created_at: string
 }
 
+export interface CreateUserRequest {
+  username: string
+  password: string
+  role: Role
+}
+
+export interface UpdateUserRequest {
+  role?: Role
+  password?: string
+}
+
 export interface LoginRequest {
   username: string
   password: string

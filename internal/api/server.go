@@ -196,6 +196,11 @@ func (s *Server) setupRoutes() {
 	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)
 	protected.GET("/auth/me", s.requirePerm(auth.PermAuthProfile), s.me)
 
+	protected.GET("/users", s.requirePerm(auth.PermUsersRead), s.listUsers)
+	protected.POST("/users", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.createUser)
+	protected.PUT("/users/:id", s.requirePerm(auth.PermUsersWrite), s.updateUser)
+	protected.DELETE("/users/:id", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.deleteUser)
+
 	s.setupStaticUI()
 }
 

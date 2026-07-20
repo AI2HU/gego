@@ -16,6 +16,9 @@ import (
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidSession     = errors.New("invalid session")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrCannotDeleteSelf   = errors.New("cannot delete your own account")
+	ErrLastAdmin          = errors.New("cannot remove the last admin")
 )
 
 type AuthService struct {
@@ -132,6 +135,106 @@ func (s *AuthService) CreateUser(ctx context.Context, username, password string,
 
 func (s *AuthService) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return s.db.ListUsers(ctx)
+}
+
+func (s *AuthService) ListUserProfiles(ctx context.Context) ([]models.AuthUserResponse, error) {
+	users, err := s.db.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	profiles := make([]models.AuthUserResponse, 0, len(users))
+	for _, user := range users {
+		profiles = append(profiles, models.ToAuthUserResponse(user))
+	}
+	return profiles, nil
+}
+
+func (s *AuthService) UpdateUser(ctx context.Context, userID string, role *models.Role, password *string) (*models.User, error) {
+	user, err := s.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	changed := false
+	revokeSessions := false
+
+	if role != nil {
+		if !role.Valid() {
+			return nil, fmt.Errorf("invalid role: %s", *role)
+		}
+		if user.Role != *role {
+			if user.Role == models.RoleAdmin && *role != models.RoleAdmin {
+				if err := s.ensureNotLastAdmin(ctx); err != nil {
+					return nil, err
+				}
+			}
+			user.Role = *role
+			changed = true
+			revokeSessions = true
+		}
+	}
+
+	if password != nil {
+		if len(*password) < 8 {
+			return nil, fmt.Errorf("password must be at least 8 characters")
+		}
+		passwordHash, err := auth.HashPassword(*password)
+		if err != nil {
+			return nil, err
+		}
+		user.PasswordHash = passwordHash
+		changed = true
+		revokeSessions = true
+	}
+
+	if !changed {
+		return user, nil
+	}
+
+	if err := s.db.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+
+	if revokeSessions {
+		_ = s.db.RevokeSessionsByUserID(ctx, user.ID)
+	}
+
+	return user, nil
+}
+
+func (s *AuthService) DeleteUser(ctx context.Context, userID, actorID string) error {
+	if userID == actorID {
+		return ErrCannotDeleteSelf
+	}
+
+	user, err := s.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if user.Role == models.RoleAdmin {
+		if err := s.ensureNotLastAdmin(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := s.db.DeleteUser(ctx, userID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AuthService) ensureNotLastAdmin(ctx context.Context) error {
+	count, err := s.db.CountUsersByRole(ctx, models.RoleAdmin)
+	if err != nil {
+		return err
+	}
+	if count <= 1 {
+		return ErrLastAdmin
+	}
+	return nil
 }
 
 func (s *AuthService) issueSession(ctx context.Context, user *models.User) (*models.AuthSessionResult, error) {

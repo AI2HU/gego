@@ -18,6 +18,8 @@ const (
 	PermExclusionWordsRead  Permission = "exclusion-words:read"
 	PermExclusionWordsWrite Permission = "exclusion-words:write"
 	PermAuthProfile         Permission = "auth:profile"
+	PermUsersRead           Permission = "users:read"
+	PermUsersWrite          Permission = "users:write"
 )
 
 type EndpointPolicy struct {
@@ -34,6 +36,7 @@ var RolePermissions = map[models.Role][]Permission{
 		PermStatsRead, PermSearchExecute,
 		PermExclusionWordsRead, PermExclusionWordsWrite,
 		PermAuthProfile,
+		PermUsersRead, PermUsersWrite,
 	},
 	models.RoleMember: {
 		PermLLMsRead,
@@ -90,6 +93,10 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "POST", Path: "/search", Permission: PermSearchExecute},
 	{Method: "GET", Path: "/logs/errors", Permission: PermSchedulesRead},
 	{Method: "GET", Path: "/auth/me", Permission: PermAuthProfile},
+	{Method: "GET", Path: "/users", Permission: PermUsersRead},
+	{Method: "POST", Path: "/users", Permission: PermUsersWrite},
+	{Method: "PUT", Path: "/users/:id", Permission: PermUsersWrite},
+	{Method: "DELETE", Path: "/users/:id", Permission: PermUsersWrite},
 }
 
 func HasPermission(role models.Role, perm Permission) bool {

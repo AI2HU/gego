@@ -111,3 +111,26 @@ func RequirePermission(perm Permission) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func RequireRole(required models.Role) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, err := GetRole(c)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, models.APIResponse{
+				Success: false,
+				Error:   "authentication required",
+			})
+			return
+		}
+
+		if role != required {
+			c.AbortWithStatusJSON(http.StatusForbidden, models.APIResponse{
+				Success: false,
+				Error:   "admin role required",
+			})
+			return
+		}
+
+		c.Next()
+	}
+}

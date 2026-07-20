@@ -9,7 +9,7 @@ export const header = {
   bar: 'bg-white/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-30',
   inner: 'px-4 sm:px-6 lg:px-8',
   row: 'flex justify-between items-center py-3 md:py-4',
-  logoBox: 'w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-slate-400 to-slate-500 rounded-lg flex items-center justify-center shadow-sm',
+  logoBox: 'w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-slate-500 to-slate-700 rounded-lg flex items-center justify-center shadow-sm p-1.5',
   title: 'text-lg md:text-xl font-semibold text-gray-800',
   subtitle: 'text-sm text-gray-500 mt-0.5',
 } as const
@@ -22,7 +22,7 @@ export const sidebar = {
   backdrop: 'fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm lg:hidden',
   brand: 'flex items-center gap-3 border-b border-gray-200/50 px-5 py-5',
   brandLogo:
-    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 shadow-sm',
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-500 to-slate-700 shadow-sm p-1.5',
   brandTitle: 'text-lg font-semibold text-gray-800 leading-tight',
   brandSubtitle: 'text-xs text-gray-500 leading-snug',
   nav: 'flex flex-1 flex-col gap-5 overflow-y-auto custom-scrollbar px-3 py-5',
