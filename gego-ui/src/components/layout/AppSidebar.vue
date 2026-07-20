@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
-import AppIcon from '@/components/icons/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import NavLink from '@/components/ui/NavLink.vue'
 import { useAuth } from '@/composables/useAuth'
@@ -10,6 +9,7 @@ import { useSidebar } from '@/composables/useSidebar'
 import { canAccessRoute } from '@/auth/permissions'
 import { appMeta, type NavSection } from '@/design/navigation'
 import { sidebar, typography } from '@/design/classes'
+import gegoLogo from '@/assets/gego_logo.svg'
 
 const props = withDefaults(
   defineProps<{
@@ -81,7 +81,7 @@ function logout() {
   <aside :class="panelClass" aria-label="Main navigation">
     <div :class="sidebar.brand">
       <div :class="sidebar.brandLogo">
-        <AppIcon name="desktop" size="lg" class="text-white" />
+        <img :src="gegoLogo" alt="Gego" class="h-full w-full" />
       </div>
       <div class="min-w-0">
         <p :class="sidebar.brandTitle">{{ appMeta.title }}</p>

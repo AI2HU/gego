@@ -5,6 +5,8 @@
 
 Gego is an open-source GEO (Generative Engine Optimization) tracker. It schedules prompts across multiple Large Language Models (LLMs), captures web-search citations from their responses, tracks brand mentions with aliases, and surfaces keyword and domain analytics through a built-in dashboard and CLI.
 
+Website: [getgego.org](https://getgego.org)
+
 ## Features
 
 - **Multi-LLM support**: OpenAI, Anthropic, Ollama, Google, Perplexity (Sonar), and pluggable custom providers
@@ -566,6 +568,7 @@ This project is licensed under the GNU General Public License v3.0 — see the [
 
 ## Support
 
+- Website: [getgego.org](https://getgego.org)
 - Email: jonathan@blocs.fr
 - Issues: [GitHub Issues](https://github.com/AI2HU/gego/issues)
 - Discussions: [GitHub Discussions](https://github.com/AI2HU/gego/discussions)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,14 +15,26 @@ import (
 	"github.com/AI2HU/gego/internal/models"
 )
 
+const InviteTokenTTL = 7 * 24 * time.Hour
+
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidSession     = errors.New("invalid session")
+	ErrInvalidInvite      = errors.New("invalid or expired invite")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrCannotDeleteSelf   = errors.New("cannot delete your own account")
+	ErrLastAdmin          = errors.New("cannot remove the last admin")
+	ErrPasswordNotSet     = errors.New("password has not been set")
 )
 
 type AuthService struct {
 	db     db.Database
 	config auth.Config
+}
+
+type InviteTokenResult struct {
+	User  *models.User
+	Token string
 }
 
 func NewAuthService(database db.Database, config auth.Config) *AuthService {
@@ -35,9 +49,17 @@ func (s *AuthService) Config() auth.Config {
 }
 
 func (s *AuthService) Login(ctx context.Context, username, password string) (*models.AuthSessionResult, error) {
-	user, err := s.db.GetUserByUsername(ctx, username)
+	trimmed := strings.TrimSpace(username)
+	user, err := s.db.GetUserByUsername(ctx, normalizeEmail(trimmed))
 	if err != nil {
-		return nil, ErrInvalidCredentials
+		user, err = s.db.GetUserByUsername(ctx, trimmed)
+		if err != nil {
+			return nil, ErrInvalidCredentials
+		}
+	}
+
+	if user.PasswordHash == "" {
+		return nil, ErrPasswordNotSet
 	}
 
 	if !auth.CheckPassword(user.PasswordHash, password) {
@@ -63,6 +85,10 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*models
 
 	user, err := s.db.GetUserByID(ctx, session.UserID)
 	if err != nil {
+		return nil, ErrInvalidSession
+	}
+
+	if user.PasswordHash == "" {
 		return nil, ErrInvalidSession
 	}
 
@@ -118,7 +144,7 @@ func (s *AuthService) CreateUser(ctx context.Context, username, password string,
 
 	user := &models.User{
 		ID:           uuid.New().String(),
-		Username:     username,
+		Username:     strings.TrimSpace(username),
 		PasswordHash: passwordHash,
 		Role:         role,
 	}
@@ -130,8 +156,216 @@ func (s *AuthService) CreateUser(ctx context.Context, username, password string,
 	return user, nil
 }
 
+// CreateInvitedUser creates a user without a password and issues a set-password invite token.
+func (s *AuthService) CreateInvitedUser(ctx context.Context, email string, role models.Role) (*InviteTokenResult, error) {
+	if !role.Valid() {
+		return nil, fmt.Errorf("invalid role: %s", role)
+	}
+
+	normalized, err := normalizeAndValidateEmail(email)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &models.User{
+		ID:           uuid.New().String(),
+		Username:     normalized,
+		PasswordHash: "",
+		Role:         role,
+	}
+
+	if err := s.db.CreateUser(ctx, user); err != nil {
+		return nil, err
+	}
+
+	token, err := s.issuePasswordInvite(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &InviteTokenResult{User: user, Token: token}, nil
+}
+
+// CreatePasswordInviteForUser revokes prior invites and issues a new set-password token.
+func (s *AuthService) CreatePasswordInviteForUser(ctx context.Context, userID string) (*InviteTokenResult, error) {
+	user, err := s.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	token, err := s.issuePasswordInvite(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &InviteTokenResult{User: user, Token: token}, nil
+}
+
+func (s *AuthService) SetPasswordWithInvite(ctx context.Context, token, password string) (*models.AuthSessionResult, error) {
+	if strings.TrimSpace(token) == "" {
+		return nil, ErrInvalidInvite
+	}
+	if len(password) < 8 {
+		return nil, fmt.Errorf("password must be at least 8 characters")
+	}
+
+	invite, err := s.db.GetPasswordInviteByTokenHash(ctx, auth.HashRefreshToken(token))
+	if err != nil {
+		return nil, ErrInvalidInvite
+	}
+	if invite.RevokedAt != nil || time.Now().After(invite.ExpiresAt) {
+		return nil, ErrInvalidInvite
+	}
+
+	user, err := s.db.GetUserByID(ctx, invite.UserID)
+	if err != nil {
+		return nil, ErrInvalidInvite
+	}
+
+	passwordHash, err := auth.HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	user.PasswordHash = passwordHash
+	if err := s.db.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+
+	_ = s.db.RevokePasswordInvite(ctx, invite.ID)
+	_ = s.db.RevokePasswordInvitesByUserID(ctx, user.ID)
+	_ = s.db.RevokeSessionsByUserID(ctx, user.ID)
+
+	return s.issueSession(ctx, user)
+}
+
 func (s *AuthService) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return s.db.ListUsers(ctx)
+}
+
+func (s *AuthService) ListUserProfiles(ctx context.Context) ([]models.AuthUserResponse, error) {
+	users, err := s.db.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	profiles := make([]models.AuthUserResponse, 0, len(users))
+	for _, user := range users {
+		profiles = append(profiles, models.ToAuthUserResponse(user))
+	}
+	return profiles, nil
+}
+
+func (s *AuthService) UpdateUser(ctx context.Context, userID string, role *models.Role, password *string) (*models.User, error) {
+	user, err := s.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	changed := false
+	revokeSessions := false
+
+	if role != nil {
+		if !role.Valid() {
+			return nil, fmt.Errorf("invalid role: %s", *role)
+		}
+		if user.Role != *role {
+			if user.Role == models.RoleAdmin && *role != models.RoleAdmin {
+				if err := s.ensureNotLastAdmin(ctx); err != nil {
+					return nil, err
+				}
+			}
+			user.Role = *role
+			changed = true
+			revokeSessions = true
+		}
+	}
+
+	if password != nil {
+		if len(*password) < 8 {
+			return nil, fmt.Errorf("password must be at least 8 characters")
+		}
+		passwordHash, err := auth.HashPassword(*password)
+		if err != nil {
+			return nil, err
+		}
+		user.PasswordHash = passwordHash
+		changed = true
+		revokeSessions = true
+	}
+
+	if !changed {
+		return user, nil
+	}
+
+	if err := s.db.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+
+	if revokeSessions {
+		_ = s.db.RevokeSessionsByUserID(ctx, user.ID)
+		_ = s.db.RevokePasswordInvitesByUserID(ctx, user.ID)
+	}
+
+	return user, nil
+}
+
+func (s *AuthService) DeleteUser(ctx context.Context, userID, actorID string) error {
+	if userID == actorID {
+		return ErrCannotDeleteSelf
+	}
+
+	user, err := s.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if user.Role == models.RoleAdmin {
+		if err := s.ensureNotLastAdmin(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := s.db.DeleteUser(ctx, userID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AuthService) ensureNotLastAdmin(ctx context.Context) error {
+	count, err := s.db.CountUsersByRole(ctx, models.RoleAdmin)
+	if err != nil {
+		return err
+	}
+	if count <= 1 {
+		return ErrLastAdmin
+	}
+	return nil
+}
+
+func (s *AuthService) issuePasswordInvite(ctx context.Context, userID string) (string, error) {
+	if err := s.db.RevokePasswordInvitesByUserID(ctx, userID); err != nil {
+		return "", err
+	}
+
+	token, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return "", err
+	}
+
+	invite := &models.PasswordInvite{
+		ID:        uuid.New().String(),
+		UserID:    userID,
+		TokenHash: auth.HashRefreshToken(token),
+		ExpiresAt: time.Now().Add(InviteTokenTTL),
+	}
+
+	if err := s.db.CreatePasswordInvite(ctx, invite); err != nil {
+		return "", fmt.Errorf("failed to create password invite: %w", err)
+	}
+
+	return token, nil
 }
 
 func (s *AuthService) issueSession(ctx context.Context, user *models.User) (*models.AuthSessionResult, error) {
@@ -165,4 +399,20 @@ func (s *AuthService) issueSession(ctx context.Context, user *models.User) (*mod
 		},
 		RefreshToken: refreshToken,
 	}, nil
+}
+
+func normalizeAndValidateEmail(email string) (string, error) {
+	normalized := normalizeEmail(email)
+	if normalized == "" {
+		return "", fmt.Errorf("email is required")
+	}
+	addr, err := mail.ParseAddress(normalized)
+	if err != nil || !strings.EqualFold(addr.Address, normalized) {
+		return "", fmt.Errorf("invalid email address")
+	}
+	return normalized, nil
+}
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }

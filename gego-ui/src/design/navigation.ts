@@ -30,6 +30,8 @@ export const navSections: NavSection[] = [
       { to: '/admin/scheduler', label: 'Scheduler', icon: 'clock', permission: 'scheduler' },
       { to: '/admin/words', label: 'Words', icon: 'tag', permission: 'words' },
       { to: '/admin/logs', label: 'Logs', icon: 'journal', permission: 'logs' },
+      { to: '/admin/users', label: 'Users', icon: 'users', permission: 'users' },
+      { to: '/admin/configuration', label: 'Configuration', icon: 'settings', permission: 'configuration' },
     ],
   },
 ]
@@ -69,6 +71,16 @@ export const pageMeta: Record<string, { title: string; description: string }> = 
     title: 'Logs',
     description:
       'Review failed LLM calls from scheduled executions, including provider errors and rate limits.',
+  },
+  users: {
+    title: 'Users',
+    description:
+      'Invite admin and member accounts by email. Users set their password through a one-week invite link.',
+  },
+  configuration: {
+    title: 'Configuration',
+    description:
+      'Manage application settings such as SMTP for outbound email.',
   },
   forbidden: {
     title: 'Access denied',

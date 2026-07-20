@@ -18,6 +18,10 @@ const (
 	PermExclusionWordsRead  Permission = "exclusion-words:read"
 	PermExclusionWordsWrite Permission = "exclusion-words:write"
 	PermAuthProfile         Permission = "auth:profile"
+	PermUsersRead           Permission = "users:read"
+	PermUsersWrite          Permission = "users:write"
+	PermSettingsRead        Permission = "settings:read"
+	PermSettingsWrite       Permission = "settings:write"
 )
 
 type EndpointPolicy struct {
@@ -34,6 +38,8 @@ var RolePermissions = map[models.Role][]Permission{
 		PermStatsRead, PermSearchExecute,
 		PermExclusionWordsRead, PermExclusionWordsWrite,
 		PermAuthProfile,
+		PermUsersRead, PermUsersWrite,
+		PermSettingsRead, PermSettingsWrite,
 	},
 	models.RoleMember: {
 		PermLLMsRead,
@@ -53,7 +59,7 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "GET", Path: "/models/:id", Permission: PermLLMsRead},
 	{Method: "POST", Path: "/models", Permission: PermLLMsWrite},
 	{Method: "PUT", Path: "/models/:id", Permission: PermLLMsWrite},
-	{Method: "POST", Path: "/models/:id/test", Permission: PermLLMsRead},
+	{Method: "POST", Path: "/models/:id/test", Permission: PermLLMsWrite},
 	{Method: "DELETE", Path: "/models/:id", Permission: PermLLMsWrite},
 	{Method: "GET", Path: "/prompts", Permission: PermPromptsRead},
 	{Method: "POST", Path: "/prompts/generate", Permission: PermPromptsWrite},
@@ -90,6 +96,14 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "POST", Path: "/search", Permission: PermSearchExecute},
 	{Method: "GET", Path: "/logs/errors", Permission: PermSchedulesRead},
 	{Method: "GET", Path: "/auth/me", Permission: PermAuthProfile},
+	{Method: "GET", Path: "/users", Permission: PermUsersRead},
+	{Method: "POST", Path: "/users", Permission: PermUsersWrite},
+	{Method: "POST", Path: "/users/:id/invite", Permission: PermUsersWrite},
+	{Method: "PUT", Path: "/users/:id", Permission: PermUsersWrite},
+	{Method: "DELETE", Path: "/users/:id", Permission: PermUsersWrite},
+	{Method: "GET", Path: "/settings/smtp", Permission: PermSettingsRead},
+	{Method: "PUT", Path: "/settings/smtp", Permission: PermSettingsWrite},
+	{Method: "POST", Path: "/settings/smtp/test", Permission: PermSettingsWrite},
 }
 
 func HasPermission(role models.Role, perm Permission) bool {

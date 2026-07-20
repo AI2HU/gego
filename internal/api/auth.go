@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/AI2HU/gego/internal/auth"
+	"github.com/AI2HU/gego/internal/models"
 	"github.com/AI2HU/gego/internal/services"
 )
 
@@ -29,7 +30,32 @@ func (s *Server) login(c *gin.Context) {
 			s.errorResponse(c, http.StatusUnauthorized, "invalid credentials")
 			return
 		}
+		if errors.Is(err, services.ErrPasswordNotSet) {
+			s.errorResponse(c, http.StatusUnauthorized, "password has not been set; use your invite link")
+			return
+		}
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to login: "+err.Error())
+		return
+	}
+
+	s.setRefreshTokenCookie(c, result.RefreshToken)
+	s.successResponse(c, result.LoginResponse)
+}
+
+func (s *Server) setPassword(c *gin.Context) {
+	var req models.SetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		s.errorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	result, err := s.authService.SetPasswordWithInvite(c.Request.Context(), req.Token, req.Password)
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidInvite) {
+			s.errorResponse(c, http.StatusBadRequest, "invalid or expired invite link")
+			return
+		}
+		s.errorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 

@@ -20,6 +20,11 @@ const router = createRouter({
       meta: { guestOnly: true },
     },
     {
+      path: '/set-password',
+      name: 'set-password',
+      component: () => import('@/views/SetPasswordView.vue'),
+    },
+    {
       path: '/',
       component: AppLayout,
       meta: { requiresAuth: true },
@@ -75,6 +80,20 @@ const router = createRouter({
           name: 'logs',
           component: () => import('@/views/LogsView.vue'),
           meta: { permissions: ['logs'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
+          path: 'admin/users',
+          name: 'users',
+          component: () => import('@/views/UsersView.vue'),
+          meta: { permissions: ['users'] },
+          beforeEnter: [permissionGuard],
+        },
+        {
+          path: 'admin/configuration',
+          name: 'configuration',
+          component: () => import('@/views/ConfigurationView.vue'),
+          meta: { permissions: ['configuration'] },
           beforeEnter: [permissionGuard],
         },
         {

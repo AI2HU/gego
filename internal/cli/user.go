@@ -18,6 +18,7 @@ var (
 	userUsername string
 	userPassword string
 	userRole     string
+	userID       string
 )
 
 var userCmd = &cobra.Command{
@@ -37,13 +38,23 @@ var userListCmd = &cobra.Command{
 	RunE:  runUserList,
 }
 
+var userDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete an API user",
+	RunE:  runUserDelete,
+}
+
 func init() {
 	userCreateCmd.Flags().StringVar(&userUsername, "username", "", "Username for the new user")
 	userCreateCmd.Flags().StringVar(&userPassword, "password", "", "Password for the new user")
 	userCreateCmd.Flags().StringVar(&userRole, "role", "member", "Role for the new user (admin or member)")
 
+	userDeleteCmd.Flags().StringVar(&userID, "id", "", "User ID to delete")
+	userDeleteCmd.Flags().StringVar(&userUsername, "username", "", "Username to delete")
+
 	userCmd.AddCommand(userCreateCmd)
 	userCmd.AddCommand(userListCmd)
+	userCmd.AddCommand(userDeleteCmd)
 	rootCmd.AddCommand(userCmd)
 }
 
@@ -117,5 +128,35 @@ func runUserList(cmd *cobra.Command, args []string) error {
 		)
 	}
 
+	return nil
+}
+
+func runUserDelete(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	if err := runDatabaseMigrations(ctx, database); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	if userID == "" && userUsername == "" {
+		return fmt.Errorf("--id or --username is required")
+	}
+
+	authService := services.NewAuthService(database, auth.Config{})
+
+	targetID := userID
+	if targetID == "" {
+		user, err := database.GetUserByUsername(ctx, userUsername)
+		if err != nil {
+			return fmt.Errorf("user not found: %w", err)
+		}
+		targetID = user.ID
+	}
+
+	if err := authService.DeleteUser(ctx, targetID, ""); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	fmt.Printf("✅ Deleted user %s\n", targetID)
 	return nil
 }

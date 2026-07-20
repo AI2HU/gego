@@ -200,6 +200,18 @@ func (h *HybridDB) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return h.sqlDB.ListUsers(ctx)
 }
 
+func (h *HybridDB) UpdateUser(ctx context.Context, user *models.User) error {
+	return h.sqlDB.UpdateUser(ctx, user)
+}
+
+func (h *HybridDB) DeleteUser(ctx context.Context, id string) error {
+	return h.sqlDB.DeleteUser(ctx, id)
+}
+
+func (h *HybridDB) CountUsersByRole(ctx context.Context, role models.Role) (int, error) {
+	return h.sqlDB.CountUsersByRole(ctx, role)
+}
+
 func (h *HybridDB) CreateSession(ctx context.Context, session *models.UserSession) error {
 	return h.sqlDB.CreateSession(ctx, session)
 }
@@ -210,6 +222,10 @@ func (h *HybridDB) GetSessionByTokenHash(ctx context.Context, tokenHash string) 
 
 func (h *HybridDB) RevokeSession(ctx context.Context, id string) error {
 	return h.sqlDB.RevokeSession(ctx, id)
+}
+
+func (h *HybridDB) RevokeSessionsByUserID(ctx context.Context, userID string) error {
+	return h.sqlDB.RevokeSessionsByUserID(ctx, userID)
 }
 
 func (h *HybridDB) CreateExclusionWord(ctx context.Context, word *models.ExclusionWord) error {
@@ -370,6 +386,54 @@ func (h *HybridDB) DeleteAllBrands(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	return b.DeleteAllBrands(ctx)
+}
+
+func (h *HybridDB) GetSMTPSettings(ctx context.Context) (*models.SMTPSettings, error) {
+	s, err := smtpSettingsBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetSMTPSettings(ctx)
+}
+
+func (h *HybridDB) UpsertSMTPSettings(ctx context.Context, settings *models.SMTPSettings) error {
+	s, err := smtpSettingsBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return s.UpsertSMTPSettings(ctx, settings)
+}
+
+func (h *HybridDB) CreatePasswordInvite(ctx context.Context, invite *models.PasswordInvite) error {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return p.CreatePasswordInvite(ctx, invite)
+}
+
+func (h *HybridDB) GetPasswordInviteByTokenHash(ctx context.Context, tokenHash string) (*models.PasswordInvite, error) {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return p.GetPasswordInviteByTokenHash(ctx, tokenHash)
+}
+
+func (h *HybridDB) RevokePasswordInvite(ctx context.Context, id string) error {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return p.RevokePasswordInvite(ctx, id)
+}
+
+func (h *HybridDB) RevokePasswordInvitesByUserID(ctx context.Context, userID string) error {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return p.RevokePasswordInvitesByUserID(ctx, userID)
 }
 
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {

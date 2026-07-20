@@ -110,3 +110,57 @@ func (s *SQLite) ListUsers(ctx context.Context) ([]*models.User, error) {
 
 	return users, nil
 }
+
+func (s *SQLite) UpdateUser(ctx context.Context, user *models.User) error {
+	user.UpdatedAt = time.Now()
+
+	query := `
+		UPDATE users
+		SET username = ?, password_hash = ?, role = ?, updated_at = ?
+		WHERE id = ?`
+
+	result, err := s.db.ExecContext(ctx, query,
+		user.Username,
+		user.PasswordHash,
+		user.Role,
+		user.UpdatedAt,
+		user.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", user.ID)
+	}
+	return nil
+}
+
+func (s *SQLite) DeleteUser(ctx context.Context, id string) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", id)
+	}
+	return nil
+}
+
+func (s *SQLite) CountUsersByRole(ctx context.Context, role models.Role) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = ?`, role).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count users by role: %w", err)
+	}
+	return count, nil
+}

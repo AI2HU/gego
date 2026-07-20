@@ -71,3 +71,17 @@ func (p *Postgres) RevokeSession(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+func (p *Postgres) RevokeSessionsByUserID(ctx context.Context, userID string) error {
+	now := time.Now()
+	query := `
+		UPDATE user_sessions
+		SET revoked_at = $1, updated_at = $2
+		WHERE user_id = $3 AND revoked_at IS NULL`
+
+	_, err := p.db.ExecContext(ctx, query, now, now, userID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke user sessions: %w", err)
+	}
+	return nil
+}

@@ -1,9 +1,28 @@
 import type { Role } from '@/types/auth'
 
-export type RoutePermission = 'dashboard' | 'search' | 'models' | 'prompts' | 'scheduler' | 'words' | 'logs'
+export type RoutePermission =
+  | 'dashboard'
+  | 'search'
+  | 'models'
+  | 'prompts'
+  | 'scheduler'
+  | 'words'
+  | 'logs'
+  | 'users'
+  | 'configuration'
 
 const roleRouteAccess: Record<Role, RoutePermission[]> = {
-  admin: ['dashboard', 'search', 'models', 'prompts', 'scheduler', 'words', 'logs'],
+  admin: [
+    'dashboard',
+    'search',
+    'models',
+    'prompts',
+    'scheduler',
+    'words',
+    'logs',
+    'users',
+    'configuration',
+  ],
   member: ['dashboard', 'search'],
 }
 
