@@ -9,9 +9,20 @@ export type RoutePermission =
   | 'words'
   | 'logs'
   | 'users'
+  | 'configuration'
 
 const roleRouteAccess: Record<Role, RoutePermission[]> = {
-  admin: ['dashboard', 'search', 'models', 'prompts', 'scheduler', 'words', 'logs', 'users'],
+  admin: [
+    'dashboard',
+    'search',
+    'models',
+    'prompts',
+    'scheduler',
+    'words',
+    'logs',
+    'users',
+    'configuration',
+  ],
   member: ['dashboard', 'search'],
 }
 

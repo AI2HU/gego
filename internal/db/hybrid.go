@@ -388,6 +388,22 @@ func (h *HybridDB) DeleteAllBrands(ctx context.Context) (int, error) {
 	return b.DeleteAllBrands(ctx)
 }
 
+func (h *HybridDB) GetSMTPSettings(ctx context.Context) (*models.SMTPSettings, error) {
+	s, err := smtpSettingsBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetSMTPSettings(ctx)
+}
+
+func (h *HybridDB) UpsertSMTPSettings(ctx context.Context, settings *models.SMTPSettings) error {
+	s, err := smtpSettingsBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return s.UpsertSMTPSettings(ctx, settings)
+}
+
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)
 }

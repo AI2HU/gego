@@ -39,6 +39,7 @@ type Server struct {
 	exclusionWordsService *services.ExclusionWordsService
 	brandsService         *services.BrandsService
 	authService          *services.AuthService
+	mailService          *services.MailService
 	authMiddleware   *auth.Middleware
 	authConfig       auth.Config
 	upgradeService   *services.UpgradeService
@@ -108,6 +109,7 @@ func NewServer(database db.Database, corsOrigin string, authConfig auth.Config, 
 		exclusionWordsService: exclusionWordsService,
 		brandsService:         brandsService,
 		authService:           services.NewAuthService(database, authConfig),
+		mailService:           services.NewMailService(database),
 		authMiddleware:   authMW,
 		authConfig:       authConfig,
 		upgradeService:   services.NewUpgradeService(appCfg),
@@ -138,39 +140,39 @@ func (s *Server) setupRoutes() {
 
 	protected.GET("/providers", s.requirePerm(auth.PermLLMsRead), s.listProviders)
 	protected.GET("/providers/:provider/api-keys", s.requirePerm(auth.PermLLMsRead), s.listProviderAPIKeys)
-	protected.POST("/providers/:provider/models", s.requirePerm(auth.PermLLMsWrite), s.listProviderModels)
+	protected.POST("/providers/:provider/models", s.requirePerm(auth.PermLLMsWrite), auth.RequireRole(models.RoleAdmin), s.listProviderModels)
 	protected.GET("/models", s.requirePerm(auth.PermLLMsRead), s.listLLMs)
 	protected.GET("/models/:id", s.requirePerm(auth.PermLLMsRead), s.getLLM)
-	protected.POST("/models", s.requirePerm(auth.PermLLMsWrite), s.createLLM)
-	protected.PUT("/models/:id", s.requirePerm(auth.PermLLMsWrite), s.updateLLM)
-	protected.POST("/models/:id/test", s.requirePerm(auth.PermLLMsRead), s.testLLM)
-	protected.DELETE("/models/:id", s.requirePerm(auth.PermLLMsWrite), s.deleteLLM)
+	protected.POST("/models", s.requirePerm(auth.PermLLMsWrite), auth.RequireRole(models.RoleAdmin), s.createLLM)
+	protected.PUT("/models/:id", s.requirePerm(auth.PermLLMsWrite), auth.RequireRole(models.RoleAdmin), s.updateLLM)
+	protected.POST("/models/:id/test", s.requirePerm(auth.PermLLMsWrite), auth.RequireRole(models.RoleAdmin), s.testLLM)
+	protected.DELETE("/models/:id", s.requirePerm(auth.PermLLMsWrite), auth.RequireRole(models.RoleAdmin), s.deleteLLM)
 
 	protected.GET("/prompts", s.requirePerm(auth.PermPromptsRead), s.listPrompts)
-	protected.POST("/prompts/generate", s.requirePerm(auth.PermPromptsWrite), s.generatePrompts)
+	protected.POST("/prompts/generate", s.requirePerm(auth.PermPromptsWrite), auth.RequireRole(models.RoleAdmin), s.generatePrompts)
 	protected.GET("/prompts/:id", s.requirePerm(auth.PermPromptsRead), s.getPrompt)
-	protected.POST("/prompts", s.requirePerm(auth.PermPromptsWrite), s.createPrompt)
-	protected.PUT("/prompts/:id", s.requirePerm(auth.PermPromptsWrite), s.updatePrompt)
-	protected.DELETE("/prompts/:id", s.requirePerm(auth.PermPromptsWrite), s.deletePrompt)
+	protected.POST("/prompts", s.requirePerm(auth.PermPromptsWrite), auth.RequireRole(models.RoleAdmin), s.createPrompt)
+	protected.PUT("/prompts/:id", s.requirePerm(auth.PermPromptsWrite), auth.RequireRole(models.RoleAdmin), s.updatePrompt)
+	protected.DELETE("/prompts/:id", s.requirePerm(auth.PermPromptsWrite), auth.RequireRole(models.RoleAdmin), s.deletePrompt)
 
 	protected.GET("/schedules", s.requirePerm(auth.PermSchedulesRead), s.listSchedules)
 	protected.GET("/schedules/:id", s.requirePerm(auth.PermSchedulesRead), s.getSchedule)
-	protected.POST("/schedules", s.requirePerm(auth.PermSchedulesWrite), s.createSchedule)
-	protected.PUT("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), s.updateSchedule)
-	protected.DELETE("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), s.deleteSchedule)
-	protected.POST("/schedules/:id/run", s.requirePerm(auth.PermSchedulesWrite), s.runSchedule)
+	protected.POST("/schedules", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.createSchedule)
+	protected.PUT("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.updateSchedule)
+	protected.DELETE("/schedules/:id", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.deleteSchedule)
+	protected.POST("/schedules/:id/run", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.runSchedule)
 
 	protected.GET("/schedule-runs", s.requirePerm(auth.PermSchedulesRead), s.listScheduleRuns)
 	protected.GET("/schedule-runs/:id", s.requirePerm(auth.PermSchedulesRead), s.getScheduleRun)
 	protected.GET("/schedule-runs/:id/jobs", s.requirePerm(auth.PermSchedulesRead), s.listScheduleRunJobs)
-	protected.POST("/schedule-runs/:id/cancel", s.requirePerm(auth.PermSchedulesWrite), s.cancelScheduleRun)
-	protected.POST("/schedule-runs/:id/jobs/:job_id/retry", s.requirePerm(auth.PermSchedulesWrite), s.retryScheduleJob)
+	protected.POST("/schedule-runs/:id/cancel", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.cancelScheduleRun)
+	protected.POST("/schedule-runs/:id/jobs/:job_id/retry", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.retryScheduleJob)
 
 	protected.GET("/scheduler/status", s.requirePerm(auth.PermSchedulesRead), s.getSchedulerStatus)
 	protected.GET("/scheduler/health", s.getSchedulerHealth)
-	protected.POST("/scheduler/start", s.requirePerm(auth.PermSchedulesWrite), s.startScheduler)
-	protected.POST("/scheduler/stop", s.requirePerm(auth.PermSchedulesWrite), s.stopScheduler)
-	protected.POST("/scheduler/reload", s.requirePerm(auth.PermSchedulesWrite), s.reloadScheduler)
+	protected.POST("/scheduler/start", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.startScheduler)
+	protected.POST("/scheduler/stop", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.stopScheduler)
+	protected.POST("/scheduler/reload", s.requirePerm(auth.PermSchedulesWrite), auth.RequireRole(models.RoleAdmin), s.reloadScheduler)
 
 	protected.GET("/stats", s.requirePerm(auth.PermStatsRead), s.getStats)
 	protected.GET("/stats/urls", s.requirePerm(auth.PermStatsRead), s.getURLStats)
@@ -179,18 +181,18 @@ func (s *Server) setupRoutes() {
 	protected.GET("/stats/brand-citation-domains", s.requirePerm(auth.PermStatsRead), s.getBrandCitationDomains)
 
 	protected.GET("/exclusion-words", s.requirePerm(auth.PermExclusionWordsRead), s.listExclusionWords)
-	protected.POST("/exclusion-words", s.requirePerm(auth.PermExclusionWordsWrite), s.createExclusionWord)
-	protected.DELETE("/exclusion-words/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteExclusionWord)
+	protected.POST("/exclusion-words", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.createExclusionWord)
+	protected.DELETE("/exclusion-words/:id", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.deleteExclusionWord)
 
 	protected.GET("/brands/suggestions", s.requirePerm(auth.PermExclusionWordsRead), s.listSuggestedBrandWords)
 	protected.GET("/brands", s.requirePerm(auth.PermExclusionWordsRead), s.listBrands)
-	protected.POST("/brands", s.requirePerm(auth.PermExclusionWordsWrite), s.createBrand)
-	protected.POST("/brands/map", s.requirePerm(auth.PermExclusionWordsWrite), s.mapBrandFromDetection)
-	protected.PUT("/brands/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.updateBrand)
-	protected.DELETE("/brands/:id", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteBrand)
-	protected.POST("/brands/:id/aliases", s.requirePerm(auth.PermExclusionWordsWrite), s.createBrandAlias)
-	protected.PUT("/brands/:id/aliases/:aliasId", s.requirePerm(auth.PermExclusionWordsWrite), s.updateBrandAlias)
-	protected.DELETE("/brands/:id/aliases/:aliasId", s.requirePerm(auth.PermExclusionWordsWrite), s.deleteBrandAlias)
+	protected.POST("/brands", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.createBrand)
+	protected.POST("/brands/map", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.mapBrandFromDetection)
+	protected.PUT("/brands/:id", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.updateBrand)
+	protected.DELETE("/brands/:id", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.deleteBrand)
+	protected.POST("/brands/:id/aliases", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.createBrandAlias)
+	protected.PUT("/brands/:id/aliases/:aliasId", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.updateBrandAlias)
+	protected.DELETE("/brands/:id/aliases/:aliasId", s.requirePerm(auth.PermExclusionWordsWrite), auth.RequireRole(models.RoleAdmin), s.deleteBrandAlias)
 
 	protected.POST("/search", s.requirePerm(auth.PermSearchExecute), s.search)
 	protected.GET("/logs/errors", s.requirePerm(auth.PermSchedulesRead), s.listErrorLogs)
@@ -200,6 +202,10 @@ func (s *Server) setupRoutes() {
 	protected.POST("/users", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.createUser)
 	protected.PUT("/users/:id", s.requirePerm(auth.PermUsersWrite), s.updateUser)
 	protected.DELETE("/users/:id", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.deleteUser)
+
+	protected.GET("/settings/smtp", s.requirePerm(auth.PermSettingsRead), auth.RequireRole(models.RoleAdmin), s.getSMTPSettings)
+	protected.PUT("/settings/smtp", s.requirePerm(auth.PermSettingsWrite), auth.RequireRole(models.RoleAdmin), s.updateSMTPSettings)
+	protected.POST("/settings/smtp/test", s.requirePerm(auth.PermSettingsWrite), auth.RequireRole(models.RoleAdmin), s.testSMTPSettings)
 
 	s.setupStaticUI()
 }

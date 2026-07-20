@@ -31,6 +31,7 @@ export const navSections: NavSection[] = [
       { to: '/admin/words', label: 'Words', icon: 'tag', permission: 'words' },
       { to: '/admin/logs', label: 'Logs', icon: 'journal', permission: 'logs' },
       { to: '/admin/users', label: 'Users', icon: 'users', permission: 'users' },
+      { to: '/admin/configuration', label: 'Configuration', icon: 'settings', permission: 'configuration' },
     ],
   },
 ]
@@ -75,6 +76,11 @@ export const pageMeta: Record<string, { title: string; description: string }> = 
     title: 'Users',
     description:
       'Manage admin and member accounts for this Gego deployment.',
+  },
+  configuration: {
+    title: 'Configuration',
+    description:
+      'Manage application settings such as SMTP for outbound email.',
   },
   forbidden: {
     title: 'Access denied',
