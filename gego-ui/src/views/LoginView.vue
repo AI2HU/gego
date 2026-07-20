@@ -40,7 +40,7 @@ async function submit() {
     await router.replace(redirectPath.value)
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
-      error.value = 'Invalid username or password.'
+      error.value = err.message || 'Invalid username or password.'
       return
     }
 

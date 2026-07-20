@@ -132,6 +132,7 @@ func (s *Server) setupRoutes() {
 	api.POST("/auth/login", s.login)
 	api.POST("/auth/refresh", s.refresh)
 	api.POST("/auth/logout", s.logout)
+	api.POST("/auth/set-password", s.setPassword)
 	api.GET("/upgrades", s.listRequiredUpgrades)
 	api.POST("/upgrades", s.runUpgrade)
 
@@ -200,6 +201,7 @@ func (s *Server) setupRoutes() {
 
 	protected.GET("/users", s.requirePerm(auth.PermUsersRead), s.listUsers)
 	protected.POST("/users", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.createUser)
+	protected.POST("/users/:id/invite", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.inviteUser)
 	protected.PUT("/users/:id", s.requirePerm(auth.PermUsersWrite), s.updateUser)
 	protected.DELETE("/users/:id", s.requirePerm(auth.PermUsersWrite), auth.RequireRole(models.RoleAdmin), s.deleteUser)
 

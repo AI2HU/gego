@@ -20,6 +20,11 @@ const router = createRouter({
       meta: { guestOnly: true },
     },
     {
+      path: '/set-password',
+      name: 'set-password',
+      component: () => import('@/views/SetPasswordView.vue'),
+    },
+    {
       path: '/',
       component: AppLayout,
       meta: { requiresAuth: true },

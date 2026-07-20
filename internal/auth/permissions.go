@@ -98,6 +98,7 @@ var EndpointPolicies = []EndpointPolicy{
 	{Method: "GET", Path: "/auth/me", Permission: PermAuthProfile},
 	{Method: "GET", Path: "/users", Permission: PermUsersRead},
 	{Method: "POST", Path: "/users", Permission: PermUsersWrite},
+	{Method: "POST", Path: "/users/:id/invite", Permission: PermUsersWrite},
 	{Method: "PUT", Path: "/users/:id", Permission: PermUsersWrite},
 	{Method: "DELETE", Path: "/users/:id", Permission: PermUsersWrite},
 	{Method: "GET", Path: "/settings/smtp", Permission: PermSettingsRead},

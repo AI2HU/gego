@@ -4,13 +4,25 @@ export interface AuthUser {
   id: string
   username: string
   role: Role
+  password_pending?: boolean
   created_at: string
 }
 
 export interface CreateUserRequest {
-  username: string
-  password: string
+  email: string
   role: Role
+}
+
+export interface CreateUserResponse {
+  user: AuthUser
+  invite_url: string
+  email_sent: boolean
+}
+
+export interface InviteUserResponse {
+  user: AuthUser
+  invite_url: string
+  email_sent: boolean
 }
 
 export interface UpdateUserRequest {
@@ -28,6 +40,11 @@ export interface LoginResponse {
   token_type: string
   expires_in: number
   user: AuthUser
+}
+
+export interface SetPasswordRequest {
+  token: string
+  password: string
 }
 
 export interface ApiResponse<T> {

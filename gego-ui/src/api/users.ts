@@ -1,14 +1,26 @@
 import { apiRequest } from '@/api/client'
-import type { AuthUser, CreateUserRequest, UpdateUserRequest } from '@/types/auth'
+import type {
+  AuthUser,
+  CreateUserRequest,
+  CreateUserResponse,
+  InviteUserResponse,
+  UpdateUserRequest,
+} from '@/types/auth'
 
 export function fetchUsers(): Promise<AuthUser[]> {
   return apiRequest<AuthUser[]>('/users')
 }
 
-export function createUser(payload: CreateUserRequest): Promise<AuthUser> {
-  return apiRequest<AuthUser>('/users', {
+export function createUser(payload: CreateUserRequest): Promise<CreateUserResponse> {
+  return apiRequest<CreateUserResponse>('/users', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function inviteUser(id: string): Promise<InviteUserResponse> {
+  return apiRequest<InviteUserResponse>(`/users/${id}/invite`, {
+    method: 'POST',
   })
 }
 

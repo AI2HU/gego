@@ -75,7 +75,7 @@ export const pageMeta: Record<string, { title: string; description: string }> = 
   users: {
     title: 'Users',
     description:
-      'Manage admin and member accounts for this Gego deployment.',
+      'Invite admin and member accounts by email. Users set their password through a one-week invite link.',
   },
   configuration: {
     title: 'Configuration',

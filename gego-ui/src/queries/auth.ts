@@ -1,8 +1,8 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 
-import { fetchProfile, login } from '@/api/auth'
+import { fetchProfile, login, setPassword } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
-import type { LoginRequest } from '@/types/auth'
+import type { LoginRequest, SetPasswordRequest } from '@/types/auth'
 
 export const authQueryKeys = {
   all: ['auth'] as const,
@@ -28,6 +28,19 @@ export function useLoginMutation() {
 
   return useMutation({
     mutationFn: (credentials: LoginRequest) => login(credentials),
+    onSuccess: (response) => {
+      authStore.setSession(response.access_token, response.user, response.expires_in)
+      queryClient.setQueryData(authQueryKeys.profile, response.user)
+    },
+  })
+}
+
+export function useSetPasswordMutation() {
+  const queryClient = useQueryClient()
+  const authStore = useAuthStore()
+
+  return useMutation({
+    mutationFn: (payload: SetPasswordRequest) => setPassword(payload),
     onSuccess: (response) => {
       authStore.setSession(response.access_token, response.user, response.expires_in)
       queryClient.setQueryData(authQueryKeys.profile, response.user)

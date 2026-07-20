@@ -404,6 +404,38 @@ func (h *HybridDB) UpsertSMTPSettings(ctx context.Context, settings *models.SMTP
 	return s.UpsertSMTPSettings(ctx, settings)
 }
 
+func (h *HybridDB) CreatePasswordInvite(ctx context.Context, invite *models.PasswordInvite) error {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return p.CreatePasswordInvite(ctx, invite)
+}
+
+func (h *HybridDB) GetPasswordInviteByTokenHash(ctx context.Context, tokenHash string) (*models.PasswordInvite, error) {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return p.GetPasswordInviteByTokenHash(ctx, tokenHash)
+}
+
+func (h *HybridDB) RevokePasswordInvite(ctx context.Context, id string) error {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return p.RevokePasswordInvite(ctx, id)
+}
+
+func (h *HybridDB) RevokePasswordInvitesByUserID(ctx context.Context, userID string) error {
+	p, err := passwordInviteBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return p.RevokePasswordInvitesByUserID(ctx, userID)
+}
+
 func (h *HybridDB) CreatePrompt(ctx context.Context, prompt *models.Prompt) error {
 	return h.nosqlDB.CreatePrompt(ctx, prompt)
 }

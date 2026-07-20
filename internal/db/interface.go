@@ -6,5 +6,6 @@ type Database interface {
 	ExclusionWordDatabase
 	BrandDatabase
 	SMTPSettingsDatabase
+	PasswordInviteDatabase
 	NoSQLDatabase
 }

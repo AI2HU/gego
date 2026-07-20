@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 
-import { createUser, deleteUser, fetchUsers, updateUser } from '@/api/users'
+import { createUser, deleteUser, fetchUsers, inviteUser, updateUser } from '@/api/users'
 import type { CreateUserRequest, UpdateUserRequest } from '@/types/auth'
 
 export const usersQueryKeys = {
@@ -25,6 +25,17 @@ export function useCreateUserMutation() {
 
   return useMutation({
     mutationFn: (payload: CreateUserRequest) => createUser(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: usersQueryKeys.all })
+    },
+  })
+}
+
+export function useInviteUserMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => inviteUser(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: usersQueryKeys.all })
     },

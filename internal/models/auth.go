@@ -48,22 +48,48 @@ type UserSession struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
+type PasswordInvite struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	TokenHash string     `json:"-"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
 type AuthSessionResult struct {
 	LoginResponse
 	RefreshToken string `json:"-"`
 }
 
 type AuthUserResponse struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	Role      Role      `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              string    `json:"id"`
+	Username        string    `json:"username"`
+	Role            Role      `json:"role"`
+	PasswordPending bool      `json:"password_pending"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type CreateUserRequest struct {
-	Username string `json:"username" binding:"required"`
+	Email string `json:"email" binding:"required"`
+	Role  Role   `json:"role" binding:"required"`
+}
+
+type CreateUserResponse struct {
+	User      AuthUserResponse `json:"user"`
+	InviteURL string           `json:"invite_url"`
+	EmailSent bool             `json:"email_sent"`
+}
+
+type InviteUserResponse struct {
+	User      AuthUserResponse `json:"user"`
+	InviteURL string           `json:"invite_url"`
+	EmailSent bool             `json:"email_sent"`
+}
+
+type SetPasswordRequest struct {
+	Token    string `json:"token" binding:"required"`
 	Password string `json:"password" binding:"required"`
-	Role     Role   `json:"role" binding:"required"`
 }
 
 type UpdateUserRequest struct {
@@ -73,10 +99,11 @@ type UpdateUserRequest struct {
 
 func ToAuthUserResponse(user *User) AuthUserResponse {
 	return AuthUserResponse{
-		ID:        user.ID,
-		Username:  user.Username,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt,
+		ID:              user.ID,
+		Username:        user.Username,
+		Role:            user.Role,
+		PasswordPending: user.PasswordHash == "",
+		CreatedAt:       user.CreatedAt,
 	}
 }
 
