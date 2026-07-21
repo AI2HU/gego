@@ -535,7 +535,7 @@ This project is licensed under the GNU General Public License v3.0 — see the [
 ## Support
 
 - Website: [getgego.org](https://getgego.org)
-- Email: jonathan@blocs.fr
+- Email: jonathan@ai2h.tech
 - Issues: [GitHub Issues](https://github.com/AI2HU/gego/issues)
 - Discussions: [GitHub Discussions](https://github.com/AI2HU/gego/discussions)
 
