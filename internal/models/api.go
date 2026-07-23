@@ -176,6 +176,7 @@ type UpdateScheduleRequest struct {
 // SchedulerStatusResponse represents the current scheduler state
 type SchedulerStatusResponse struct {
 	Running          bool `json:"running"`
+	DesiredRunning   bool `json:"desired_running"`
 	EnabledSchedules int  `json:"enabled_schedules"`
 	IsLeader         bool `json:"is_leader"`
 	PendingJobs      int  `json:"pending_jobs"`

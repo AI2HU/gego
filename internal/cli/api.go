@@ -163,6 +163,8 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}
 
+	server.RestoreScheduler(ctx)
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 

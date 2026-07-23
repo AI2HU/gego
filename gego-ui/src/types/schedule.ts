@@ -41,6 +41,7 @@ export interface PaginatedSchedulesResponse {
 
 export interface SchedulerStatusResponse {
   running: boolean
+  desired_running: boolean
   enabled_schedules: number
   is_leader: boolean
   pending_jobs: number

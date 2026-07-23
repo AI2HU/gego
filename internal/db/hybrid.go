@@ -404,6 +404,22 @@ func (h *HybridDB) UpsertSMTPSettings(ctx context.Context, settings *models.SMTP
 	return s.UpsertSMTPSettings(ctx, settings)
 }
 
+func (h *HybridDB) GetSchedulerSettings(ctx context.Context) (*models.SchedulerSettings, error) {
+	s, err := schedulerSettingsBackend(h.sqlDB)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetSchedulerSettings(ctx)
+}
+
+func (h *HybridDB) SetSchedulerDesiredRunning(ctx context.Context, desiredRunning bool) error {
+	s, err := schedulerSettingsBackend(h.sqlDB)
+	if err != nil {
+		return err
+	}
+	return s.SetSchedulerDesiredRunning(ctx, desiredRunning)
+}
+
 func (h *HybridDB) CreatePasswordInvite(ctx context.Context, invite *models.PasswordInvite) error {
 	p, err := passwordInviteBackend(h.sqlDB)
 	if err != nil {

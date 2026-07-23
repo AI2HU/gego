@@ -14,8 +14,11 @@ import (
 	"github.com/AI2HU/gego/internal/llm/ollama"
 	"github.com/AI2HU/gego/internal/llm/openai"
 	"github.com/AI2HU/gego/internal/llm/perplexity"
+	"github.com/AI2HU/gego/internal/logger"
 	"github.com/AI2HU/gego/internal/models"
 )
+
+const etcdUnavailablePrefix = "etcd unavailable: "
 
 func (s *Server) getSchedulerStatus(c *gin.Context) {
 	ctx, cancel := etcdRequestContext(c.Request.Context())
@@ -30,12 +33,24 @@ func (s *Server) getSchedulerStatus(c *gin.Context) {
 
 	running, _, isLeader, pendingJobs, activeRuns, activeWorkers, err := s.schedulerService.GetStatus(ctx)
 	if err != nil {
-		s.errorResponse(c, http.StatusServiceUnavailable, "etcd unavailable: "+err.Error())
+		s.errorResponse(c, http.StatusServiceUnavailable, etcdUnavailablePrefix+err.Error())
 		return
+	}
+
+	settings, err := s.db.GetSchedulerSettings(ctx)
+	if err != nil {
+		s.errorResponse(c, http.StatusInternalServerError, "Failed to load scheduler settings: "+err.Error())
+		return
+	}
+
+	desiredRunning := false
+	if settings != nil {
+		desiredRunning = settings.DesiredRunning
 	}
 
 	s.successResponse(c, models.SchedulerStatusResponse{
 		Running:          running,
+		DesiredRunning:   desiredRunning,
 		EnabledSchedules: len(schedules),
 		IsLeader:         isLeader,
 		PendingJobs:      pendingJobs,
@@ -50,7 +65,7 @@ func (s *Server) getSchedulerHealth(c *gin.Context) {
 	if err := s.jobStore.Ping(ctx); err != nil {
 		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
 			Success: false,
-			Error:   "etcd unavailable: " + err.Error(),
+			Error:   etcdUnavailablePrefix + err.Error(),
 		})
 		return
 	}
@@ -67,8 +82,8 @@ func (s *Server) getSchedulerHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Data: gin.H{
-			"etcd":            "ok",
-			"active_workers":  len(workers),
+			"etcd":           "ok",
+			"active_workers": len(workers),
 		},
 	})
 }
@@ -81,21 +96,26 @@ func (s *Server) startScheduler(c *gin.Context) {
 		return
 	}
 
-	listFn := func(ctx context.Context) ([]*models.Schedule, error) {
-		enabled := true
-		return s.db.ListSchedules(ctx, &enabled)
-	}
-
-	if err := s.schedulerService.Start(ctx, listFn); err != nil {
+	if err := s.schedulerService.Start(ctx, s.listEnabledSchedules); err != nil {
 		s.errorResponse(c, http.StatusConflict, err.Error())
 		return
+	}
+
+	if err := s.persistSchedulerDesiredRunning(ctx, true); err != nil {
+		logger.Error("Failed to persist scheduler desired running=true: %v", err)
 	}
 
 	s.getSchedulerStatus(c)
 }
 
 func (s *Server) stopScheduler(c *gin.Context) {
+	ctx := context.Background()
 	s.schedulerService.Stop()
+
+	if err := s.persistSchedulerDesiredRunning(ctx, false); err != nil {
+		logger.Error("Failed to persist scheduler desired running=false: %v", err)
+	}
+
 	s.getSchedulerStatus(c)
 }
 
@@ -107,17 +127,48 @@ func (s *Server) reloadScheduler(c *gin.Context) {
 		return
 	}
 
-	listFn := func(ctx context.Context) ([]*models.Schedule, error) {
-		enabled := true
-		return s.db.ListSchedules(ctx, &enabled)
-	}
-
-	if err := s.schedulerService.Reload(ctx, listFn); err != nil {
+	if err := s.schedulerService.Reload(ctx, s.listEnabledSchedules); err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to reload scheduler: "+err.Error())
 		return
 	}
 
+	if err := s.persistSchedulerDesiredRunning(ctx, true); err != nil {
+		logger.Error("Failed to persist scheduler desired running=true: %v", err)
+	}
+
 	s.getSchedulerStatus(c)
+}
+
+func (s *Server) RestoreScheduler(ctx context.Context) {
+	settings, err := s.db.GetSchedulerSettings(ctx)
+	if err != nil {
+		logger.Warning("Skipping scheduler restore: %v", err)
+		return
+	}
+	if settings == nil || !settings.DesiredRunning {
+		return
+	}
+
+	if err := s.initializeLLMProviders(ctx); err != nil {
+		logger.Error("Failed to restore scheduler (LLM init): %v", err)
+		return
+	}
+
+	if err := s.schedulerService.Start(ctx, s.listEnabledSchedules); err != nil {
+		logger.Error("Failed to restore scheduler: %v", err)
+		return
+	}
+
+	logger.Info("Scheduler restored from desired_running=true")
+}
+
+func (s *Server) listEnabledSchedules(ctx context.Context) ([]*models.Schedule, error) {
+	enabled := true
+	return s.db.ListSchedules(ctx, &enabled)
+}
+
+func (s *Server) persistSchedulerDesiredRunning(ctx context.Context, desiredRunning bool) error {
+	return s.db.SetSchedulerDesiredRunning(ctx, desiredRunning)
 }
 
 func (s *Server) runSchedule(c *gin.Context) {
@@ -127,7 +178,7 @@ func (s *Server) runSchedule(c *gin.Context) {
 
 	workers, err := s.jobStore.ListWorkers(ctx)
 	if err != nil {
-		s.errorResponse(c, http.StatusServiceUnavailable, "etcd unavailable: "+err.Error())
+		s.errorResponse(c, http.StatusServiceUnavailable, etcdUnavailablePrefix+err.Error())
 		return
 	}
 	if len(workers) == 0 {
