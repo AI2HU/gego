@@ -23,6 +23,7 @@ func toBrandResponse(brand *models.Brand) models.BrandResponse {
 	return models.BrandResponse{
 		ID:        brand.ID,
 		Name:      brand.Name,
+		IsTarget:  brand.IsTarget,
 		Aliases:   aliases,
 		CreatedAt: brand.CreatedAt,
 		UpdatedAt: brand.UpdatedAt,
@@ -65,7 +66,7 @@ func (s *Server) updateBrand(c *gin.Context) {
 		return
 	}
 
-	brand, err := s.brandsService.UpdateBrand(c.Request.Context(), c.Param("id"), req.Name)
+	brand, err := s.brandsService.UpdateBrand(c.Request.Context(), c.Param("id"), req.Name, req.IsTarget)
 	if err != nil {
 		s.errorResponse(c, http.StatusInternalServerError, "Failed to update brand: "+err.Error())
 		return

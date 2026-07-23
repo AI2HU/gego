@@ -73,7 +73,7 @@ func init() {
 func runStatsKeywords(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	keywords, err := database.GetTopKeywords(ctx, statsLimit, nil, nil)
+	keywords, err := statsService.GetTopKeywords(ctx, statsLimit, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get top keywords: %w", err)
 	}

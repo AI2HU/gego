@@ -16,11 +16,11 @@ func (p *Postgres) CreateBrand(ctx context.Context, brand *models.Brand) error {
 	brand.UpdatedAt = time.Now()
 
 	query := `
-		INSERT INTO brands (id, name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4)`
+		INSERT INTO brands (id, name, is_target, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)`
 
 	_, err := p.db.ExecContext(ctx, query,
-		brand.ID, brand.Name, brand.CreatedAt, brand.UpdatedAt,
+		brand.ID, brand.Name, brand.IsTarget, brand.CreatedAt, brand.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create brand: %w", err)
@@ -30,12 +30,12 @@ func (p *Postgres) CreateBrand(ctx context.Context, brand *models.Brand) error {
 
 func (p *Postgres) GetBrand(ctx context.Context, id string) (*models.Brand, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, name, is_target, created_at, updated_at
 		FROM brands WHERE id = $1`
 
 	var brand models.Brand
 	err := p.db.QueryRowContext(ctx, query, id).Scan(
-		&brand.ID, &brand.Name, &brand.CreatedAt, &brand.UpdatedAt,
+		&brand.ID, &brand.Name, &brand.IsTarget, &brand.CreatedAt, &brand.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("brand not found: %s", id)
@@ -54,12 +54,12 @@ func (p *Postgres) GetBrand(ctx context.Context, id string) (*models.Brand, erro
 
 func (p *Postgres) GetBrandByName(ctx context.Context, name string) (*models.Brand, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, name, is_target, created_at, updated_at
 		FROM brands WHERE LOWER(name) = LOWER($1)`
 
 	var brand models.Brand
 	err := p.db.QueryRowContext(ctx, query, strings.TrimSpace(name)).Scan(
-		&brand.ID, &brand.Name, &brand.CreatedAt, &brand.UpdatedAt,
+		&brand.ID, &brand.Name, &brand.IsTarget, &brand.CreatedAt, &brand.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -78,7 +78,7 @@ func (p *Postgres) GetBrandByName(ctx context.Context, name string) (*models.Bra
 
 func (p *Postgres) ListBrands(ctx context.Context) ([]*models.Brand, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, name, is_target, created_at, updated_at
 		FROM brands
 		ORDER BY LOWER(name) ASC`
 
@@ -92,7 +92,7 @@ func (p *Postgres) ListBrands(ctx context.Context) ([]*models.Brand, error) {
 	for rows.Next() {
 		var brand models.Brand
 		if err := rows.Scan(
-			&brand.ID, &brand.Name, &brand.CreatedAt, &brand.UpdatedAt,
+			&brand.ID, &brand.Name, &brand.IsTarget, &brand.CreatedAt, &brand.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -111,8 +111,8 @@ func (p *Postgres) UpdateBrand(ctx context.Context, brand *models.Brand) error {
 	brand.UpdatedAt = time.Now()
 
 	result, err := p.db.ExecContext(ctx, `
-		UPDATE brands SET name = $1, updated_at = $2 WHERE id = $3`,
-		brand.Name, brand.UpdatedAt, brand.ID,
+		UPDATE brands SET name = $1, is_target = $2, updated_at = $3 WHERE id = $4`,
+		brand.Name, brand.IsTarget, brand.UpdatedAt, brand.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update brand: %w", err)

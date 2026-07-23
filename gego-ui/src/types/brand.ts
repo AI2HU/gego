@@ -10,6 +10,7 @@ export interface BrandAlias {
 export interface Brand {
   id: string
   name: string
+  is_target: boolean
   aliases: BrandAlias[]
   created_at: string
   updated_at: string
@@ -25,6 +26,7 @@ export interface CreateBrandRequest {
 
 export interface UpdateBrandRequest {
   name: string
+  is_target?: boolean
 }
 
 export interface CreateBrandAliasRequest {

@@ -25,6 +25,7 @@ import IconServer from '@/components/icons/IconServer.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconSpinner from '@/components/icons/IconSpinner.vue'
 import IconTag from '@/components/icons/IconTag.vue'
+import IconTarget from '@/components/icons/IconTarget.vue'
 import IconTrash from '@/components/icons/IconTrash.vue'
 import IconUsers from '@/components/icons/IconUsers.vue'
 
@@ -45,6 +46,7 @@ export type AppIconName =
   | 'clock'
   | 'comment'
   | 'tag'
+  | 'target'
   | 'chart-line'
   | 'external-link'
   | 'globe'
@@ -94,6 +96,7 @@ const isFilled = computed(() => props.name === 'chevron-down')
     <IconClock v-else-if="name === 'clock'" />
     <IconComment v-else-if="name === 'comment'" />
     <IconTag v-else-if="name === 'tag'" />
+    <IconTarget v-else-if="name === 'target'" />
     <IconChartLine v-else-if="name === 'chart-line'" />
     <IconExternalLink v-else-if="name === 'external-link'" />
     <IconGlobe v-else-if="name === 'globe'" />

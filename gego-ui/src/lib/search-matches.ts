@@ -233,7 +233,7 @@ function findHighlightRanges(
   return mergeRanges(ranges)
 }
 
-export type HighlightKind = 'keyword' | 'alias'
+export type HighlightKind = 'keyword' | 'alias' | 'target'
 
 export type HighlightSegment = {
   text: string
@@ -300,6 +300,7 @@ export function splitHighlightedTextMulti(
   keywords: string[],
   caseSensitive = false,
   primaryKeyword = '',
+  asTarget = false,
 ): HighlightSegment[] {
   const terms = normalizeSearchTerms(primaryKeyword, keywords)
   if (terms.length === 0) {
@@ -319,5 +320,14 @@ export function splitHighlightedTextMulti(
   )
   const aliasRanges = findHighlightRanges(text, aliasTerms, caseSensitive)
 
-  return rangesToSegments(text, keywordRanges, aliasRanges)
+  const segments = rangesToSegments(text, keywordRanges, aliasRanges)
+  if (!asTarget) {
+    return segments
+  }
+
+  return segments.map((segment) =>
+    segment.highlight
+      ? { ...segment, highlight: 'target' as const }
+      : segment,
+  )
 }

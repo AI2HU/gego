@@ -20,12 +20,12 @@ const hasTrends = computed(() =>
 
 const emptyDescription = computed(() => {
   if (!props.hasKeywords) {
-    return 'Run prompts to start tracking keyword mentions over time.'
+    return 'Run prompts to start tracking brand mentions over time.'
   }
   if (props.brandTrends.length === 0) {
     return 'Trend data is not available from the API yet. Restart the server to pick up the latest backend changes.'
   }
-  return 'No keyword mentions were recorded across prompt executions.'
+  return 'No brand mentions were recorded across prompt executions.'
 })
 </script>
 
@@ -34,7 +34,7 @@ const emptyDescription = computed(() => {
     <template #header>
       <CardHeader
         title="Brand Mentions Over Time"
-        subtitle="Mention counts per prompt execution for your top keywords"
+        subtitle="Mention counts per prompt execution for your top brands"
         icon="chart-line"
       />
     </template>
@@ -42,7 +42,7 @@ const emptyDescription = computed(() => {
     <div v-if="hasTrends" class="h-72">
       <LineChart
         :data="chartData"
-        aria-label="Keyword mention trends across prompt executions"
+        aria-label="Brand mention trends across prompt executions"
       />
     </div>
 

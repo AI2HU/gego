@@ -9,6 +9,7 @@ const props = defineProps<{
   highlightTerms: string[]
   searchKeyword: string
   caseSensitive?: boolean
+  asTarget?: boolean
 }>()
 
 const blocks = computed(() =>
@@ -17,6 +18,7 @@ const blocks = computed(() =>
     props.highlightTerms,
     props.caseSensitive,
     props.searchKeyword,
+    props.asTarget,
   ),
 )
 

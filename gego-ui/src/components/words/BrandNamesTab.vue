@@ -157,6 +157,13 @@ async function saveEditBrand(id: string) {
   cancelEditBrand()
 }
 
+async function toggleBrandTarget(brand: Brand) {
+  await updateBrandMutation.mutateAsync({
+    id: brand.id,
+    payload: { name: brand.name, is_target: !brand.is_target },
+  })
+}
+
 async function handleCreateBrand() {
   const name = newBrandName.value.trim()
   if (!name) return
@@ -371,6 +378,21 @@ async function handleExcludeSuggestion(word: string) {
               </div>
               <div v-else class="flex items-center gap-2">
                 <h3 class="text-base font-semibold text-gray-900">{{ brand.name }}</h3>
+                <button
+                  type="button"
+                  class="inline-flex rounded-md p-1 transition-colors"
+                  :class="
+                    brand.is_target
+                      ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+                      : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                  "
+                  :title="brand.is_target ? 'Unset as target brand' : 'Set as target brand'"
+                  :aria-pressed="brand.is_target"
+                  :disabled="updateBrandMutation.isPending.value"
+                  @click="toggleBrandTarget(brand)"
+                >
+                  <AppIcon name="target" size="sm" />
+                </button>
                 <button
                   type="button"
                   class="text-xs text-slate-500 hover:text-slate-700"

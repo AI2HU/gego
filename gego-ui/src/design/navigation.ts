@@ -28,7 +28,7 @@ export const navSections: NavSection[] = [
       { to: '/admin/models', label: 'Models', icon: 'server', permission: 'models' },
       { to: '/admin/prompts', label: 'Prompts', icon: 'comment', permission: 'prompts' },
       { to: '/admin/scheduler', label: 'Scheduler', icon: 'clock', permission: 'scheduler' },
-      { to: '/admin/words', label: 'Words', icon: 'tag', permission: 'words' },
+      { to: '/admin/words', label: 'Words & Brands', icon: 'tag', permission: 'words' },
       { to: '/admin/logs', label: 'Logs', icon: 'journal', permission: 'logs' },
       { to: '/admin/users', label: 'Users', icon: 'users', permission: 'users' },
       { to: '/admin/configuration', label: 'Configuration', icon: 'settings', permission: 'configuration' },
@@ -63,7 +63,7 @@ export const pageMeta: Record<string, { title: string; description: string }> = 
       'Manage execution schedules and control the background scheduler that runs prompts on a cron.',
   },
   words: {
-    title: 'Words',
+    title: 'Words & Brands',
     description:
       'Manage words excluded from brand tracking and map detected brand words to canonical names.',
   },

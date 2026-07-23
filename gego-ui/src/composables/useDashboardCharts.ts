@@ -65,16 +65,31 @@ export function useDashboardCharts(
       return { labels: [], datasets: [] }
     }
 
-    const items = stats.value.top_keywords.slice(0, 10)
+    const items = stats.value.top_keywords
+    const targetBorder = 'rgba(15, 23, 42, 0.85)'
 
     return {
       labels: items.map((item) => item.keyword),
       datasets: [
         {
-          data: items.map((item) => item.count),
+          label: 'Brands',
+          data: items.map((item) => (item.is_target ? null : item.count)),
           backgroundColor: chartColors.primary,
           hoverBackgroundColor: 'rgba(15, 23, 42, 0.9)',
           borderRadius: 6,
+          skipNull: true,
+        },
+        {
+          label: 'Target brands',
+          data: items.map((item) => (item.is_target ? item.count : null)),
+          backgroundColor: 'rgba(15, 23, 42, 0.08)',
+          hoverBackgroundColor: 'rgba(15, 23, 42, 0.16)',
+          borderColor: targetBorder,
+          hoverBorderColor: targetBorder,
+          borderWidth: 2,
+          borderDash: [5, 4],
+          borderRadius: 6,
+          skipNull: true,
         },
       ],
     }
@@ -141,6 +156,7 @@ export function useDashboardCharts(
         cubicInterpolationMode: 'monotone',
         pointRadius: 3,
         pointHoverRadius: 5,
+        ...(item.is_target ? { borderDash: [6, 4] as number[] } : {}),
       })),
     }
   })

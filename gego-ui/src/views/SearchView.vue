@@ -17,6 +17,7 @@ import {
   resolveSearchMatches,
   uniqueSearchTerms,
 } from '@/lib/search-matches'
+import { useBrandsQuery } from '@/queries/brands'
 import { usePromptsQuery } from '@/queries/prompts'
 import { useSearchMutation } from '@/queries/search'
 import { useAuthStore } from '@/stores/auth'
@@ -32,6 +33,7 @@ const selectedTags = ref<string[]>([])
 
 const searchMutation = useSearchMutation()
 const promptsQuery = usePromptsQuery()
+const brandsQuery = useBrandsQuery()
 
 const hasSearched = ref(false)
 const lastKeyword = ref('')
@@ -87,6 +89,22 @@ const lastAliasTerms = computed(() =>
     (term) => term.toLowerCase() !== lastKeyword.value.toLowerCase(),
   ),
 )
+
+const isTargetSearch = computed(() => {
+  const kw = lastKeyword.value.trim().toLowerCase()
+  if (!kw) {
+    return false
+  }
+  return (brandsQuery.data.value ?? []).some((brand) => {
+    if (!brand.is_target) {
+      return false
+    }
+    if (brand.name.toLowerCase() === kw) {
+      return true
+    }
+    return brand.aliases.some((alias) => alias.alias.toLowerCase() === kw)
+  })
+})
 
 const statsHintSuffix = computed(() => {
   const aliasHint =
@@ -317,17 +335,32 @@ watch(() => route.query.q, applyRouteSearch)
 
       <div v-else class="space-y-6">
         <div
-          v-if="lastAliasTerms.length > 0"
+          v-if="lastAliasTerms.length > 0 || isTargetSearch"
           class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-gray-200/60 bg-white/60 px-4 py-3 text-xs text-gray-600"
         >
           <span class="font-medium text-gray-700">Highlights:</span>
-          <span class="inline-flex items-center gap-1.5">
-            <mark class="rounded bg-amber-100 px-1 font-medium text-amber-900">term</mark>
-            search — {{ lastKeyword }}
+          <span v-if="isTargetSearch" class="inline-flex items-center gap-1.5">
+            <mark class="rounded bg-emerald-100 px-1 font-medium text-emerald-900">target</mark>
+            target brand — {{ lastKeyword }}
           </span>
-          <span class="inline-flex items-center gap-1.5">
-            <mark class="rounded bg-sky-100 px-1 font-medium text-sky-900">alias</mark>
-            brand {{ lastAliasTerms.length === 1 ? 'alias' : 'aliases' }} — {{ lastAliasTerms.join(', ') }}
+          <template v-else>
+            <span class="inline-flex items-center gap-1.5">
+              <mark class="rounded bg-amber-100 px-1 font-medium text-amber-900">term</mark>
+              search — {{ lastKeyword }}
+            </span>
+            <span
+              v-if="lastAliasTerms.length > 0"
+              class="inline-flex items-center gap-1.5"
+            >
+              <mark class="rounded bg-sky-100 px-1 font-medium text-sky-900">alias</mark>
+              brand {{ lastAliasTerms.length === 1 ? 'alias' : 'aliases' }} — {{ lastAliasTerms.join(', ') }}
+            </span>
+          </template>
+          <span
+            v-if="isTargetSearch && lastAliasTerms.length > 0"
+            class="inline-flex items-center gap-1.5"
+          >
+            including aliases — {{ lastAliasTerms.join(', ') }}
           </span>
         </div>
 
@@ -345,6 +378,7 @@ watch(() => route.query.q, applyRouteSearch)
           :highlight-terms="lastSearchTerms"
           :search-keyword="lastKeyword"
           :case-sensitive="caseSensitive"
+          :as-target="isTargetSearch"
         />
 
         <p

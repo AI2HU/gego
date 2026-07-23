@@ -13,6 +13,7 @@ const props = defineProps<{
   highlightTerms: string[]
   searchKeyword: string
   caseSensitive?: boolean
+  asTarget?: boolean
 }>()
 
 const responseText = computed(() =>
@@ -91,6 +92,7 @@ function formatTemperature(value: number): string {
               :highlight-terms="highlightTerms"
               :search-keyword="searchKeyword"
               :case-sensitive="caseSensitive"
+              :as-target="asTarget"
             />
           </BrandMapSelection>
         </div>

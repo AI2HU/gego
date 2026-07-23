@@ -86,6 +86,7 @@ type ExclusionWord struct {
 type Brand struct {
 	ID        string        `json:"id"`
 	Name      string        `json:"name"`
+	IsTarget  bool          `json:"is_target"`
 	Aliases   []*BrandAlias `json:"aliases,omitempty"`
 	CreatedAt time.Time     `json:"created_at"`
 	UpdatedAt time.Time     `json:"updated_at"`

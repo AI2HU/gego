@@ -345,9 +345,10 @@ type CreateBrandRequest struct {
 	Aliases []BrandAliasRequest `json:"aliases,omitempty"`
 }
 
-// UpdateBrandRequest represents the request to update a brand name
+// UpdateBrandRequest represents the request to update a brand name and/or target flag
 type UpdateBrandRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	IsTarget *bool  `json:"is_target,omitempty"`
 }
 
 // CreateBrandAliasRequest represents the request to add an alias
@@ -383,6 +384,7 @@ type BrandAliasResponse struct {
 type BrandResponse struct {
 	ID        string               `json:"id"`
 	Name      string               `json:"name"`
+	IsTarget  bool                 `json:"is_target"`
 	Aliases   []BrandAliasResponse `json:"aliases"`
 	CreatedAt time.Time            `json:"created_at"`
 	UpdatedAt time.Time            `json:"updated_at"`

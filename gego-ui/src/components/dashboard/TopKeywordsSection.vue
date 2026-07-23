@@ -18,7 +18,7 @@ const props = defineProps<{
 
 const router = useRouter()
 
-const topKeywords = computed(() => props.keywords.slice(0, 10))
+const topBrands = computed(() => props.keywords)
 
 function goToSearch(term: string) {
   if (term.trim().length < 2) {
@@ -29,6 +29,17 @@ function goToSearch(term: string) {
 
 const chartOptions = computed<ChartOptions<'bar'>>(() => ({
   ...barChartOptions,
+  scales: {
+    ...barChartOptions.scales,
+    x: {
+      ...barChartOptions.scales?.x,
+      stacked: true,
+    },
+    y: {
+      ...barChartOptions.scales?.y,
+      stacked: true,
+    },
+  },
   onClick(_event, elements, chart) {
     if (elements.length === 0) {
       return
@@ -44,35 +55,41 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
   },
 }))
 
-const chipClass =
-  'inline-flex items-center gap-1 rounded-md border border-gray-200/60 bg-slate-50/80 px-2 py-0.5 text-xs text-gray-600 cursor-pointer transition-colors hover:border-gray-300/60 hover:bg-slate-100 hover:text-gray-800'
+function chipClass(isTarget?: boolean) {
+  return [
+    'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs cursor-pointer transition-colors',
+    isTarget
+      ? 'border border-dashed border-slate-400/80 bg-slate-50/60 text-slate-700 hover:border-slate-500 hover:bg-slate-100'
+      : 'border border-gray-200/60 bg-slate-50/80 text-gray-600 hover:border-gray-300/60 hover:bg-slate-100 hover:text-gray-800',
+  ]
+}
 </script>
 
 <template>
   <AppCard>
     <template #header>
       <CardHeader
-        title="Top Keywords"
-        subtitle="Most mentioned keywords across all LLM responses"
+        title="Top Brands"
+        subtitle="Most mentioned brands across all LLM responses"
         icon="tag"
       />
     </template>
 
-    <div v-if="topKeywords.length" class="mb-6 h-64">
+    <div v-if="topBrands.length" class="mb-6 h-64">
       <BarChart
         :data="chartData"
         :options="chartOptions"
-        aria-label="Top keyword mentions across all LLM responses"
+        aria-label="Top brand mentions across all LLM responses"
       />
     </div>
 
-    <div v-if="topKeywords.length" class="flex flex-wrap gap-1.5">
+    <div v-if="topBrands.length" class="flex flex-wrap gap-1.5">
       <RouterLink
-        v-for="keyword in topKeywords"
+        v-for="keyword in topBrands"
         :key="keyword.keyword"
         :to="searchRouteFor(keyword.keyword)"
-        :class="chipClass"
-        :title="`${keyword.count.toLocaleString()} mentions · Search`"
+        :class="chipClass(keyword.is_target)"
+        :title="`${keyword.count.toLocaleString()} mentions · Search${keyword.is_target ? ' · Target brand' : ''}`"
       >
         <span>{{ keyword.keyword }}</span>
         <span class="text-[10px] text-gray-400">{{ keyword.count }}</span>
@@ -81,8 +98,8 @@ const chipClass =
 
     <EmptyState
       v-else
-      title="No keyword data available"
-      description="Run some prompts to see keyword analytics"
+      title="No brand data available"
+      description="Run some prompts to see brand analytics"
       icon="file"
     />
   </AppCard>

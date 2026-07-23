@@ -64,17 +64,30 @@ func (s *StatsService) GetResponseTrends(ctx context.Context, startTime, endTime
 	return []models.TimeSeriesPoint{}, nil
 }
 
-// GetTopKeywords returns the top keywords by mention count
+// GetTopKeywords returns the top keywords by mention count, always including target brands.
 func (s *StatsService) GetTopKeywords(ctx context.Context, limit int, startTime, endTime *time.Time, promptIDs []string) ([]models.KeywordCount, error) {
+	var (
+		keywords []models.KeywordCount
+		counts   map[string]int
+	)
+
 	if len(promptIDs) > 0 {
 		responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{PromptIDs: promptIDs, Limit: 10000})
 		if err != nil {
 			return nil, err
 		}
-		return aggregateTopKeywordsFromResponses(responses, limit), nil
+		counts = countKeywordsFromResponses(responses)
+		keywords = topKeywordsFromCounts(counts, limit)
+		return s.enrichKeywordCountsWithTargets(ctx, keywords, counts, true)
 	}
 
-	return s.db.GetTopKeywords(ctx, limit, startTime, endTime)
+	var err error
+	keywords, err = s.db.GetTopKeywords(ctx, limit, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	counts = keywordCountMap(keywords)
+	return s.enrichKeywordCountsWithTargets(ctx, keywords, counts, false)
 }
 
 // SearchKeyword returns statistics for a specific keyword
@@ -344,9 +357,10 @@ type DomainCount struct {
 }
 
 type KeywordDomainStats struct {
-	Keyword string        `json:"keyword"`
-	Total   int           `json:"total"`
-	Domains []DomainCount `json:"domains"`
+	Keyword  string        `json:"keyword"`
+	Total    int           `json:"total"`
+	IsTarget bool          `json:"is_target,omitempty"`
+	Domains  []DomainCount `json:"domains"`
 }
 
 func (s *StatsService) GetTopDomainsByCitations(ctx context.Context, limit int, promptIDs []string) ([]*DomainMentionStats, error) {
@@ -583,11 +597,12 @@ func (s *StatsService) GetKeywordDomainMatrix(ctx context.Context, keywordLimit,
 		return results[i].Total > results[j].Total
 	})
 
+	allResults := results
 	if keywordLimit > 0 && len(results) > keywordLimit {
 		results = results[:keywordLimit]
 	}
 
-	return results, nil
+	return s.enrichKeywordDomainStatsWithTargets(ctx, results, allResults)
 }
 
 type BrandCitationDomainStats struct {
@@ -914,7 +929,7 @@ func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStat
 		if err != nil {
 			return nil, err
 		}
-		brandTrends := aggregateBrandTrendsFromResponses(trendResponses, topKeywords, 30, opts.KeywordLimit)
+		brandTrends := aggregateBrandTrendsFromResponses(trendResponses, topKeywords, 30)
 
 		return &models.StatsResponse{
 			TotalResponses: totalResponses,
@@ -943,7 +958,10 @@ func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStat
 
 	llmStats := aggregateLLMStatsFromResponses(responses)
 	promptStats := aggregatePromptStatsFromResponses(responses)
-	topKeywords := aggregateTopKeywordsFromResponses(responses, opts.KeywordLimit)
+	topKeywords, err := s.GetTopKeywords(ctx, opts.KeywordLimit, nil, nil, opts.PromptIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.StatsResponse{
 		TotalResponses: totalResponses,
@@ -951,7 +969,7 @@ func (s *StatsService) GetDashboardStats(ctx context.Context, opts DashboardStat
 		TotalLLMs:      int64(len(llmStats)),
 		TotalSchedules: 0,
 		TopKeywords:    topKeywords,
-		BrandTrends:    aggregateBrandTrendsFromResponses(responses, topKeywords, 30, opts.KeywordLimit),
+		BrandTrends:    aggregateBrandTrendsFromResponses(responses, topKeywords, 30),
 		PromptStats:    promptStats,
 		LLMStats:       llmStats,
 		ResponseTrends: []models.TimeSeriesPoint{},
@@ -970,14 +988,41 @@ func emptyDashboardStats() *models.StatsResponse {
 	}
 }
 
-func aggregateTopKeywordsFromResponses(responses []*models.Response, limit int) []models.KeywordCount {
+func countKeywordsFromResponses(responses []*models.Response) map[string]int {
 	wordCounts := make(map[string]int)
 	for _, response := range responses {
 		for _, word := range shared.ExtractCapitalizedWords(response.ResponseText) {
 			wordCounts[word]++
 		}
 	}
+	return wordCounts
+}
 
+func keywordCountMap(keywords []models.KeywordCount) map[string]int {
+	counts := make(map[string]int, len(keywords))
+	for _, item := range keywords {
+		counts[item.Keyword] = item.Count
+	}
+	return counts
+}
+
+func lookupKeywordCount(counts map[string]int, name string) int {
+	if counts == nil {
+		return 0
+	}
+	if count, ok := counts[name]; ok {
+		return count
+	}
+	lower := strings.ToLower(name)
+	for keyword, count := range counts {
+		if strings.ToLower(keyword) == lower {
+			return count
+		}
+	}
+	return 0
+}
+
+func topKeywordsFromCounts(wordCounts map[string]int, limit int) []models.KeywordCount {
 	type kv struct {
 		keyword string
 		count   int
@@ -1011,6 +1056,166 @@ func aggregateTopKeywordsFromResponses(responses []*models.Response, limit int) 
 	}
 
 	return results
+}
+
+func aggregateTopKeywordsFromResponses(responses []*models.Response, limit int) []models.KeywordCount {
+	return topKeywordsFromCounts(countKeywordsFromResponses(responses), limit)
+}
+
+func (s *StatsService) listTargetBrandNames(ctx context.Context) ([]string, error) {
+	brands, err := s.db.ListBrands(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0)
+	for _, brand := range brands {
+		if brand == nil || !brand.IsTarget {
+			continue
+		}
+		name := strings.TrimSpace(brand.Name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func (s *StatsService) ensureKeywordCountsForTargets(
+	ctx context.Context,
+	counts map[string]int,
+	missingTargets []string,
+	countsAreComplete bool,
+) (map[string]int, error) {
+	if counts == nil {
+		counts = make(map[string]int)
+	}
+	if len(missingTargets) == 0 || countsAreComplete {
+		return counts, nil
+	}
+
+	responses, err := s.db.ListResponses(ctx, shared.ResponseFilter{Limit: 10000})
+	if err != nil {
+		return nil, err
+	}
+	full := countKeywordsFromResponses(responses)
+	for keyword, count := range counts {
+		if _, ok := full[keyword]; !ok {
+			full[keyword] = count
+		}
+	}
+	return full, nil
+}
+
+func (s *StatsService) enrichKeywordCountsWithTargets(
+	ctx context.Context,
+	keywords []models.KeywordCount,
+	counts map[string]int,
+	countsAreComplete bool,
+) ([]models.KeywordCount, error) {
+	targets, err := s.listTargetBrandNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) == 0 {
+		return keywords, nil
+	}
+
+	targetSet := make(map[string]bool, len(targets))
+	for _, name := range targets {
+		targetSet[strings.ToLower(name)] = true
+	}
+
+	present := make(map[string]bool, len(keywords))
+	enriched := make([]models.KeywordCount, 0, len(keywords)+len(targets))
+	for _, item := range keywords {
+		item.IsTarget = targetSet[strings.ToLower(item.Keyword)]
+		enriched = append(enriched, item)
+		present[strings.ToLower(item.Keyword)] = true
+	}
+
+	missing := make([]string, 0)
+	for _, name := range targets {
+		key := strings.ToLower(name)
+		if present[key] {
+			continue
+		}
+		missing = append(missing, name)
+	}
+
+	if len(missing) > 0 {
+		counts, err = s.ensureKeywordCountsForTargets(ctx, counts, missing, countsAreComplete)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range missing {
+			enriched = append(enriched, models.KeywordCount{
+				Keyword:  name,
+				Count:    lookupKeywordCount(counts, name),
+				IsTarget: true,
+			})
+		}
+	}
+
+	return enriched, nil
+}
+
+func (s *StatsService) enrichKeywordDomainStatsWithTargets(
+	ctx context.Context,
+	results []*KeywordDomainStats,
+	allResults []*KeywordDomainStats,
+) ([]*KeywordDomainStats, error) {
+	targets, err := s.listTargetBrandNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) == 0 {
+		return results, nil
+	}
+
+	targetSet := make(map[string]bool, len(targets))
+	for _, name := range targets {
+		targetSet[strings.ToLower(name)] = true
+	}
+
+	byName := make(map[string]*KeywordDomainStats, len(allResults))
+	for _, item := range allResults {
+		if item == nil {
+			continue
+		}
+		byName[strings.ToLower(item.Keyword)] = item
+	}
+
+	present := make(map[string]bool, len(results))
+	for _, item := range results {
+		if item == nil {
+			continue
+		}
+		item.IsTarget = targetSet[strings.ToLower(item.Keyword)]
+		present[strings.ToLower(item.Keyword)] = true
+	}
+
+	for _, name := range targets {
+		key := strings.ToLower(name)
+		if present[key] {
+			continue
+		}
+		if existing, ok := byName[key]; ok {
+			existing.IsTarget = true
+			results = append(results, existing)
+		} else {
+			results = append(results, &KeywordDomainStats{
+				Keyword:  name,
+				Total:    0,
+				IsTarget: true,
+				Domains:  []DomainCount{},
+			})
+		}
+		present[key] = true
+	}
+
+	return results, nil
 }
 
 const executionBatchGap = 30 * time.Minute
@@ -1088,25 +1293,16 @@ func aggregateBrandTrendsFromResponses(
 	responses []*models.Response,
 	topKeywords []models.KeywordCount,
 	maxExecutions int,
-	seriesLimit int,
 ) []models.BrandTrendSeries {
 	if maxExecutions <= 0 {
 		maxExecutions = 30
-	}
-	if seriesLimit <= 0 {
-		seriesLimit = 10
 	}
 	if len(topKeywords) == 0 {
 		return []models.BrandTrendSeries{}
 	}
 
-	if seriesLimit > len(topKeywords) {
-		seriesLimit = len(topKeywords)
-	}
-
-	tracked := make(map[string]bool, seriesLimit)
-	keywords := topKeywords[:seriesLimit]
-	for _, keyword := range keywords {
+	tracked := make(map[string]bool, len(topKeywords))
+	for _, keyword := range topKeywords {
 		tracked[keyword.Keyword] = true
 	}
 
@@ -1118,8 +1314,8 @@ func aggregateBrandTrendsFromResponses(
 		return []models.BrandTrendSeries{}
 	}
 
-	buckets := make(map[string][]int, seriesLimit)
-	for _, keyword := range keywords {
+	buckets := make(map[string][]int, len(topKeywords))
+	for _, keyword := range topKeywords {
 		buckets[keyword.Keyword] = make([]int, len(events))
 	}
 
@@ -1133,8 +1329,8 @@ func aggregateBrandTrendsFromResponses(
 		}
 	}
 
-	result := make([]models.BrandTrendSeries, 0, seriesLimit)
-	for _, keyword := range keywords {
+	result := make([]models.BrandTrendSeries, 0, len(topKeywords))
+	for _, keyword := range topKeywords {
 		points := make([]models.TimeSeriesPoint, 0, len(events))
 		for eventIdx, event := range events {
 			points = append(points, models.TimeSeriesPoint{
@@ -1144,8 +1340,9 @@ func aggregateBrandTrendsFromResponses(
 		}
 
 		result = append(result, models.BrandTrendSeries{
-			Keyword: keyword.Keyword,
-			Points:  points,
+			Keyword:  keyword.Keyword,
+			IsTarget: keyword.IsTarget,
+			Points:   points,
 		})
 	}
 

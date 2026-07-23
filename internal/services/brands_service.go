@@ -102,8 +102,8 @@ func (s *BrandsService) CreateBrand(ctx context.Context, name string, aliases []
 	return s.db.GetBrand(ctx, brand.ID)
 }
 
-// UpdateBrand updates a brand's canonical name.
-func (s *BrandsService) UpdateBrand(ctx context.Context, id, name string) (*models.Brand, error) {
+// UpdateBrand updates a brand's canonical name and optional target flag.
+func (s *BrandsService) UpdateBrand(ctx context.Context, id, name string, isTarget *bool) (*models.Brand, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
@@ -123,6 +123,9 @@ func (s *BrandsService) UpdateBrand(ctx context.Context, id, name string) (*mode
 	}
 
 	brand.Name = name
+	if isTarget != nil {
+		brand.IsTarget = *isTarget
+	}
 	if err := s.db.UpdateBrand(ctx, brand); err != nil {
 		return nil, err
 	}

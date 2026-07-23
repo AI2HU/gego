@@ -12,14 +12,16 @@ type TimeSeriesPoint struct {
 
 // BrandTrendSeries represents mention counts for a keyword across prompt executions
 type BrandTrendSeries struct {
-	Keyword string            `json:"keyword"`
-	Points  []TimeSeriesPoint `json:"points"`
+	Keyword  string            `json:"keyword"`
+	IsTarget bool              `json:"is_target,omitempty"`
+	Points   []TimeSeriesPoint `json:"points"`
 }
 
 // KeywordCount represents a keyword and its mention count
 type KeywordCount struct {
-	Keyword string `json:"keyword"`
-	Count   int    `json:"count"`
+	Keyword  string `json:"keyword"`
+	Count    int    `json:"count"`
+	IsTarget bool   `json:"is_target,omitempty"`
 }
 
 // PromptStats represents aggregated statistics for a prompt

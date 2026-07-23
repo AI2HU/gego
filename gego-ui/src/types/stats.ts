@@ -1,6 +1,7 @@
 export interface KeywordCount {
   keyword: string
   count: number
+  is_target?: boolean
 }
 
 export interface TimeSeriesPoint {
@@ -10,6 +11,7 @@ export interface TimeSeriesPoint {
 
 export interface BrandTrendSeries {
   keyword: string
+  is_target?: boolean
   points: TimeSeriesPoint[]
 }
 
